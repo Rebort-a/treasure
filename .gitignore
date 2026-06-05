@@ -48,3 +48,7 @@ app.*.map.json
 .claude/
 .mcp.json
 CLAUDE.md
+
+# Local data
+.treasure/
+pubspec.lock
