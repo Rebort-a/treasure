@@ -12,6 +12,12 @@ class LanguageProvider {
 
   final ValueNotifier<AppLocale> locale = ValueNotifier(AppLocale.en);
 
+  /// 重置状态，仅用于测试
+  @visibleForTesting
+  void resetForTesting() {
+    locale.value = AppLocale.en;
+  }
+
   /// 从本地加载语言设置
   Future<void> load() async {
     final data = await StorageService.instance.read('settings');

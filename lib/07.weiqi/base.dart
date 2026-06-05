@@ -93,7 +93,7 @@ class GoBoard {
     final currentState = {
       'index': index,
       'player': currentPlayer.value,
-      'captured': [],
+      'captured': <int>[],
     };
 
     // 尝试落子

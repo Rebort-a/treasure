@@ -118,7 +118,7 @@ class Board {
     currentGamer.value = gamer;
   }
 
-  bool checkInMap(x, y) {
+  bool checkInMap(int x, int y) {
     return (x >= 0) && (x < size) && (y >= 0) && (y < size);
   }
 }

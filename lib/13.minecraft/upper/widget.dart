@@ -5,7 +5,7 @@ import '../base/constant.dart';
 
 /// 移动端控制组件
 class MobileControls extends StatelessWidget {
-  final Function(Vector2) onMove;
+  final void Function(Vector2) onMove;
   final VoidCallback onJump;
 
   const MobileControls({super.key, required this.onMove, required this.onJump});
@@ -23,7 +23,7 @@ class MobileControls extends StatelessWidget {
 
 /// 虚拟摇杆
 class Joystick extends StatefulWidget {
-  final Function(Vector2) onMove;
+  final void Function(Vector2) onMove;
 
   const Joystick({super.key, required this.onMove});
 

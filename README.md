@@ -31,12 +31,22 @@
 >
 > 无需安装，无需下载，打开即玩。
 
+### 🧊 Minecraft 3D Engine — Pure Dart, No OpenGL | 纯 Dart 3D 引擎
+
+> A voxel world rendered entirely with `CustomPainter` — zero GPU dependencies.
+>
+> 纯 Dart 软渲染的体素世界，零 GPU 依赖。
+
+<p align="center">
+  <img src="docs/images/gifs/minecraft_demo.gif" alt="Minecraft 3D Engine Demo" width="600">
+</p>
+
 ### Preview | 预览
 
 | | | |
 |:---:|:---:|:---:|
-| ![Game 1](docs/images/screenshots/game_show_0.png) | ![Game 2](docs/images/screenshots/game_show_1.png) | ![Game 3](docs/images/screenshots/game_show_2.png) |
-| ![LAN Chat](docs/images/screenshots/lan_chat.png) | ![Spaceship](docs/images/gifs/spaceship.gif) | |
+| ![Home](docs/images/screenshots/game_show_0.png) | ![Board Games](docs/images/screenshots/game_show_1.png) | ![Action Games](docs/images/screenshots/game_show_2.png) |
+| ![LAN Chat](docs/images/screenshots/lan_chat.png) | ![Spaceship](docs/images/gifs/spaceship.gif) | ![Minecraft](docs/images/gifs/minecraft_demo.gif) |
 
 ---
 

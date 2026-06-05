@@ -238,7 +238,7 @@ class Manager {
 
   void _showCompletionDialog() {
     pageNavigator.value = (context) {
-      showDialog(
+      showDialog<void>(
         context: context,
         builder: (BuildContext context) {
           return _buildCongratulations(context);

@@ -15,8 +15,14 @@ class StorageService {
   static final StorageService instance = StorageService._();
   StorageService._();
 
-  late final Directory _baseDir;
+  late Directory _baseDir;
   bool _initialized = false;
+
+  /// 重置状态，仅用于测试
+  @visibleForTesting
+  void resetForTesting() {
+    _initialized = false;
+  }
 
   Future<void> init() async {
     if (_initialized) return;

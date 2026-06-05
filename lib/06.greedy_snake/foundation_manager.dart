@@ -211,7 +211,7 @@ abstract class FoundationalManager extends ChangeNotifier
     suspendGame();
     handleGameOverCallback();
     pageNavigator.value = (context) {
-      showDialog(
+      showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           title: Text(S.gameOver),

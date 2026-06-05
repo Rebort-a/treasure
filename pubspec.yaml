@@ -3,6 +3,13 @@ description: "A cross-platform multiplayer game collection. 11 local games + 5 L
 version: 1.0.1+1
 publish_to: 'none'
 
+topics:
+  - game
+  - multiplayer
+  - minecraft
+  - lan
+  - voxel
+
 environment:
   sdk: ^3.8.1
 

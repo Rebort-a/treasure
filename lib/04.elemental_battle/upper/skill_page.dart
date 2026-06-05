@@ -130,7 +130,7 @@ class _SkillsPageState extends State<SkillsPage> {
       ],
     );
 
-    showDialog(context: context, builder: (context) => pageNavigator);
+    showDialog<void>(context: context, builder: (context) => pageNavigator);
   }
 
   Widget _buildNavigationButtons() {

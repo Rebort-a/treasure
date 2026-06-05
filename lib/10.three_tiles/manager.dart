@@ -286,7 +286,7 @@ class Manager {
 
   void _showGameOverDialog(bool victory) {
     pageNavigator.value = (context) {
-      showDialog(
+      showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
           title: Text(S.gameOver),
@@ -307,7 +307,7 @@ class Manager {
   }
 
   void showDifficultyDialog() {
-    pageNavigator.value = (context) => showDialog(
+    pageNavigator.value = (context) => showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(S.chooseDifficulty),
