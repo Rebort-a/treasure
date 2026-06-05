@@ -222,6 +222,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 | `http` | Web 端 HTTP 扫描发现房间 | `00.common/network/http_fetch.dart` | **Web 端无法自动发现房间**，需手动输入 IP 加入 | 删除 `http_fetch.dart` 文件 |
 | `image_picker` | 聊天发送图片 | `02.lan_chat/net_page.dart` | **聊天无法发送图片**，仅支持文本/文件/表情 | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项 |
 | `file_picker` | 聊天发送文件 | `02.lan_chat/net_page.dart` | **聊天无法发送文件**，仅支持文本/图片/表情 | 删除 `_pickFile()` 方法，附件菜单自动隐藏文件选项 |
+| `path_provider` | 获取应用专属存储目录 | `00.common/tool/storage_service.dart` | **Android/iOS 无法持久化**（语言设置、游戏进度、排行榜丢失），桌面端不受影响 | 删除 `StorageService` 中 `path_provider` 相关代码，改用 `Directory.current`（仅桌面端可用） |
 | `cupertino_icons` | iOS 风格图标 | 全局 | 无功能影响，仅图标风格变化 | 用 Material Icons 替代后移除 |
 
 > **平台权限说明**：`image_picker` 需要 Android `READ_MEDIA_IMAGES`（Android 13+）/ `READ_EXTERNAL_STORAGE`（Android 12-）和 iOS `NSPhotoLibraryUsageDescription`。已在 `AndroidManifest.xml` 和 `Info.plist` 中声明。移除 `image_picker` 后可同步删除这些权限声明。
