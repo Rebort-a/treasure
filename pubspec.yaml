@@ -1,0 +1,26 @@
+name: treasure
+description: "A cross-platform multiplayer game collection. 11 local games + 5 LAN games + 1 chat room. Pure Dart, zero dependencies."
+version: 1.0.1+1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  web_socket_channel: ^2.4.0
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  assets:
+    - assets/images/
+  uses-material-design: true
