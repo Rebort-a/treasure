@@ -5,6 +5,7 @@ import '../00.common/style/theme.dart';
 import '../00.common/tool/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
+import '../00.common/tool/storage_service.dart';
 import '../l10n/strings.dart';
 import 'algorithm.dart';
 import 'base.dart';
@@ -30,6 +31,7 @@ class Manager {
     _initTimer();
     _initDifficulty();
     _initGame();
+    _loadProgress();
   }
 
   void _initTimer() {
@@ -137,7 +139,20 @@ class Manager {
     _clearSelectedCell();
 
     isGameOver.value = true;
+    _clearProgress(); // 通关后清除存档
+    _saveBestTime(); // 保存最佳用时
     _showCompletionDialog();
+  }
+
+  /// 保存最佳用时
+  Future<void> _saveBestTime() async {
+    final data = await StorageService.instance.read('sudoku_best');
+    final key = 'diff_$_difficulty';
+    final best = data[key] as int? ?? 0;
+    if (best == 0 || _timer.tick < best) {
+      data[key] = _timer.tick;
+      await StorageService.instance.write('sudoku_best', data);
+    }
   }
 
   /// 显示难度设置对话框
@@ -180,23 +195,45 @@ class Manager {
   void resetGame() {
     _clearSelectedCell();
     _initGame();
+    _clearProgress();
+  }
+
+  // ==================== 格子操作（包装 CellNotifier，自动保存） ====================
+
+  void addDigit(int digit) {
+    if (selectedCellIndex.value < 0) return;
+    selectedCell.addDigit(digit);
+    _saveProgress();
+  }
+
+  void removeDigit(int digit) {
+    if (selectedCellIndex.value < 0) return;
+    selectedCell.removeDigit(digit);
+    _saveProgress();
+  }
+
+  void clearDigits() {
+    if (selectedCellIndex.value < 0) return;
+    selectedCell.clearDigits();
+    _saveProgress();
+  }
+
+  void lockCell() {
+    if (selectedCellIndex.value < 0) return;
+    selectedCell.lock();
+    _saveProgress();
+    checkCompleted();
+  }
+
+  void unlockCell() {
+    if (selectedCellIndex.value < 0) return;
+    selectedCell.unlock();
+    _saveProgress();
   }
 
   void leavePage() {
-    pageNavigator.value = (context) {
-      _showLeaveDialog(context);
-    };
-  }
-
-  void _showLeaveDialog(BuildContext context) {
-    DialogTemplate.confirmDialog(
-      context: context,
-      title: S.pleaseConfirm,
-      content: S.leaveRoomLoseProgress,
-      before: () => true,
-      onTap: _navigateToBack,
-      after: () {},
-    );
+    _saveProgress(); // 退出前自动保存
+    _navigateToBack();
   }
 
   void _showCompletionDialog() {
@@ -255,5 +292,93 @@ class Manager {
     pageNavigator.value = (context) {
       Navigator.pop(context);
     };
+  }
+
+  // ==================== 持久化 ====================
+
+  /// 保存进度到文件
+  Future<void> _saveProgress() async {
+    if (isGameOver.value) return; // 游戏结束不保存
+
+    final cellData = <Map<String, dynamic>>[];
+    for (var cell in cells) {
+      cellData.add({
+        'row': cell.row,
+        'col': cell.col,
+        'type': cell.type.index,
+        'fixedDigit': cell.fixedDigit,
+        'spareDigits': cell.spareDigits.toList(),
+      });
+    }
+
+    await StorageService.instance.write('sudoku', {
+      'boardLevel': boardLevel,
+      'boardSize': boardSize,
+      'difficulty': _difficulty,
+      'elapsed': _timer.tick,
+      'solution': _solution,
+      'cells': cellData,
+    });
+  }
+
+  /// 从文件加载进度
+  Future<void> _loadProgress() async {
+    final data = await StorageService.instance.read('sudoku');
+    if (data.isEmpty) return;
+
+    try {
+      boardLevel = data['boardLevel'] as int? ?? 3;
+      boardSize = data['boardSize'] as int? ?? 9;
+      _difficulty = data['difficulty'] as int? ?? 27;
+      final elapsed = data['elapsed'] as int? ?? 0;
+
+      // 恢复解
+      final solutionList = data['solution'] as List<dynamic>?;
+      if (solutionList == null || solutionList.length != boardSize) return;
+      _solution = List.generate(
+        boardSize,
+        (i) => List<int>.from(solutionList[i] as List<dynamic>),
+      );
+
+      // 恢复格子
+      final cellData = data['cells'] as List<dynamic>?;
+      if (cellData == null || cellData.length != boardSize * boardSize) return;
+
+      cells.clear();
+      for (var cellJson in cellData) {
+        final map = cellJson as Map<String, dynamic>;
+        final type = CellType.values[map['type'] as int];
+        final fixedDigit = map['fixedDigit'] as int? ?? 0;
+        final spareDigits = List<int>.from(map['spareDigits'] as List<dynamic>? ?? []);
+
+        final cell = CellNotifier(
+          SudokuCell(
+            row: map['row'] as int,
+            col: map['col'] as int,
+            type: type,
+            fixedDigit: fixedDigit,
+          ),
+        );
+        for (var d in spareDigits) {
+          cell.addDigit(d);
+        }
+        cells.add(cell);
+      }
+
+      // 恢复计时器（从已保存的秒数继续）
+      _timer.stop();
+      _timer.setTick(elapsed);
+      _timer.start();
+
+      isGameOver.value = false;
+    } catch (e) {
+      debugPrint('[Sudoku] Load progress failed: $e');
+      // 加载失败，保持当前新游戏状态
+    }
+  }
+
+  /// 清除保存的进度
+  Future<void> _clearProgress() async {
+    await StorageService.instance.delete('sudoku');
   }
 }

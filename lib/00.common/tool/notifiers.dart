@@ -24,7 +24,7 @@ class ListNotifier<T> extends ValueNotifier<List<T>> with IterableMixin<T> {
   ListNotifier(super.value);
 
   @override
-  List<T> get value => List.unmodifiable(super.value);
+  List<T> get value => UnmodifiableListView(super.value);
 
   void add(T value) {
     super.value.add(value);

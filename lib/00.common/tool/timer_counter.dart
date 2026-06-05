@@ -13,6 +13,9 @@ class TimerCounter {
   /// 当前 tick（只读）
   int get tick => _tick;
 
+  /// 设置 tick 值（用于恢复持久化进度）
+  void setTick(int value) => _tick = value;
+
   /// 是否正在运行
   bool get isRunning => _timer != null && _timer!.isActive;
 

@@ -21,12 +21,14 @@ class NetworkEngine {
   String _recvBuffer = '';
   final List<NetworkMessage> _sendBuffer = [];
   bool _isSending = false;
+  Completer<void>? _sendCompleter;
 
   bool _isDisposed = false;
   bool _isClosing = false;
   bool _isClosed = true;
 
   int identity = 0;
+  final ValueNotifier<int> identityNotifier = ValueNotifier<int>(0);
 
   final String userName;
   final RoomInfo roomInfo;
@@ -107,7 +109,7 @@ class NetworkEngine {
     _extractMessages();
   }
 
-  Future<void> _extractMessages() async {
+  void _extractMessages() {
     int startIndex = 0;
 
     while (startIndex < _recvBuffer.length) {
@@ -139,9 +141,15 @@ class NetworkEngine {
     for (int i = startIndex; i < _recvBuffer.length; i++) {
       final char = _recvBuffer[i];
 
-      // 处理字符串内的转义字符
-      if (char == '"' && (i == 0 || _recvBuffer[i - 1] != '\\')) {
-        inString = !inString;
+      if (char == '"') {
+        // 统计前面连续反斜杠数量：偶数个 = 非转义引号
+        int backslashes = 0;
+        for (int j = i - 1; j >= startIndex && _recvBuffer[j] == '\\'; j--) {
+          backslashes++;
+        }
+        if (backslashes.isEven) {
+          inString = !inString;
+        }
       }
 
       if (!inString) {
@@ -157,9 +165,24 @@ class NetworkEngine {
   }
 
   void _processNetworkMessage(NetworkMessage message) {
-    debugPrint(
-      '${message.source} ${message.id} ${message.type} ${message.content}',
-    );
+    final summary = switch (message.type) {
+      MessageType.image => _summarizeMedia(message.content, 'image'),
+      MessageType.file => _summarizeMedia(message.content, 'file'),
+      MessageType.emoji ||
+      MessageType.typing ||
+      MessageType.broadcast ||
+      MessageType.accept ||
+      MessageType.ack ||
+      MessageType.search ||
+      MessageType.match ||
+      MessageType.resource ||
+      MessageType.sync ||
+      MessageType.action ||
+      MessageType.exit ||
+      MessageType.notify ||
+      MessageType.text => message.content,
+    };
+    debugPrint('${message.source} ${message.id} ${message.type} $summary');
 
     // 收到 ACK → 从待确认队列移除
     if (message.type == MessageType.ack) {
@@ -197,13 +220,17 @@ class NetworkEngine {
 
     if ((message.type == MessageType.accept) && (identity == 0)) {
       identity = message.id;
+      identityNotifier.value = message.id;
       sendNetworkMessage(MessageType.notify, "join in room");
     }
 
     if (message.type.index < MessageType.notify.index) {
       messageHandler(message);
     } else if (message.type.index >= MessageType.notify.index) {
-      messageList.add(message);
+      // typing 消息不加入消息列表，仅用于 UI 提示
+      if (message.type != MessageType.typing) {
+        messageList.add(message);
+      }
     }
   }
 
@@ -221,31 +248,39 @@ class NetworkEngine {
     final now = DateTime.now();
     final toRetry = <String>[];
     final toRemove = <String>[];
+    bool hasTimeout = false;
 
-    for (final entry in _pendingAcks.entries) {
+    // 迭代副本，避免迭代过程中修改 _pendingAcks
+    for (final entry in _pendingAcks.entries.toList()) {
       final pending = entry.value;
       final elapsed = now.difference(pending.sentAt);
 
       if (elapsed >= _ackRetryInterval) {
         if (pending.retryCount >= _maxAckRetries) {
           toRemove.add(entry.key);
-          _handleAckTimeout();
+          hasTimeout = true;
         } else {
           toRetry.add(entry.key);
         }
       }
     }
 
-    for (final key in toRemove) {
-      _pendingAcks.remove(key);
-    }
-
+    // 先重试（此时 _pendingAcks 还未被清空）
     for (final key in toRetry) {
-      final pending = _pendingAcks[key]!;
+      final pending = _pendingAcks[key];
+      if (pending == null) continue;
       pending.retryCount++;
       pending.sentAt = now;
       _rawSend(pending.message);
     }
+
+    // 再移除过期条目
+    for (final key in toRemove) {
+      _pendingAcks.remove(key);
+    }
+
+    // 最后处理超时（可能清空整个 map）
+    if (hasTimeout) _handleAckTimeout();
   }
 
   void _handleAck(String messageId) {
@@ -363,7 +398,8 @@ class NetworkEngine {
     _pendingAcks.clear();
     _receivedMessageIds.clear();
     _sendBuffer.clear();
-    identity = 0; // 重新等待 accept 分配新 ID
+    identity = 0;
+    identityNotifier.value = 0; // 重新等待 accept 分配新 ID
 
     // 关闭重连对话框
     navigatorHandler.value = (context) {
@@ -380,8 +416,34 @@ class NetworkEngine {
     final text = textController.text.trim();
     if (text.isEmpty) return;
 
-    sendNetworkMessage(MessageType.text, text);
+    // 检查是否是纯 emoji 消息（单个或少量 emoji）
+    if (_isEmojiOnly(text)) {
+      sendEmojiMessage(text);
+    } else {
+      sendNetworkMessage(MessageType.text, text);
+    }
     textController.clear();
+  }
+
+  /// 检查文本是否只包含 emoji
+  bool _isEmojiOnly(String text) {
+    // 移除空格和常见标点
+    final cleaned = text.replaceAll(RegExp(r'[\s\p{P}]', unicode: true), '');
+    if (cleaned.isEmpty) return false;
+
+    // 检查是否大部分字符是 emoji（简单检测）
+    int emojiCount = 0;
+    for (var rune in cleaned.runes) {
+      if (rune >= 0x1F600 && rune <= 0x1F64F) emojiCount++; // 表情
+      if (rune >= 0x1F300 && rune <= 0x1F5FF) emojiCount++; // 符号
+      if (rune >= 0x1F680 && rune <= 0x1F6FF) emojiCount++; // 交通
+      if (rune >= 0x1F900 && rune <= 0x1F9FF) emojiCount++; // 补充
+      if (rune >= 0x2600 && rune <= 0x26FF) emojiCount++; // 杂项
+      if (rune >= 0x2700 && rune <= 0x27BF) emojiCount++; // 装饰
+    }
+
+    // 如果超过一半字符是 emoji，且总字符数少于等于8，认为是纯 emoji
+    return emojiCount > 0 && emojiCount >= cleaned.length / 2 && cleaned.length <= 8;
   }
 
   void sendNetworkMessage(MessageType type, String content) {
@@ -392,6 +454,7 @@ class NetworkEngine {
       type: type,
       source: userName,
       content: content,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
     );
 
     // 为需要 ACK 的消息生成唯一 ID
@@ -404,6 +467,39 @@ class NetworkEngine {
 
     _sendBuffer.add(message);
     _pushMessage();
+  }
+
+  /// 发送 emoji 表情消息
+  void sendEmojiMessage(String emoji) {
+    sendNetworkMessage(MessageType.emoji, emoji);
+  }
+
+  /// 发送图片消息（Base64 编码）
+  void sendImageMessage(String base64Image, {String? fileName}) {
+    final content = fileName != null
+        ? '{"data":"$base64Image","name":"$fileName"}'
+        : '{"data":"$base64Image"}';
+    sendNetworkMessage(MessageType.image, content);
+  }
+
+  /// 发送文件消息
+  void sendFileMessage(String fileName, int fileSize, String base64Data) {
+    final content =
+        '{"name":"$fileName","size":$fileSize,"data":"$base64Data"}';
+    sendNetworkMessage(MessageType.file, content);
+  }
+
+  /// 发送正在输入状态
+  void sendTypingStatus() {
+    if (identity == 0 || _isDisposed) return;
+    final message = NetworkMessage(
+      id: identity,
+      type: MessageType.typing,
+      source: userName,
+      content: 'typing',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+    _rawSend(message);
   }
 
   Future<void> _pushMessage() async {
@@ -422,6 +518,8 @@ class NetworkEngine {
       _sendBuffer.clear();
     } finally {
       _isSending = false;
+      _sendCompleter?.complete();
+      _sendCompleter = null;
     }
   }
 
@@ -447,10 +545,12 @@ class NetworkEngine {
 
       sendNetworkMessage(MessageType.notify, 'leave room');
 
-      while (_isSending) {
-        await Future.delayed(const Duration(milliseconds: 20));
-        await _pushMessage(); // 确保所有消息发送完毕
+      // 等待发送队列清空
+      if (_isSending) {
+        _sendCompleter ??= Completer<void>();
+        await _sendCompleter!.future;
       }
+      await _pushMessage();
 
       _isClosed = true;
       _connection.close();
@@ -464,6 +564,7 @@ class NetworkEngine {
 
     if (!_isDisposed) {
       _isDisposed = true;
+      messageList.removeCallBack(_scrollToBottom);
       _ackRetryTimer?.cancel();
       _reconnectTimer?.cancel();
     }
@@ -483,6 +584,26 @@ class NetworkEngine {
       return true;
     }
     return false;
+  }
+
+  String _summarizeMedia(String content, String type) {
+    try {
+      final json = jsonDecode(content);
+      if (type == 'file') {
+        final name = json['name'] as String? ?? 'file';
+        final size = json['size'] as int? ?? 0;
+        final sizeStr = size < 1024
+            ? '$size B'
+            : size < 1024 * 1024
+                ? '${(size / 1024).toStringAsFixed(1)} KB'
+                : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+        return '[$name, $sizeStr]';
+      }
+      final name = json['name'] as String?;
+      return name != null ? '[$name]' : '[$type]';
+    } catch (_) {
+      return '[$type]';
+    }
   }
 }
 

@@ -167,11 +167,41 @@ class SocketServer {
       final decrypted = encryptionKey != null && encryptionKey!.isNotEmpty
           ? NetworkMessage.xorCrypt(bytes, encryptionKey!)
           : bytes;
-      debugPrint(
-        '[Server] From #$senderId: ${utf8.decode(decrypted, allowMalformed: true)}',
-      );
+      final json = utf8.decode(decrypted, allowMalformed: true);
+      final msg = NetworkMessage.fromJsonString(json);
+
+      final summary = _summarize(msg);
+      debugPrint('[Server] From #$senderId: ${msg.source} ${msg.type} $summary');
     } catch (e) {
       debugPrint('[Server] From #$senderId: <decode error> $e');
+    }
+  }
+
+  String _summarize(NetworkMessage msg) {
+    switch (msg.type) {
+      case MessageType.image:
+        try {
+          final name = jsonDecode(msg.content)['name'] as String?;
+          return name != null ? '[$name]' : '[image]';
+        } catch (_) {
+          return '[image]';
+        }
+      case MessageType.file:
+        try {
+          final json = jsonDecode(msg.content);
+          final name = json['name'] as String? ?? 'file';
+          final size = json['size'] as int? ?? 0;
+          final sizeStr = size < 1024
+              ? '$size B'
+              : size < 1024 * 1024
+                  ? '${(size / 1024).toStringAsFixed(1)} KB'
+                  : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+          return '[$name, $sizeStr]';
+        } catch (_) {
+          return '[file]';
+        }
+      default:
+        return msg.content;
     }
   }
 

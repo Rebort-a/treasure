@@ -67,6 +67,8 @@ class Broadcast {
 }
 
 class Discovery {
+  RawDatagramSocket? _socket;
+
   static Future<RawDatagramSocket> initSocket() async {
     RawDatagramSocket socket = await RawDatagramSocket.bind(
       InternetAddress.anyIPv4,
@@ -84,14 +86,19 @@ class Discovery {
     void Function(String address, List<int> data) callback,
   ) async {
     if (!Broadcast._enabled) return;
-    RawDatagramSocket socket = await initSocket();
-    socket.listen((RawSocketEvent event) async {
+    _socket = await initSocket();
+    _socket!.listen((RawSocketEvent event) {
       if (event == RawSocketEvent.read) {
-        final dgram = socket.receive();
+        final dgram = _socket!.receive();
         if (dgram != null) {
           callback(dgram.address.address, dgram.data);
         }
       }
     });
+  }
+
+  void stopReceive() {
+    _socket?.close();
+    _socket = null;
   }
 }

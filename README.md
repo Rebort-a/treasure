@@ -18,21 +18,25 @@
   <img src="https://img.shields.io/badge/🌐_5_LAN_Games_%2B_1_Chat-4ECDC4?style=for-the-badge" alt="5 LAN Games + 1 Chat">
   <img src="https://img.shields.io/badge/🖥️_Pure_Dart_3D_Engine-9B59B6?style=for-the-badge" alt="Pure Dart 3D Engine">
   <img src="https://img.shields.io/badge/📡_Zero_Config_LAN_Play-2ECC71?style=for-the-badge" alt="Zero Config LAN">
-  <img src="https://img.shields.io/badge/📦_Near_Zero_Dependencies-F39C12?style=for-the-badge" alt="Near Zero Dependencies">
+  <img src="https://img.shields.io/badge/📦_Pure_Dart_Zero_Dependencies-F39C12?style=for-the-badge" alt="Pure Dart Zero Dependencies">
 </p>
 
 ---
 
 ## 🎮 Play Now | 立即体验
 
-> **👉 [Click here to play in browser](https://rebort-a.github.io/OnePiece/)** 👈
+> **👉 [Click here to play in browser](https://rebort-a.github.io/treasure/)** 👈
 >
 > No install. No download. Just open and play.
 >
 > 无需安装，无需下载，打开即玩。
 
-<!-- TODO: Add screenshots or GIF -->
-<!-- ![Game Preview](docs/preview.gif) -->
+### Preview | 预览
+
+| | | |
+|:---:|:---:|:---:|
+| ![Game 1](docs/images/screenshots/game_show_0.png) | ![Game 2](docs/images/screenshots/game_show_1.png) | ![Game 3](docs/images/screenshots/game_show_2.png) |
+| ![LAN Chat](docs/images/screenshots/lan_chat.png) | ![Spaceship](docs/images/gifs/spaceship.gif) | |
 
 ---
 
@@ -50,7 +54,7 @@
 | 🌐 **LAN Multiplayer** | **局域网联机** | UDP broadcast/multicast room discovery. Same WiFi = instant play |
 | 🎮 **16 Games** | **16 款游戏** | Board games, action, RPG, 3D voxel world, physics simulation |
 | 🖥️ **Cross-Platform** | **跨平台** | Android, iOS, Web, Windows, Linux |
-| 📦 **Minimal Dependencies** | **极少依赖** | Only `cupertino_icons`, `web_socket_channel`, `http` |
+| 📦 **Pure Dart** | **纯 Dart** | 核心零依赖，所有第三方插件均可按需移除 |
 
 ---
 
@@ -205,6 +209,54 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 
 ---
 
+## 📦 Dependencies | 依赖说明
+
+> **设计原则：Pure Dart, zero dependencies.**
+>
+> 核心功能（网络通信、游戏逻辑、3D 引擎、UI 组件）全部手写，不依赖任何第三方库。
+> 以下插件仅为特定功能引入，每个都可按说明移除，恢复零依赖。
+
+| 插件 | 引入原因 | 影响范围 | 移除后影响 | 移除方法 |
+|------|---------|---------|----------|---------|
+| `web_socket_channel` | 兼容 Web 端通信 | `00.common/network/connection.dart` | **Web 端失去联机功能**，仅原生平台（Android/iOS/Windows/Linux）可联机 | 在 `config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码 |
+| `http` | Web 端 HTTP 扫描发现房间 | `00.common/network/http_fetch.dart` | **Web 端无法自动发现房间**，需手动输入 IP 加入 | 删除 `http_fetch.dart` 文件 |
+| `image_picker` | 聊天发送图片 | `02.lan_chat/net_page.dart` | **聊天无法发送图片**，仅支持文本/文件/表情 | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项 |
+| `file_picker` | 聊天发送文件 | `02.lan_chat/net_page.dart` | **聊天无法发送文件**，仅支持文本/图片/表情 | 删除 `_pickFile()` 方法，附件菜单自动隐藏文件选项 |
+| `cupertino_icons` | iOS 风格图标 | 全局 | 无功能影响，仅图标风格变化 | 用 Material Icons 替代后移除 |
+
+> **平台权限说明**：`image_picker` 需要 Android `READ_MEDIA_IMAGES`（Android 13+）/ `READ_EXTERNAL_STORAGE`（Android 12-）和 iOS `NSPhotoLibraryUsageDescription`。已在 `AndroidManifest.xml` 和 `Info.plist` 中声明。移除 `image_picker` 后可同步删除这些权限声明。
+
+### 完全零依赖方案
+
+如果不需要 Web 端联机和聊天文件/图片功能，执行以下操作即可恢复完全零依赖：
+
+```bash
+# 1. 切换到原生 Socket 模式（Web 端将失去联机功能）
+# 编辑 lib/00.common/config/network_config.dart
+# 将 NetworkMode.webSocket 改为 NetworkMode.socket
+
+# 2. 从 pubspec.yaml 删除以下依赖：
+#    web_socket_channel  （影响：Web 端无法联机）
+#    http                （影响：Web 端无法自动发现房间）
+#    image_picker        （影响：聊天无法发送图片）
+#    file_picker         （影响：聊天无法发送文件）
+
+# 3. 删除相关文件
+rm lib/00.common/network/http_fetch.dart
+
+# 4. 删除 net_page.dart 中的 image_picker / file_picker import 和相关方法
+
+# 5. 删除平台权限声明（可选）
+# android/app/src/main/AndroidManifest.xml: 删除 READ_MEDIA_IMAGES、READ_EXTERNAL_STORAGE
+# ios/Runner/Info.plist: 删除 NSPhotoLibraryUsageDescription
+
+# 6. 清理
+flutter pub get
+flutter analyze
+```
+
+---
+
 ## 🚀 Quick Start | 快速开始
 
 ### Prerequisites | 前置条件
@@ -246,7 +298,7 @@ flutter build ios --release
       <td align="center"><b>11</b><br/>Local Games</td>
       <td align="center"><b>5</b><br/>LAN Games</td>
       <td align="center"><b>5</b><br/>Platforms</td>
-      <td align="center"><b>3</b><br/>Dependencies</td>
+      <td align="center"><b>5</b><br/>Dependencies (all removable)</td>
     </tr>
   </table>
 </p>

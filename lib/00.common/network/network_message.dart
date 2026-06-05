@@ -20,6 +20,8 @@ enum MessageType {
   text,
   image,
   file,
+  emoji,
+  typing,
 }
 
 /// 需要 ACK 确认的游戏关键消息类型
@@ -38,6 +40,8 @@ class NetworkMessage {
   String source;
   String content;
   String? messageId;
+  int? timestamp;
+  String? replyToId;
 
   NetworkMessage({
     required this.id,
@@ -45,6 +49,8 @@ class NetworkMessage {
     required this.source,
     required this.content,
     this.messageId,
+    this.timestamp,
+    this.replyToId,
   });
 
   /// 为需要 ACK 的消息自动生成唯一 ID
@@ -78,6 +84,8 @@ class NetworkMessage {
       source: json['source'],
       content: json['content'],
       messageId: json['messageId'],
+      timestamp: json['timestamp'],
+      replyToId: json['replyToId'],
     );
   }
 
@@ -88,6 +96,8 @@ class NetworkMessage {
       'source': source,
       'content': content,
       if (messageId != null) 'messageId': messageId,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (replyToId != null) 'replyToId': replyToId,
     };
   }
 

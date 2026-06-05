@@ -36,6 +36,10 @@ class HomeManager {
     _discovery.startReceive(_handleReceivedMessage);
   }
 
+  void dispose() {
+    _discovery.stopReceive();
+  }
+
   void _handleReceivedMessage(String address, List<int> data) {
     NetworkMessage message = NetworkMessage.fromSocketData(data);
     if (message.type == MessageType.broadcast) {
@@ -69,6 +73,10 @@ class HomeManager {
         );
         if (isNewRoom) {
           othersRooms.add(newRoom);
+          debugPrint(
+            '[Room] Discovered: ${newRoom.name} at ${newRoom.address}:${newRoom.port} '
+            'type=${newRoom.type} encrypted=${newRoom.encryptionKey != null}',
+          );
         }
       }
     }
@@ -90,6 +98,11 @@ class HomeManager {
     );
 
     await server.start();
+
+    debugPrint(
+      '[Room] Created: $roomName on port ${server.port} '
+      'type=${roomType.index} encrypted=true',
+    );
 
     createdRooms.add(
       CreatedRoomInfo(

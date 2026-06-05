@@ -6,6 +6,17 @@ on:
   pull_request:
     branches: [main]
 
+# 允许在 Pages 设置中配置的环境
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个部署，跳过排队中的运行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   analyze:
     name: Analyze & Test
@@ -37,7 +48,12 @@ jobs:
           channel: stable
 
       - run: flutter pub get
-      - run: flutter build web --release
+      - run: flutter build web --release --base-href "/treasure/"
+
+      - name: Upload web artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
 
   build-android:
     name: Build Android
@@ -56,3 +72,19 @@ jobs:
 
       - run: flutter pub get
       - run: flutter build apk --release
+
+  deploy-web:
+    name: Deploy to GitHub Pages
+    needs: build-web
+    runs-on: ubuntu-latest
+    # 仅在推送到 main 时部署，PR 不部署
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

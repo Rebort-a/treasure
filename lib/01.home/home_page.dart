@@ -42,6 +42,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _homeManager.createdRooms.removeListener(_onRoomsChanged);
     _homeManager.othersRooms.removeListener(_onRoomsChanged);
+    _homeManager.dispose();
     super.dispose();
   }
 
@@ -66,9 +67,14 @@ class _HomePageState extends State<HomePage> {
         if (!kIsWeb || networkMode == NetworkMode.webSocket)
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: kIsWeb
-                ? _homeManager.showJoinByIpDialog
-                : _homeManager.showCreateRoomDialog,
+            tooltip: S.joinByIp,
+            onPressed: _homeManager.showJoinByIpDialog,
+          ),
+        if (!kIsWeb)
+          IconButton(
+            icon: const Icon(Icons.add_home_rounded),
+            tooltip: S.createRoom,
+            onPressed: _homeManager.showCreateRoomDialog,
           ),
       ],
     );
@@ -79,7 +85,9 @@ class _HomePageState extends State<HomePage> {
       slivers: [
         // 导航通知器
         SliverToBoxAdapter(
-          child: NotifierNavigator(navigatorHandler: _homeManager.pageNavigator),
+          child: NotifierNavigator(
+            navigatorHandler: _homeManager.pageNavigator,
+          ),
         ),
 
         // ---- 本地游戏 ----
@@ -96,19 +104,16 @@ class _HomePageState extends State<HomePage> {
         ),
         if (_localExpanded)
           SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final type = LocalItemType.values[index];
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.gamepad),
-                    title: Text(S.localGameName(type.toString().split('.').last)),
-                    onTap: () => _homeManager.routeLocal(type),
-                  ),
-                );
-              },
-              childCount: LocalItemType.values.length,
-            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final type = LocalItemType.values[index];
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.gamepad),
+                  title: Text(S.localGameName(type.toString().split('.').last)),
+                  onTap: () => _homeManager.routeLocal(type),
+                ),
+              );
+            }, childCount: LocalItemType.values.length),
           ),
 
         // ---- 创建的房间 ----
@@ -119,7 +124,8 @@ class _HomePageState extends State<HomePage> {
               height: _headerHeight,
               child: _buildHeader(
                 expanded: _createdExpanded,
-                onToggle: () => setState(() => _createdExpanded = !_createdExpanded),
+                onToggle: () =>
+                    setState(() => _createdExpanded = !_createdExpanded),
                 title: S.createdRooms,
                 trailing: _createdRooms.length > 1
                     ? TextButton(
@@ -132,34 +138,32 @@ class _HomePageState extends State<HomePage> {
           ),
           if (_createdExpanded)
             SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final room = _createdRooms[index];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.home),
-                      title: Text(
-                        "${room.name} ${S.netGameName(NetItemType.values[room.type].toString().split('.').last)}",
-                      ),
-                      subtitle: Text('${room.address}:${room.port}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextButton(
-                            onPressed: () => _homeManager.showJoinRoomDialog(room),
-                            child: Text(S.join),
-                          ),
-                          TextButton(
-                            onPressed: () => _homeManager.stopCreatedRoom(index),
-                            child: Text(S.stop),
-                          ),
-                        ],
-                      ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final room = _createdRooms[index];
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.home),
+                    title: Text(
+                      "${room.name} ${S.netGameName(NetItemType.values[room.type].toString().split('.').last)}",
                     ),
-                  );
-                },
-                childCount: _createdRooms.length,
-              ),
+                    subtitle: Text('${room.address}:${room.port}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              _homeManager.showJoinRoomDialog(room),
+                          child: Text(S.join),
+                        ),
+                        TextButton(
+                          onPressed: () => _homeManager.stopCreatedRoom(index),
+                          child: Text(S.stop),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }, childCount: _createdRooms.length),
             ),
         ],
 
@@ -171,32 +175,30 @@ class _HomePageState extends State<HomePage> {
               height: _headerHeight,
               child: _buildHeader(
                 expanded: _othersExpanded,
-                onToggle: () => setState(() => _othersExpanded = !_othersExpanded),
+                onToggle: () =>
+                    setState(() => _othersExpanded = !_othersExpanded),
                 title: S.otherRooms,
               ),
             ),
           ),
           if (_othersExpanded)
             SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final room = _othersRooms[index];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.home),
-                      title: Text(
-                        "${room.name} ${S.netGameName(NetItemType.values[room.type].toString().split('.').last)}",
-                      ),
-                      subtitle: Text('${room.address}:${room.port}'),
-                      trailing: TextButton(
-                        onPressed: () => _homeManager.showJoinRoomDialog(room),
-                        child: Text(S.join),
-                      ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final room = _othersRooms[index];
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.home),
+                    title: Text(
+                      "${room.name} ${S.netGameName(NetItemType.values[room.type].toString().split('.').last)}",
                     ),
-                  );
-                },
-                childCount: _othersRooms.length,
-              ),
+                    subtitle: Text('${room.address}:${room.port}'),
+                    trailing: TextButton(
+                      onPressed: () => _homeManager.showJoinRoomDialog(room),
+                      child: Text(S.join),
+                    ),
+                  ),
+                );
+              }, childCount: _othersRooms.length),
             ),
         ],
       ],
@@ -213,10 +215,7 @@ class _HomePageState extends State<HomePage> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ListTile(
         dense: true,
-        leading: ExpandIcon(
-          isExpanded: expanded,
-          onPressed: (_) => onToggle(),
-        ),
+        leading: ExpandIcon(isExpanded: expanded, onPressed: (_) => onToggle()),
         title: Text(title, style: globalTheme.textTheme.titleLarge),
         trailing: trailing,
       ),
@@ -238,7 +237,11 @@ class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return SizedBox.expand(child: child);
   }
 

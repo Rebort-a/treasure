@@ -305,7 +305,7 @@ class SudokuPage extends StatelessWidget {
                     flex: 3,
                     child: NumberCards(
                       cell: _manager.selectedCell,
-                      onLock: _manager.checkCompleted,
+                      manager: _manager,
                       isNightMode: isNightMode,
                     ),
                   ),
@@ -313,6 +313,7 @@ class SudokuPage extends StatelessWidget {
                     flex: 4,
                     child: NumberKeyboard(
                       cell: _manager.selectedCell,
+                      manager: _manager,
                       isNightMode: isNightMode,
                     ),
                   ),
@@ -543,13 +544,13 @@ class CellWidget extends StatelessWidget {
 
 class NumberCards extends StatelessWidget {
   final CellNotifier cell;
-  final VoidCallback onLock;
+  final Manager manager;
   final bool isNightMode;
 
   const NumberCards({
     super.key,
     required this.cell,
-    required this.onLock,
+    required this.manager,
     required this.isNightMode,
   });
 
@@ -568,15 +569,12 @@ class NumberCards extends StatelessWidget {
                 if (cell.canLock)
                   IconButton(
                     icon: const Icon(Icons.lock_open),
-                    onPressed: () {
-                      cell.lock();
-                      onLock();
-                    },
+                    onPressed: manager.lockCell,
                   ),
                 if (cell.type == CellType.locked)
                   IconButton(
                     icon: const Icon(Icons.lock),
-                    onPressed: cell.unlock,
+                    onPressed: manager.unlockCell,
                   ),
                 ...cell.spareDigits.map(
                   (int num) => _buildNumberChip(context, num),
@@ -594,7 +592,7 @@ class NumberCards extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(left: 8),
       child: GestureDetector(
-        onTap: () => cell.removeDigit(number),
+        onTap: () => manager.removeDigit(number),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -621,11 +619,13 @@ class NumberCards extends StatelessWidget {
 
 class NumberKeyboard extends StatelessWidget {
   final CellNotifier cell;
+  final Manager manager;
   final bool isNightMode;
 
   const NumberKeyboard({
     super.key,
     required this.cell,
+    required this.manager,
     required this.isNightMode,
   });
 
@@ -638,12 +638,12 @@ class NumberKeyboard extends StatelessWidget {
         runSpacing: 8,
         alignment: WrapAlignment.center,
         children: [
-          _buildKeyboardButton("CE", () => cell.clearDigits()),
+          _buildKeyboardButton("CE", manager.clearDigits),
           ...List.generate(
             9,
             (i) => _buildKeyboardButton(
               (i + 1).toString(),
-              () => cell.addDigit(i + 1),
+              () => manager.addDigit(i + 1),
             ),
           ),
         ],

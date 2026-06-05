@@ -29,6 +29,7 @@ class S {
   static String get createRoom => isZh ? '创建房间' : 'Create Room';
   static String get enterRoomName => isZh ? '输入房间名' : 'Enter room name';
   static String get joinRoom => isZh ? '加入房间' : 'Join Room';
+  static String get joinByIp => isZh ? '手动加入' : 'Join by IP';
   static String get enterUserName => isZh ? '输入用户名' : 'Enter user name';
   static String get userName => isZh ? '用户名' : 'User name';
   static String get hostIp =>
@@ -51,6 +52,41 @@ class S {
       isZh ? '对手已退出' : 'The opponent has withdrawn';
   static String get typeMessage => isZh ? '输入消息...' : 'Type a message';
   static String get wait => isZh ? '等待中' : 'Wait';
+
+  // ==================== 聊天 ====================
+  static String get chatRoom => isZh ? '聊天室' : 'Chat Room';
+  static String get online => isZh ? '在线' : 'Online';
+  static String get connecting => isZh ? '连接中...' : 'Connecting...';
+  static String get members => isZh ? '成员列表' : 'Members';
+  static String get chatSettings => isZh ? '聊天设置' : 'Chat Settings';
+  static String get clearHistory => isZh ? '清空聊天记录' : 'Clear History';
+  static String get clearHistoryConfirm =>
+      isZh ? '确定要清空所有聊天记录吗？此操作不可撤销。' : 'Clear all chat history? This cannot be undone.';
+  static String get darkMode => isZh ? '深色模式' : 'Dark Mode';
+  static String get messageNotification => isZh ? '消息通知' : 'Notifications';
+  static String get attachment => isZh ? '附件' : 'Attachment';
+  static String get album => isZh ? '相册' : 'Album';
+  static String get camera => isZh ? '拍照' : 'Camera';
+  static String get file => isZh ? '文件' : 'File';
+  static String get location => isZh ? '位置' : 'Location';
+  static String get imageLoadFailed => isZh ? '图片加载失败' : 'Image load failed';
+  static String get unknownFile => isZh ? '未知文件' : 'Unknown file';
+  static String get selectImageFailed => isZh ? '选择图片失败' : 'Failed to select image';
+  static String get takePhotoFailed => isZh ? '拍照失败' : 'Failed to take photo';
+  static String get sendImageFailed => isZh ? '发送图片失败' : 'Failed to send image';
+  static String get selectFileFailed => isZh ? '选择文件失败' : 'Failed to select file';
+  static String get today => isZh ? '今天' : 'Today';
+  static String get yesterday => isZh ? '昨天' : 'Yesterday';
+
+  // ==================== 表情分类 ====================
+  static String get emojiCommon => isZh ? '常用' : 'Common';
+  static String get emojiGesture => isZh ? '手势' : 'Gestures';
+  static String get emojiHeart => isZh ? '心形' : 'Hearts';
+  static String get emojiAnimal => isZh ? '动物' : 'Animals';
+  static String get emojiFood => isZh ? '食物' : 'Food';
+  static String get emojiSport => isZh ? '运动' : 'Sports';
+  static String get emojiTravel => isZh ? '旅行' : 'Travel';
+  static String get emojiSymbol => isZh ? '符号' : 'Symbols';
 
   // ==================== 游戏步骤 ====================
   static String get stepDisconnect => isZh ? '等待连接' : 'Waiting to connect';

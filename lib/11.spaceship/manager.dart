@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../00.common/widget/banner/banner_template.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/notifiers.dart';
+import '../00.common/tool/storage_service.dart';
 import '../l10n/strings.dart';
 import 'base.dart';
 import 'constant.dart';
@@ -52,6 +53,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     _resetPlayer();
     _initFocusNode();
     _initTicker();
+    loadHistory();
   }
 
   void _initFocusNode() {
@@ -589,6 +591,43 @@ class Manager with ChangeNotifier implements TickerProvider {
   // 检测碰撞
   bool _checkCollision(Rect a, Rect b) => a.overlaps(b);
 
+  // ==================== 持久化 ====================
+
+  int _highScore = 0;
+  final List<AchievementType> _persistedAchievements = [];
+
+  int get highScore => _highScore;
+
+  /// 从本地加载历史数据
+  Future<void> loadHistory() async {
+    final data = await StorageService.instance.read('spaceship');
+    _highScore = data['highScore'] as int? ?? 0;
+    final achList = data['achievements'] as List<dynamic>? ?? [];
+    _persistedAchievements.clear();
+    for (final name in achList) {
+      try {
+        final type = AchievementType.values.firstWhere((e) => e.name == name);
+        _persistedAchievements.add(type);
+      } catch (_) {}
+    }
+    _unlockedAchievements.addAll(_persistedAchievements);
+  }
+
+  /// 保存历史数据
+  Future<void> _saveHistory() async {
+    if (_score > _highScore) _highScore = _score;
+    // 合并已解锁成就（去重）
+    for (final a in _unlockedAchievements) {
+      if (!_persistedAchievements.contains(a)) {
+        _persistedAchievements.add(a);
+      }
+    }
+    await StorageService.instance.write('spaceship', {
+      'highScore': _highScore,
+      'achievements': _persistedAchievements.map((e) => e.name).toList(),
+    });
+  }
+
   // 解锁成就
   void _unlockAchievement(AchievementType type) {
     if (!_unlockedAchievements.contains(type)) {
@@ -731,6 +770,7 @@ class Manager with ChangeNotifier implements TickerProvider {
       ),
     );
     _state.value = GameState.gameOver;
+    _saveHistory();
   }
 
   // 玩家射击
