@@ -42,8 +42,8 @@ class NetManager extends FoundationalManager {
   }
 
   void _onAction(bool isSelf, NetworkMessage message) {
-    final data = jsonDecode(message.content);
-    int index = data['index'];
+    final data = jsonDecode(message.content) as Map<String, dynamic>;
+    int index = data['index'] as int;
     board.placePiece(index);
   }
 

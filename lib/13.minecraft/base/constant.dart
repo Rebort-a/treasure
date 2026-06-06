@@ -76,10 +76,10 @@ class Constants {
   static const int chunkGroupSize = 3;
 
   /// 加载区块数量
-  static const int loadChunkCount = 2;
+  static const int loadChunkCount = 1;
 
   /// 渲染距离
-  static const double renderDistance = 32;
+  static const double renderDistance = 16;
 
   // ============================
   // 八叉树参数

@@ -48,6 +48,8 @@ app.*.map.json
 .claude/
 .mcp.json
 CLAUDE.md
+TASK_QUEUE.md
+NIGHT_SHIFT.md
 
 # Local data
 .treasure/

@@ -79,13 +79,13 @@ class NetworkMessage {
 
   factory NetworkMessage.fromJson(Map<String, dynamic> json) {
     return NetworkMessage(
-      id: json['id'],
-      type: MessageType.values[json['type']],
-      source: json['source'],
-      content: json['content'],
-      messageId: json['messageId'],
-      timestamp: json['timestamp'],
-      replyToId: json['replyToId'],
+      id: json['id'] as int,
+      type: MessageType.values[json['type'] as int],
+      source: json['source'] as String,
+      content: json['content'] as String,
+      messageId: json['messageId'] as String?,
+      timestamp: json['timestamp'] as int?,
+      replyToId: json['replyToId'] as String?,
     );
   }
 
@@ -102,7 +102,7 @@ class NetworkMessage {
   }
 
   factory NetworkMessage.fromJsonString(String data) {
-    return NetworkMessage.fromJson(jsonDecode(data));
+    return NetworkMessage.fromJson(jsonDecode(data) as Map<String, dynamic>);
   }
 
   String toJsonString() {

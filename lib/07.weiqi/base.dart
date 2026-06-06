@@ -228,7 +228,7 @@ class GoBoard {
         lastCapture != null &&
         (lastCapture!['captured'] as List).length == 1) {
       int currentCaptured = captured[0];
-      int lastCaptured = (lastCapture!['captured'] as List)[0];
+      int lastCaptured = (lastCapture!['captured'] as List)[0] as int;
       // 检查是否是同一位置的反复提子
       return currentCaptured == lastCapture!['index'] &&
           lastCaptured == moveHistory.last['index'];

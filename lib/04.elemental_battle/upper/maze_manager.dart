@@ -305,9 +305,10 @@ class MazeManager {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => CastPage(totalPoints: 30)),
-      ).then((configs) {
+      ).then((result) {
         // 当页面弹出（即返回）时，这个回调会被执行
-        if (configs != null) {
+        if (result != null) {
+          final configs = result as EnergyConfigs;
           pageNavigator.value = (BuildContext context) {
             navigateToPracticePage(
               context,
@@ -655,7 +656,7 @@ class MazeManager {
     }
   }
 
-  bool _checkInMap(y, x) {
+  bool _checkInMap(int y, int x) {
     return (y >= 0) && (y < mapSize) && (x >= 0) && (x < mapSize);
   }
 }

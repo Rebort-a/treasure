@@ -17,8 +17,8 @@ class GameAction {
 
   static GameAction fromJson(Map<String, dynamic> json) {
     return GameAction(
-      actionIndex: json['actionIndex'],
-      targetIndex: json['targetIndex'],
+      actionIndex: json['actionIndex'] as int,
+      targetIndex: json['targetIndex'] as int,
     );
   }
 }

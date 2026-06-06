@@ -34,7 +34,7 @@ class RenderDebugConfig {
   bool enableFaceMerging = true;
 
   /// 调试信息
-  bool showDebugInfo = true;
+  bool showDebugInfo = false;
 
   /// 面法向量
   bool showFaceNormals = false;

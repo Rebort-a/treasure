@@ -40,7 +40,7 @@ class NetCombatManager extends FoundationalCombatManager {
   }
 
   void _resourceHandler(GameStep step, NetworkMessage message) {
-    final jsonData = jsonDecode(message.content);
+    final jsonData = jsonDecode(message.content) as Map<String, dynamic>;
 
     if (step == GameStep.frontConfig) {
       // 先手收到自己的信息，初始化player
@@ -61,7 +61,7 @@ class NetCombatManager extends FoundationalCombatManager {
 
   // 定义动作处理局部函数
   void _actionHandler(bool isSelf, NetworkMessage message) {
-    final action = GameAction.fromJson(jsonDecode(message.content));
+    final action = GameAction.fromJson(jsonDecode(message.content) as Map<String, dynamic>);
     final actionType = _getActionType(action.actionIndex);
 
     if (isSelf && (netTurnEngine.playerType != currentGamer.value)) {

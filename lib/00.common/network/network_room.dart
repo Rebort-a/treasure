@@ -29,23 +29,23 @@ class RoomInfo {
   }
 
   static String getNameFromJson(Map<String, dynamic> json) {
-    return json['name'];
+    return json['name'] as String;
   }
 
   static int getTypeFromJson(Map<String, dynamic> json) {
-    return json['type'];
+    return json['type'] as int;
   }
 
   static String getAddressFromJson(Map<String, dynamic> json) {
-    return json['address'];
+    return json['address'] as String;
   }
 
   static int getPortFromJson(Map<String, dynamic> json) {
-    return json['port'];
+    return json['port'] as int;
   }
 
   static String? getKeyFromJson(Map<String, dynamic> json) {
-    return json['key'];
+    return json['key'] as String?;
   }
 
   factory RoomInfo.fromJson(Map<String, dynamic> json) {
@@ -59,7 +59,7 @@ class RoomInfo {
   }
 
   static RoomState getOperationFromJson(Map<String, dynamic> json) {
-    return RoomState.values[json['operation']];
+    return RoomState.values[json['operation'] as int];
   }
 
   static Map<String, dynamic> configToJson(
@@ -88,19 +88,19 @@ class RoomInfo {
   }
 
   static RoomState getOperationFromJsonString(String data) {
-    return getOperationFromJson(jsonDecode(data));
+    return getOperationFromJson(jsonDecode(data) as Map<String, dynamic>);
   }
 
   static int getPortFromJsonString(String data) {
-    return getPortFromJson(jsonDecode(data));
+    return getPortFromJson(jsonDecode(data) as Map<String, dynamic>);
   }
 
   static int getTypeFromJsonString(String data) {
-    return getTypeFromJson(jsonDecode(data));
+    return getTypeFromJson(jsonDecode(data) as Map<String, dynamic>);
   }
 
   static String? getKeyFromJsonString(String data) {
-    return getKeyFromJson(jsonDecode(data));
+    return getKeyFromJson(jsonDecode(data) as Map<String, dynamic>);
   }
 
   /// 生成 16 字节随机加密密钥（hex 编码为 32 字符）

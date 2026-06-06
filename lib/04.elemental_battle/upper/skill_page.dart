@@ -25,7 +25,7 @@ class _SkillsPageState extends State<SkillsPage> {
     _updateSkills();
   }
 
-  _updateSkills() {
+  void _updateSkills() {
     _showSkills = _filterSkills(widget.player.getAppointSkills(_index));
   }
 

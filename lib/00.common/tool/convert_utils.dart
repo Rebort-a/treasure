@@ -5,7 +5,7 @@ class ConvertUtils {
     'value': color.toARGB32(),
   };
 
-  static Color colorFromJson(Map<String, dynamic> json) => Color(json['value']);
+  static Color colorFromJson(Map<String, dynamic> json) => Color(json['value'] as int);
 
   static Map<String, double> offsetToJson(Offset offset) => {
     'dx': offset.dx,
@@ -13,5 +13,5 @@ class ConvertUtils {
   };
 
   static Offset offsetFromJson(Map<String, dynamic> json) =>
-      Offset(json['dx'], json['dy']);
+      Offset((json['dx'] as num).toDouble(), (json['dy'] as num).toDouble());
 }

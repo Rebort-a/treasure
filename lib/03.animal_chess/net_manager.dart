@@ -53,7 +53,7 @@ class NetManager extends FoundationalManager {
 
   void _onAction(bool isSelf, NetworkMessage message) {
     if (netTurnEngine.gameStep.value == GameStep.action) {
-      int index = jsonDecode(message.content)['index'];
+      int index = jsonDecode(message.content)['index'] as int;
       if (index >= 0 && index < displayMap.length) {
         if (currentGamer.value == netTurnEngine.playerType && isSelf) {
           selectGrid(index);
@@ -90,7 +90,7 @@ class NetManager extends FoundationalManager {
 
   void _stringToMap(String content) {
     final jsonData = jsonDecode(content);
-    boardLevel = jsonData['boardLevel'];
+    boardLevel = jsonData['boardLevel'] as int;
 
     setupBoard();
 

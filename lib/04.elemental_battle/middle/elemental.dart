@@ -170,7 +170,7 @@ class EnergyConfigs {
 
 class EnergyManager extends Energy with EnergyConfigMixin {
   EnergyManager({required super.type, required String baseName})
-    : super(name: '$baseName.${type.text}}');
+    : super(name: '$baseName.${type.text}');
 
   @override
   set healthPoints(int value) => _updateAttribute(AttributeType.hp, value);
@@ -505,14 +505,14 @@ class Elemental {
     return json.encode(data);
   }
 
-  static String nameFromJson(Map<String, dynamic> json) => json['name'];
+  static String nameFromJson(Map<String, dynamic> json) => json['name'] as String;
   static EnergyConfigs configsFromJson(Map<String, dynamic> json) =>
-      EnergyConfigs.fromString(json['configs']);
-  static int currentFromJson(Map<String, dynamic> json) => json['current'];
+      EnergyConfigs.fromString(json['configs'] as String);
+  static int currentFromJson(Map<String, dynamic> json) => json['current'] as int;
 
   factory Elemental.fromJson(Map<String, dynamic> json) {
     final String name = Elemental.nameFromJson(json);
-    final EnergyConfigs configs = EnergyConfigs.fromString(json['configs']);
+    final EnergyConfigs configs = EnergyConfigs.fromString(json['configs'] as String);
     final int current = Elemental.currentFromJson(json);
     return Elemental(baseName: name, configs: configs, current: current);
   }

@@ -86,11 +86,11 @@ class SnakeStyle {
 
   static SnakeStyle fromJson(Map<String, dynamic> json) {
     return SnakeStyle(
-      headSize: json['headSize'],
-      headColor: ConvertUtils.colorFromJson(json['headColor']),
-      eyeColor: ConvertUtils.colorFromJson(json['eyeColor']),
-      bodySize: json['bodySize'],
-      bodyColor: ConvertUtils.colorFromJson(json['bodyColor']),
+      headSize: (json['headSize'] as num).toDouble(),
+      headColor: ConvertUtils.colorFromJson(json['headColor'] as Map<String, dynamic>),
+      eyeColor: ConvertUtils.colorFromJson(json['eyeColor'] as Map<String, dynamic>),
+      bodySize: (json['bodySize'] as num).toDouble(),
+      bodyColor: ConvertUtils.colorFromJson(json['bodyColor'] as Map<String, dynamic>),
     );
   }
 }
@@ -136,10 +136,10 @@ class Snake {
 
   static Snake fromJson(Map<String, dynamic> json) {
     return Snake(
-      head: ConvertUtils.offsetFromJson(json['head']),
-      length: json['length'],
-      angle: json['angle'],
-      style: SnakeStyle.fromJson(json['style']),
+      head: ConvertUtils.offsetFromJson(json['head'] as Map<String, dynamic>),
+      length: json['length'] as int,
+      angle: (json['angle'] as num).toDouble(),
+      style: SnakeStyle.fromJson(json['style'] as Map<String, dynamic>),
     )..currentSpeed = json['isFaster'] as bool ? fastSpeed : initialSpeed;
   }
 }
@@ -225,8 +225,8 @@ class SpatialGrid {
   // 使用ConvertUtils的JSON反序列化方法
   void fromJson(Map<String, dynamic> json) {
     for (var entryData in (json['entries'] as List)) {
-      final position = ConvertUtils.offsetFromJson(entryData['position']);
-      final radius = entryData['radius'] as double;
+      final position = ConvertUtils.offsetFromJson(entryData['position'] as Map<String, dynamic>);
+      final radius = (entryData['radius'] as num).toDouble();
       insert(GridEntry(position, radius));
     }
   }

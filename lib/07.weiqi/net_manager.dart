@@ -49,9 +49,9 @@ class GoNetManager extends GoFoundationalManager {
   }
 
   void _onAction(bool isSelf, NetworkMessage message) {
-    final data = jsonDecode(message.content);
+    final data = jsonDecode(message.content) as Map<String, dynamic>;
     if (data['type'] == 'place') {
-      board.placeStone(data['index']);
+      board.placeStone(data['index'] as int);
     } else if (data['type'] == 'resign') {
       board.resign();
     }

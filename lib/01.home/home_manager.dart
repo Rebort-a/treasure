@@ -158,7 +158,7 @@ class HomeManager {
       try {
         final json = jsonDecode(body);
         encryptionKey = json['content'] != null
-            ? RoomInfo.getKeyFromJsonString(json['content'])
+            ? RoomInfo.getKeyFromJsonString(json['content'] as String)
             : null;
       } catch (_) {}
     }
