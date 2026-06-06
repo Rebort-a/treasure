@@ -77,6 +77,10 @@ class S {
   static String get selectFileFailed => isZh ? '选择文件失败' : 'Failed to select file';
   static String get today => isZh ? '今天' : 'Today';
   static String get yesterday => isZh ? '昨天' : 'Yesterday';
+  static String get saveSuccess => isZh ? '文件已保存' : 'File saved';
+  static String get saveFailed => isZh ? '保存失败' : 'Save failed';
+  static String get savedTo => isZh ? '已保存到' : 'Saved to';
+  static String get downloading => isZh ? '正在保存...' : 'Saving...';
 
   // ==================== 表情分类 ====================
   static String get emojiCommon => isZh ? '常用' : 'Common';

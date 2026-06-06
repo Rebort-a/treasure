@@ -106,7 +106,6 @@ class _NetChatPageState extends State<NetChatPage> {
           ),
           onSelected: _handleMenuAction,
           itemBuilder: (_) => [
-            _menuItem('members', Icons.people_outline_rounded, S.members),
             _menuItem('clear', Icons.delete_outline_rounded, S.clearHistory),
           ],
         ),
@@ -273,24 +272,6 @@ class _NetChatPageState extends State<NetChatPage> {
 
   void _handleMenuAction(String action) {
     switch (action) {
-      case 'members':
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(S.members),
-            content: Text('${widget.userName} (${S.online})'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(S.close),
-              ),
-            ],
-          ),
-        );
-        break;
       case 'clear':
         showDialog(
           context: context,

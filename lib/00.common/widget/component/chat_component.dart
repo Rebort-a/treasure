@@ -1,5 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../model/chat_message.dart';
 import '../../style/chat_theme.dart';
@@ -277,12 +281,14 @@ class _MessageListState extends State<MessageList> {
   Widget _imageBubble(ChatMessage msg) {
     Widget image;
     String? fileName;
+    Uint8List? imageBytes;
     try {
       final json = jsonDecode(msg.content);
       final data = json['data'] as String?;
       fileName = json['name'] as String?;
       if (data != null) {
-        image = Image.memory(base64Decode(data),
+        imageBytes = base64Decode(data);
+        image = Image.memory(imageBytes,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _imgPlaceholder());
       } else {
@@ -290,34 +296,40 @@ class _MessageListState extends State<MessageList> {
       }
     } catch (_) {
       try {
-        image = Image.memory(base64Decode(msg.content), fit: BoxFit.cover,
+        imageBytes = base64Decode(msg.content);
+        image = Image.memory(imageBytes, fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _imgPlaceholder());
       } catch (_) {
         image = _imgPlaceholder();
       }
     }
 
-    return Column(
-      crossAxisAlignment:
-          msg.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Container(
-          constraints: const BoxConstraints(maxWidth: 200, maxHeight: 240),
-          decoration: msg.isMe
-              ? widget.theme.selfBubbleDecoration
-              : widget.theme.otherBubbleDecoration,
-          clipBehavior: Clip.antiAlias,
-          child: image,
-        ),
-        if (fileName != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-            child: Text(fileName,
-                style: widget.theme.timeTextStyle.copyWith(fontSize: 10),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+    return GestureDetector(
+      onTap: imageBytes != null
+          ? () => _openImageViewer(imageBytes!, fileName)
+          : null,
+      child: Column(
+        crossAxisAlignment:
+            msg.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            constraints: const BoxConstraints(maxWidth: 200, maxHeight: 240),
+            decoration: msg.isMe
+                ? widget.theme.selfBubbleDecoration
+                : widget.theme.otherBubbleDecoration,
+            clipBehavior: Clip.antiAlias,
+            child: image,
           ),
-      ],
+          if (fileName != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Text(fileName,
+                  style: widget.theme.timeTextStyle.copyWith(fontSize: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ),
+        ],
+      ),
     );
   }
 
@@ -352,55 +364,187 @@ class _MessageListState extends State<MessageList> {
         ? widget.theme.selfBubbleColor.withAlpha(40)
         : widget.theme.otherBubbleColor;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: isMe
-                  ? widget.theme.selfBubbleColor.withAlpha(80)
-                  : Colors.blue.withAlpha(20),
-              borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () => _saveFile(msg),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isMe
+                    ? widget.theme.selfBubbleColor.withAlpha(80)
+                    : Colors.blue.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.insert_drive_file_rounded,
+                  color: isMe ? widget.theme.selfTextColor : Colors.blue,
+                  size: 22),
             ),
-            child: Icon(Icons.insert_drive_file_rounded,
-                color: isMe ? widget.theme.selfTextColor : Colors.blue,
-                size: 22),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(fileName,
-                    style: TextStyle(
-                        color: isMe
-                            ? widget.theme.selfTextColor
-                            : widget.theme.otherTextColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                if (fileSize > 0)
-                  Text(ChatMessage.formatFileSize(fileSize),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(fileName,
                       style: TextStyle(
                           color: isMe
-                              ? widget.theme.selfTextColor.withAlpha(150)
-                              : widget.theme.otherTextColor.withAlpha(150),
-                          fontSize: 11)),
-              ],
+                              ? widget.theme.selfTextColor
+                              : widget.theme.otherTextColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  if (fileSize > 0)
+                    Text(ChatMessage.formatFileSize(fileSize),
+                        style: TextStyle(
+                            color: isMe
+                                ? widget.theme.selfTextColor.withAlpha(150)
+                                : widget.theme.otherTextColor.withAlpha(150),
+                            fontSize: 11)),
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
+            Icon(Icons.download_rounded,
+                color: isMe
+                    ? widget.theme.selfTextColor.withAlpha(100)
+                    : widget.theme.otherTextColor.withAlpha(100),
+                size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openImageViewer(Uint8List bytes, String? fileName) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _ImageViewerPage(bytes: bytes, fileName: fileName),
+      ),
+    );
+  }
+
+  /// 获取平台默认下载目录
+  Future<Directory> _getDownloadDir() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final dir = await getApplicationDocumentsDirectory();
+      return Directory('${dir.path}${Platform.pathSeparator}downloads');
+    }
+    String home;
+    if (Platform.isWindows) {
+      home = Platform.environment['USERPROFILE'] ?? '.';
+    } else {
+      home = Platform.environment['HOME'] ?? '.';
+    }
+    return Directory('$home${Platform.pathSeparator}Downloads');
+  }
+
+  /// 统一路径分隔符
+  String _normalizePath(String path) {
+    return path.replaceAll('/', Platform.pathSeparator)
+        .replaceAll('\\', Platform.pathSeparator);
+  }
+
+  Future<void> _saveFile(ChatMessage msg) async {
+    String? base64Data;
+    String fileName = 'file';
+    try {
+      final json = jsonDecode(msg.content);
+      fileName = json['name'] as String? ?? 'file';
+      base64Data = json['data'] as String?;
+    } catch (_) {}
+
+    if (base64Data == null || base64Data.isEmpty) return;
+
+    final bytes = base64Decode(base64Data);
+
+    // 在 await 之前捕获 navigator/messenger，避免跨 async gap 使用 context
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    // 弹窗：用户可编辑文件名
+    final controller = TextEditingController(text: fileName);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(S.downloading),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              S.savedTo,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: S.file,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(S.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(S.confirm),
           ),
         ],
       ),
     );
+
+    if (saved != true) return;
+    final userFileName = controller.text.trim();
+    if (userFileName.isEmpty) return;
+
+    // loading
+    showDialog(
+      // ignore: use_build_context_synchronously
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final dlDir = await _getDownloadDir();
+      if (!await dlDir.exists()) await dlDir.create(recursive: true);
+      final safeName = userFileName.contains(Platform.pathSeparator)
+          ? userFileName.split(Platform.pathSeparator).last
+          : userFileName;
+      final filePath = '${dlDir.path}${Platform.pathSeparator}$safeName';
+      final file = File(_normalizePath(filePath));
+      await file.writeAsBytes(bytes);
+
+      navigator.pop(); // 关闭 loading
+      messenger.showSnackBar(
+        SnackBar(content: Text('${S.savedTo}: ${file.path}')),
+      );
+    } catch (e) {
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('${S.saveFailed}: $e')),
+      );
+    }
   }
 
   Widget _systemMsg(ChatMessage msg) {
@@ -538,6 +682,37 @@ class _MessageInputState extends State<MessageInput> {
           borderRadius: BorderRadius.circular(10),
         ),
         child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+      ),
+    );
+  }
+}
+
+/// 全屏图片查看页面（支持缩放/平移）
+class _ImageViewerPage extends StatelessWidget {
+  final Uint8List bytes;
+  final String? fileName;
+
+  const _ImageViewerPage({required this.bytes, this.fileName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(fileName ?? '', style: const TextStyle(fontSize: 14)),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5.0,
+          child: Image.memory(bytes, fit: BoxFit.contain),
+        ),
       ),
     );
   }
