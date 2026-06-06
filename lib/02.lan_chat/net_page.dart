@@ -181,6 +181,7 @@ class _NetChatPageState extends State<NetChatPage> {
             child: MessageList(
               networkEngine: _manager.networkEngine,
               theme: _theme,
+              topPadding: MediaQuery.of(context).padding.top + kToolbarHeight + 4,
             ),
           ),
         ),

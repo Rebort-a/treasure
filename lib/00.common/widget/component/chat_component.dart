@@ -4,8 +4,8 @@ import 'dart:typed_data';
 // ignore: unnecessary_import
 import 'dart:ui';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../model/chat_message.dart';
 import '../../style/chat_theme.dart';
@@ -18,11 +18,13 @@ import '../../network/network_message.dart';
 class MessageList extends StatefulWidget {
   final NetworkEngine networkEngine;
   final ChatTheme theme;
+  final double topPadding;
 
   const MessageList({
     super.key,
     required this.networkEngine,
     this.theme = ChatTheme.light,
+    this.topPadding = 12,
   });
 
   @override
@@ -146,7 +148,7 @@ class _MessageListState extends State<MessageList> {
 
     return ListView.builder(
       controller: widget.networkEngine.scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 40, 16, 12),
+      padding: EdgeInsets.fromLTRB(16, widget.topPadding, 16, 12),
       itemCount: chatMessages.length,
       itemBuilder: (context, index) {
         final msg = chatMessages[index];
@@ -539,28 +541,6 @@ class _MessageListState extends State<MessageList> {
     );
   }
 
-  /// 获取平台默认下载目录
-  Future<Directory> _getDownloadDir() async {
-    if (Platform.isAndroid || Platform.isIOS) {
-      final dir = await getApplicationDocumentsDirectory();
-      return Directory('${dir.path}${Platform.pathSeparator}downloads');
-    }
-    String home;
-    if (Platform.isWindows) {
-      home = Platform.environment['USERPROFILE'] ?? '.';
-    } else {
-      home = Platform.environment['HOME'] ?? '.';
-    }
-    return Directory('$home${Platform.pathSeparator}Downloads');
-  }
-
-  /// 统一路径分隔符
-  String _normalizePath(String path) {
-    return path
-        .replaceAll('/', Platform.pathSeparator)
-        .replaceAll('\\', Platform.pathSeparator);
-  }
-
   Future<void> _saveFile(ChatMessage msg) async {
     String? base64Data;
     String fileName = 'file';
@@ -573,86 +553,30 @@ class _MessageListState extends State<MessageList> {
     if (base64Data == null || base64Data.isEmpty) return;
 
     final bytes = base64Decode(base64Data);
-
-    // 在 await 之前捕获 navigator/messenger，避免跨 async gap 使用 context
-    final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
-    // 弹窗：用户可编辑文件名
-    final controller = TextEditingController(text: fileName);
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(S.downloading),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              S.savedTo,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: S.file,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(S.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(S.confirm),
-          ),
-        ],
-      ),
+    // 系统保存对话框，用户选择路径和文件名
+    // Android/iOS 需传入 bytes，Windows/Web/macOS 返回路径后手动写入
+    final savePath = await FilePicker.platform.saveFile(
+      dialogTitle: S.downloading,
+      fileName: fileName,
+      bytes: Platform.isAndroid || Platform.isIOS ? bytes : null,
     );
+    if (savePath == null) return;
 
-    if (saved != true) return;
-    final userFileName = controller.text.trim();
-    if (userFileName.isEmpty) return;
-
-    // loading
-    showDialog(
-      // ignore: use_build_context_synchronously
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      final dlDir = await _getDownloadDir();
-      if (!await dlDir.exists()) await dlDir.create(recursive: true);
-      final safeName = userFileName.contains(Platform.pathSeparator)
-          ? userFileName.split(Platform.pathSeparator).last
-          : userFileName;
-      final filePath = '${dlDir.path}${Platform.pathSeparator}$safeName';
-      final file = File(_normalizePath(filePath));
-      await file.writeAsBytes(bytes);
-
-      navigator.pop(); // 关闭 loading
-      messenger.showSnackBar(
-        SnackBar(content: Text('${S.savedTo}: ${file.path}')),
-      );
-    } catch (e) {
-      navigator.pop();
-      messenger.showSnackBar(SnackBar(content: Text('${S.saveFailed}: $e')));
+    // 桌面平台：saveFile 返回路径，需手动写入
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      try {
+        await File(savePath).writeAsBytes(bytes);
+      } catch (e) {
+        messenger.showSnackBar(SnackBar(content: Text('${S.saveFailed}: $e')));
+        return;
+      }
     }
+
+    messenger.showSnackBar(
+      SnackBar(content: Text('${S.savedTo}: $savePath')),
+    );
   }
 
   Widget _systemMsg(ChatMessage msg) {
