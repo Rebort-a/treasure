@@ -43,7 +43,7 @@ class Player {
 
   /// 更新玩家状态
   void update(double deltaTime, List<Block> blocks) {
-    // 应用重力
+    // 应用重力（不在地面上时）
     if (!isGrounded) {
       velocity = Vector3(
         velocity.x,
@@ -60,8 +60,30 @@ class Player {
     // 应用速度更新位置
     position += velocity * deltaTime;
 
+    // 重置地面状态条件：
+    // 1. 跳跃上升中（velocity.y > 1）
+    // 2. 脚下无支撑方块（方块被摧毁后应下落）
+    if (velocity.y > 1.0) {
+      isGrounded = false;
+    } else if (isGrounded) {
+      final footY = position.y - Constants.playerHeight * 0.75 - 0.1;
+      final footPos = Vector3Int(
+        (position.x / 2).round() * 2,
+        (footY / 2).floor() * 2,
+        (position.z / 2).round() * 2,
+      );
+      bool hasSupport = false;
+      for (final block in blocks) {
+        if (block.type.isPenetrate) continue;
+        if (block.position == footPos) {
+          hasSupport = true;
+          break;
+        }
+      }
+      if (!hasSupport) isGrounded = false;
+    }
+
     // 检测与方块的碰撞
-    isGrounded = false;
     for (final block in blocks) {
       if (block.type.isPenetrate) continue;
 

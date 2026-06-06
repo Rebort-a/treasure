@@ -33,6 +33,9 @@ class RenderDebugConfig {
   // 合并渲染
   bool enableFaceMerging = true;
 
+  /// 方块交互轮廓
+  bool showBlockOutline = false;
+
   /// 调试信息
   bool showDebugInfo = false;
 
@@ -52,10 +55,11 @@ class ScenePainter extends CustomPainter {
   final String debugInfo;
   final OcclusionCuller occlusionCuller;
   late FrustumManager _frustum;
-  final RenderDebugConfig debugConfig = RenderDebugConfig();
+  final RenderDebugConfig debugConfig;
 
-  ScenePainter(this.sceneInfo, this.debugInfo)
-    : occlusionCuller = OcclusionCuller() {
+  ScenePainter(this.sceneInfo, this.debugInfo, {RenderDebugConfig? debugConfig})
+    : debugConfig = debugConfig ?? RenderDebugConfig(),
+      occlusionCuller = OcclusionCuller() {
     _updateFrustum(Size(800, 600));
   }
 
@@ -77,7 +81,9 @@ class ScenePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ScenePainter oldDelegate) {
     return oldDelegate.sceneInfo.position != sceneInfo.position ||
-        oldDelegate.sceneInfo.orientation != sceneInfo.orientation;
+        oldDelegate.sceneInfo.orientation != sceneInfo.orientation ||
+        oldDelegate.sceneInfo.targetedBlock != sceneInfo.targetedBlock ||
+        oldDelegate.debugConfig.showBlockOutline != debugConfig.showBlockOutline;
   }
 
   void _renderScene(Canvas canvas, Size size) {
@@ -172,6 +178,99 @@ class ScenePainter extends CustomPainter {
     } else {
       _renderIndividualBlocks(canvas, size, visibleBlocks);
     }
+
+    if (debugConfig.showBlockOutline) _drawBlockOutlines(canvas, size);
+  }
+
+  /// 绘制目标方块轮廓（红色=可摧毁，绿色=可放置）
+  void _drawBlockOutlines(Canvas canvas, Size size) {
+    final target = sceneInfo.targetedBlock;
+    final faceNormal = sceneInfo.targetedFaceNormal;
+    if (target == null) return;
+
+    // 红色轮廓：目标方块（可摧毁）
+    _drawBlockOutline(canvas, size, target, Colors.red.withValues(alpha: 0.8));
+
+    // 绿色轮廓：放置位置（可放置）
+    if (faceNormal != null) {
+      final placePos = target.position + faceNormal;
+      final half = Constants.blockSizeHalf;
+      _drawWireBox(
+        canvas,
+        size,
+        Vector3(
+          placePos.x.toDouble(),
+          placePos.y.toDouble(),
+          placePos.z.toDouble(),
+        ),
+        half.toDouble(),
+        Colors.green.withValues(alpha: 0.6),
+      );
+    }
+  }
+
+  void _drawBlockOutline(
+    Canvas canvas,
+    Size size,
+    Block block,
+    Color color,
+  ) {
+    final half = Constants.blockSizeHalf.toDouble();
+    _drawWireBox(canvas, size, block.position.toVector3(), half, color);
+  }
+
+  void _drawWireBox(
+    Canvas canvas,
+    Size size,
+    Vector3 center,
+    double half,
+    Color color,
+  ) {
+    // 8 个顶点
+    final corners = [
+      Vector3(center.x - half, center.y - half, center.z - half),
+      Vector3(center.x + half, center.y - half, center.z - half),
+      Vector3(center.x + half, center.y + half, center.z - half),
+      Vector3(center.x - half, center.y + half, center.z - half),
+      Vector3(center.x - half, center.y - half, center.z + half),
+      Vector3(center.x + half, center.y - half, center.z + half),
+      Vector3(center.x + half, center.y + half, center.z + half),
+      Vector3(center.x - half, center.y + half, center.z + half),
+    ];
+
+    final screenPts = corners
+        .map((v) => _project3DTo2D(v, size))
+        .toList();
+
+    if (screenPts.any((p) => p == Offset.infinite)) return;
+
+    // 收集可见面的边（去重）
+    final toCamera = (sceneInfo.position - center).normalized;
+    final drawnEdges = <String>{};
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+
+    // 6 个面的法向量和顶点
+    void addFaceEdges(List<int> verts, Vector3 normal) {
+      if (normal.dot(toCamera) <= 0) return;
+      for (int i = 0; i < 4; i++) {
+        final a = verts[i], b = verts[(i + 1) % 4];
+        final key = a < b ? '$a-$b' : '$b-$a';
+        if (drawnEdges.add(key)) {
+          canvas.drawLine(screenPts[a], screenPts[b], paint);
+        }
+      }
+    }
+
+    addFaceEdges([0, 1, 2, 3], Vector3(0, 0, -1)); // -Z
+    addFaceEdges([4, 5, 6, 7], Vector3(0, 0, 1));  // +Z
+    addFaceEdges([0, 4, 7, 3], Vector3(-1, 0, 0)); // -X
+    addFaceEdges([1, 5, 6, 2], Vector3(1, 0, 0));  // +X
+    addFaceEdges([3, 2, 6, 7], Vector3(0, 1, 0));  // +Y
+    addFaceEdges([0, 1, 5, 4], Vector3(0, -1, 0)); // -Y
   }
 
   void _renderWithFaceMerging(Canvas canvas, Size size, List<Block> blocks) {

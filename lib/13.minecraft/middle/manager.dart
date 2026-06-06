@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import '../base/block.dart';
 import '../base/constant.dart';
 import '../base/player.dart';
 import '../base/vector.dart';
+import '../upper/scene_render.dart';
 import 'chunk_manager.dart';
 import 'common.dart';
 import 'control_manager.dart';
+import 'raycast.dart';
 
 /// 游戏管理器
 class Manager with ChangeNotifier implements TickerProvider {
@@ -16,6 +19,16 @@ class Manager with ChangeNotifier implements TickerProvider {
   late final Player _player;
   late final ControlManager _controlManager;
   late final ChunkManager _chunkManager;
+
+  // 方块交互
+  RaycastHit? targetedBlock;
+  double destroyProgress = 0.0;
+  bool _needsUpdate = false;
+
+  // 背包系统（类型 → 数量，slotOrder 记录栏位顺序）
+  final Map<BlockType, int> _inventoryCounts = {};
+  final List<BlockType> _slotOrder = [];
+  int selectedSlot = 0;
 
   SceneInfo _lastInfo = const SceneInfo(
     position: Vector3.zero,
@@ -29,8 +42,9 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 初始化游戏
   void _initialize() {
-    _player = Player(position: Vector3(24, 64, 24));
-    _controlManager = ControlManager(_player);
+    _player = Player(position: Vector3(24, 64, 24))
+      ..rotateView(0, -0.5); // 初始向下看约 29°
+    _controlManager = ControlManager(_player, this);
     _chunkManager = ChunkManager();
     _chunkManager.updateChunks(_player.position);
     _updateVisibleBlocks();
@@ -63,6 +77,10 @@ class Manager with ChangeNotifier implements TickerProvider {
     final nearbyBlocks = _chunkManager.getCollisionBlocks(_player);
     _player.update(deltaTime, nearbyBlocks);
 
+    // 射线检测 + 摧毁进度
+    _performRaycast();
+    _controlManager.updateDestroyProgress(deltaTime);
+
     // 分批处理加载队列
     _chunkManager.processLoadQueue();
 
@@ -78,8 +96,13 @@ class Manager with ChangeNotifier implements TickerProvider {
   }
 
   bool _shouldUpdate() {
+    if (_needsUpdate) {
+      _needsUpdate = false;
+      return true;
+    }
     return !(_lastInfo.position == _player.position) ||
-        !(_lastInfo.orientation == _player.orientation);
+        !(_lastInfo.orientation == _player.orientation) ||
+        destroyProgress > 0;
   }
 
   /// 更新可见方块
@@ -89,8 +112,101 @@ class Manager with ChangeNotifier implements TickerProvider {
       position: _player.position,
       orientation: _player.orientation,
       blocks: blocks,
+      targetedBlock: targetedBlock?.block,
+      targetedFaceNormal: targetedBlock?.faceNormal,
     );
   }
+
+  /// 射线检测（使用放置距离，摧毁距离在 ControlManager 中判断）
+  void _performRaycast() {
+    targetedBlock = raycast(
+      _player.position,
+      _player.orientation,
+      _chunkManager,
+      Constants.placeReach * Constants.blockSize,
+    );
+  }
+
+  /// 目标方块是否在摧毁距离内
+  bool get isTargetInDestroyRange {
+    final target = targetedBlock;
+    if (target == null) return false;
+    final dist =
+        (target.block.position.toVector3() - _player.position).magnitude;
+    return dist <= Constants.destroyReach * Constants.blockSize;
+  }
+
+  /// 摧毁目标方块并拾取
+  bool destroyTargetedBlock() {
+    final target = targetedBlock;
+    if (target == null) return false;
+    if (_chunkManager.destroyBlock(target.block.position)) {
+      addInventory(target.block.type);
+      targetedBlock = null;
+      _needsUpdate = true;
+      return true;
+    }
+    return false;
+  }
+
+  /// 在目标面放置方块
+  bool placeBlock() {
+    final target = targetedBlock;
+    if (target == null) return false;
+    final selectedType = currentSelectedType;
+    if (selectedType == null) return false;
+
+    final n = target.faceNormal;
+    final bs = Constants.blockSize;
+    final placePos = Vector3Int(
+      target.block.position.x + n.x * bs,
+      target.block.position.y + n.y * bs,
+      target.block.position.z + n.z * bs,
+    );
+    if (_chunkManager.placeBlock(placePos, selectedType)) {
+      removeInventory(selectedType);
+      _needsUpdate = true;
+      return true;
+    }
+    return false;
+  }
+
+  /// 背包栏位类型列表（只读）
+  List<BlockType> get slotTypes => _slotOrder;
+
+  /// 获取某类型的数量
+  int getCount(BlockType type) => _inventoryCounts[type] ?? 0;
+
+  /// 添加方块到背包
+  void addInventory(BlockType type) {
+    if (_inventoryCounts.containsKey(type)) {
+      _inventoryCounts[type] = _inventoryCounts[type]! + 1;
+    } else if (_slotOrder.length < Constants.hotbarSlotCount) {
+      _inventoryCounts[type] = 1;
+      _slotOrder.add(type);
+    }
+  }
+
+  /// 从背包移除一个方块
+  bool removeInventory(BlockType type) {
+    final count = _inventoryCounts[type];
+    if (count == null || count <= 0) return false;
+
+    if (count <= 1) {
+      _inventoryCounts.remove(type);
+      _slotOrder.remove(type);
+      if (selectedSlot >= _slotOrder.length && selectedSlot > 0) {
+        selectedSlot = _slotOrder.length - 1;
+      }
+    } else {
+      _inventoryCounts[type] = count - 1;
+    }
+    return true;
+  }
+
+  /// 当前选中方块类型
+  BlockType? get currentSelectedType =>
+      selectedSlot < _slotOrder.length ? _slotOrder[selectedSlot] : null;
 
   @override
   Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
@@ -103,6 +219,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   }
 
   // 公开属性
+  final debugConfig = RenderDebugConfig();
   FocusNode get focusNode => _controlManager.focusNode;
   SceneInfo get sceneInfo => _lastInfo;
   ControlManager get controlManager => _controlManager;

@@ -138,6 +138,32 @@ class ChunkManager {
     return _getBlocksNearPlayer(aabb);
   }
 
+  /// 获取指定坐标的方块
+  Block? getBlock(Vector3Int position) {
+    final chunkCoord = getChunkCoord(position.toVector3());
+    final chunk = _loadedChunks[chunkCoord];
+    return chunk?.getBlock(position);
+  }
+
+  /// 摧毁指定坐标的方块
+  bool destroyBlock(Vector3Int position) {
+    final chunkCoord = getChunkCoord(position.toVector3());
+    final chunk = _loadedChunks[chunkCoord];
+    if (chunk == null) return false;
+    final block = chunk.getBlock(position);
+    if (block == null) return false;
+    chunk.removeBlock(block);
+    return true;
+  }
+
+  /// 在指定坐标放置方块
+  bool placeBlock(Vector3Int position, BlockType type) {
+    final chunkCoord = getChunkCoord(position.toVector3());
+    final chunk = _loadedChunks[chunkCoord];
+    if (chunk == null) return false;
+    return chunk.addBlock(Block(position: position, type: type));
+  }
+
   /// 检查是否有待加载区块
   bool get hasPendingChunks => _chunkLoadQueue.isNotEmpty;
 }

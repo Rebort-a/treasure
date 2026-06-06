@@ -5,10 +5,10 @@ import '../00.common/config/network_config.dart';
 import '../00.common/network/network_room.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/l10n.dart';
 import '../l10n/strings.dart';
 import 'home_manager.dart';
 import 'route.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -60,8 +60,11 @@ class _HomePageState extends State<HomePage> {
   AppBar _buildAppBar() {
     return AppBar(
       leading: IconButton(
-        icon: const Icon(Icons.language),
-        onPressed: () => LanguageProvider.instance.toggle(),
+        icon: const Icon(Icons.settings_outlined),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsPage()),
+        ),
       ),
       actions: [
         if (!kIsWeb || networkMode == NetworkMode.webSocket)

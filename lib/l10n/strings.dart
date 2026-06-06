@@ -60,8 +60,9 @@ class S {
   static String get members => isZh ? '成员列表' : 'Members';
   static String get chatSettings => isZh ? '聊天设置' : 'Chat Settings';
   static String get clearHistory => isZh ? '清空聊天记录' : 'Clear History';
-  static String get clearHistoryConfirm =>
-      isZh ? '确定要清空所有聊天记录吗？此操作不可撤销。' : 'Clear all chat history? This cannot be undone.';
+  static String get clearHistoryConfirm => isZh
+      ? '确定要清空所有聊天记录吗？此操作不可撤销。'
+      : 'Clear all chat history? This cannot be undone.';
   static String get darkMode => isZh ? '深色模式' : 'Dark Mode';
   static String get messageNotification => isZh ? '消息通知' : 'Notifications';
   static String get attachment => isZh ? '附件' : 'Attachment';
@@ -71,10 +72,12 @@ class S {
   static String get location => isZh ? '位置' : 'Location';
   static String get imageLoadFailed => isZh ? '图片加载失败' : 'Image load failed';
   static String get unknownFile => isZh ? '未知文件' : 'Unknown file';
-  static String get selectImageFailed => isZh ? '选择图片失败' : 'Failed to select image';
+  static String get selectImageFailed =>
+      isZh ? '选择图片失败' : 'Failed to select image';
   static String get takePhotoFailed => isZh ? '拍照失败' : 'Failed to take photo';
   static String get sendImageFailed => isZh ? '发送图片失败' : 'Failed to send image';
-  static String get selectFileFailed => isZh ? '选择文件失败' : 'Failed to select file';
+  static String get selectFileFailed =>
+      isZh ? '选择文件失败' : 'Failed to select file';
   static String get today => isZh ? '今天' : 'Today';
   static String get yesterday => isZh ? '昨天' : 'Yesterday';
   static String get saveSuccess => isZh ? '文件已保存' : 'File saved';
@@ -173,7 +176,10 @@ class S {
   static String get startGame => isZh ? '开始游戏' : 'Start Game';
   static String get gamePaused => isZh ? '游戏暂停' : 'Game Paused';
   static String get continueGame => isZh ? '继续游戏' : 'Continue';
-  static String get gameSettings => isZh ? '游戏设置' : 'Settings';
+  static String get gameSettings => isZh ? '设置' : 'Settings';
+  static String get general => isZh ? '通用' : 'General';
+  static String get about => isZh ? '关于' : 'About';
+  static String get version => isZh ? '版本' : 'Version';
   static String get restartGame => isZh ? '重新开始' : 'Restart';
   static String get exitGame => isZh ? '退出游戏' : 'Exit Game';
   static String get levelUp => isZh ? '等级提升' : 'Level Up';

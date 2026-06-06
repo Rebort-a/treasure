@@ -154,6 +154,28 @@ class Constants {
   static const double crosshairCrossSize = 8;
 
   // ============================
+  // 方块交互参数
+  // ============================
+
+  /// 方块摧毁耗时（秒）
+  static const double destroyTime = 1.0;
+
+  /// 方块摧毁距离（方块数）
+  static const double destroyReach = 3.0;
+
+  /// 方块放置距离（方块数）
+  static const double placeReach = 5.0;
+
+  /// 区分点击和拖拽的像素阈值
+  static const double tapMoveThreshold = 10.0;
+
+  /// 长按触发时间（秒）
+  static const double longPressTime = 0.5;
+
+  /// 背包栏位数
+  static const int hotbarSlotCount = 9;
+
+  // ============================
   // 世界生成参数
   // ============================
 
