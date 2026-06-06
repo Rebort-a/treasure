@@ -89,52 +89,34 @@ class SettingsPage extends StatelessWidget {
   void _showLanguageDialog(BuildContext context, AppLocale currentLocale) {
     showDialog(
       context: context,
-      builder: (dialogContext) => ValueListenableBuilder<AppLocale>(
-        valueListenable: LanguageProvider.instance.locale,
-        builder: (_, locale, __) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      builder: (_) => SimpleDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(S.language),
+        children: [
+          RadioGroup<AppLocale>(
+            groupValue: currentLocale,
+            onChanged: (v) {
+              if (v == null) return;
+              Navigator.pop(context);
+              LanguageProvider.instance.setLocale(v);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<AppLocale>(
+                  title: const Text('中文'),
+                  value: AppLocale.zh,
+                ),
+                RadioListTile<AppLocale>(
+                  title: const Text('English'),
+                  value: AppLocale.en,
+                ),
+              ],
             ),
-            title: Text(S.language),
-            content: RadioGroup<AppLocale>(
-              groupValue: locale,
-              onChanged: (v) {
-                if (v != null) {
-                  LanguageProvider.instance.setLocale(v);
-                  Navigator.pop(dialogContext);
-                }
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: Radio<AppLocale>(value: AppLocale.zh),
-                    title: const Text('中文'),
-                    onTap: () {
-                      LanguageProvider.instance.setLocale(AppLocale.zh);
-                      Navigator.pop(dialogContext);
-                    },
-                  ),
-                  ListTile(
-                    leading: Radio<AppLocale>(value: AppLocale.en),
-                    title: const Text('English'),
-                    onTap: () {
-                      LanguageProvider.instance.setLocale(AppLocale.en);
-                      Navigator.pop(dialogContext);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(S.close),
-              ),
-            ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }

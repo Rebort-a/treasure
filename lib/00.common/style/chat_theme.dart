@@ -18,31 +18,34 @@ class ChatTheme {
   final Color sendButtonColor;
 
   final double messagePadding = 12.0;
-  final double bubbleRadius = 18.0;
+  final double bubbleRadius = 8.0;
   final double avatarSize = 36.0;
+
+  /// 毛玻璃底色
+  static const glassColor = Color.fromARGB(200, 255, 255, 255);
 
   static const light = ChatTheme._();
 
   const ChatTheme._()
-      : backgroundColor = const Color(0xFFF0F2F5),
+      : backgroundColor = const Color(0xFFF5F5F5),
         surfaceColor = const Color(0xFFFFFFFF),
-        selfBubbleColor = const Color(0xFF95EC69),
+        selfBubbleColor = const Color(0xFFE2F5FF),
         otherBubbleColor = const Color(0xFFFFFFFF),
-        selfTextColor = const Color(0xFF1A1A1A),
-        otherTextColor = const Color(0xFF1A1A1A),
+        selfTextColor = const Color(0xFF3C3C3C),
+        otherTextColor = const Color(0xFF3C3C3C),
         systemTextColor = const Color(0xFF999999),
         timeTextColor = const Color(0xFF999999),
-        inputBackgroundColor = const Color(0xFFF7F7F7),
-        inputTextColor = const Color(0xFF1A1A1A),
+        inputBackgroundColor = const Color(0xFFF0F2F5),
+        inputTextColor = const Color(0xFF3C3C3C),
         inputHintColor = const Color(0xFFB0B0B0),
         dividerColor = const Color(0xFFE8E8E8),
         iconColor = const Color(0xFF7A7A7A),
-        sendButtonColor = const Color(0xFF07C160);
+        sendButtonColor = const Color(0xFF007AFF);
 
   TextStyle get selfTextStyle =>
-      TextStyle(color: selfTextColor, fontSize: 16, height: 1.4);
+      TextStyle(color: selfTextColor, fontSize: 16, height: 1.4, fontWeight: FontWeight.w500);
   TextStyle get otherTextStyle =>
-      TextStyle(color: otherTextColor, fontSize: 16, height: 1.4);
+      TextStyle(color: otherTextColor, fontSize: 16, height: 1.4, fontWeight: FontWeight.w500);
   TextStyle get systemTextStyle =>
       TextStyle(color: systemTextColor, fontSize: 12, height: 1.2);
   TextStyle get timeTextStyle =>
@@ -65,41 +68,17 @@ class ChatTheme {
 
   BoxDecoration get selfBubbleDecoration => BoxDecoration(
         color: selfBubbleColor,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(bubbleRadius),
-          topRight: const Radius.circular(4),
-          bottomLeft: Radius.circular(bubbleRadius),
-          bottomRight: Radius.circular(bubbleRadius),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(bubbleRadius),
       );
 
   BoxDecoration get otherBubbleDecoration => BoxDecoration(
         color: otherBubbleColor,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(4),
-          topRight: Radius.circular(bubbleRadius),
-          bottomLeft: Radius.circular(bubbleRadius),
-          bottomRight: Radius.circular(bubbleRadius),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(bubbleRadius),
       );
 
   BoxDecoration get inputDecoration => BoxDecoration(
         color: inputBackgroundColor,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(8),
       );
 
   static Color getAvatarColor(String name) {

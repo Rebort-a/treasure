@@ -67,11 +67,7 @@ class NetworkEngine {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        scrollController.jumpTo(scrollController.position.maxScrollExtent);
       }
     });
   }
@@ -475,11 +471,12 @@ class NetworkEngine {
   }
 
   /// 发送图片消息（Base64 编码）
-  void sendImageMessage(String base64Image, {String? fileName}) {
-    final content = fileName != null
-        ? '{"data":"$base64Image","name":"$fileName"}'
-        : '{"data":"$base64Image"}';
-    sendNetworkMessage(MessageType.image, content);
+  void sendImageMessage(String base64Image, {String? fileName, String? blurHash}) {
+    final buf = StringBuffer('{"data":"$base64Image"');
+    if (fileName != null) buf.write(',"name":"$fileName"');
+    if (blurHash != null) buf.write(',"hash":"$blurHash"');
+    buf.write('}');
+    sendNetworkMessage(MessageType.image, buf.toString());
   }
 
   /// 发送文件消息

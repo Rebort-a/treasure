@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+// ignore: unnecessary_import
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../00.common/network/network_room.dart';
 import '../00.common/style/chat_theme.dart';
+import '../00.common/tool/blur_hash.dart';
 import '../00.common/widget/component/chat_component.dart';
 import '../00.common/widget/notifier_navigator.dart';
 import '../l10n/strings.dart';
@@ -59,6 +62,8 @@ class _NetChatPageState extends State<NetChatPage> {
       },
       child: Scaffold(
         backgroundColor: _theme.backgroundColor,
+        extendBodyBehindAppBar: true,
+        extendBody: true,
         appBar: _buildAppBar(),
         body: _buildBody(),
       ),
@@ -68,8 +73,14 @@ class _NetChatPageState extends State<NetChatPage> {
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       elevation: 0,
-      scrolledUnderElevation: 1,
-      backgroundColor: _theme.surfaceColor,
+      scrolledUnderElevation: 0,
+      backgroundColor: Colors.transparent,
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(color: ChatTheme.glassColor),
+        ),
+      ),
       leading: IconButton(
         icon: Icon(
           Icons.arrow_back_ios_new_rounded,
@@ -231,9 +242,18 @@ class _NetChatPageState extends State<NetChatPage> {
       final file = File(filePath);
       if (!await file.exists()) return;
       final bytes = await file.readAsBytes();
+
+      // 计算 BlurHash（忽略错误，不影响发送）
+      String? blurHash;
+      try {
+        final (pixels, w, h) = await BlurHash.pixelsFromBytes(bytes);
+        blurHash = BlurHash.encode(pixels, w, h);
+      } catch (_) {}
+
       _manager.networkEngine.sendImageMessage(
         base64Encode(bytes),
         fileName: filePath.replaceAll('\\', '/').split('/').last,
+        blurHash: blurHash,
       );
     } catch (e) {
       if (mounted) {

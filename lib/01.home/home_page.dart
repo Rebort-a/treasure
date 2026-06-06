@@ -93,32 +93,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
 
-        // ---- 本地游戏 ----
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _PinnedHeaderDelegate(
-            height: _headerHeight,
-            child: _buildHeader(
-              expanded: _localExpanded,
-              onToggle: () => setState(() => _localExpanded = !_localExpanded),
-              title: S.local,
-            ),
-          ),
-        ),
-        if (_localExpanded)
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final type = LocalItemType.values[index];
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.gamepad),
-                  title: Text(S.localGameName(type.toString().split('.').last)),
-                  onTap: () => _homeManager.routeLocal(type),
-                ),
-              );
-            }, childCount: LocalItemType.values.length),
-          ),
-
         // ---- 创建的房间 ----
         if (_createdRooms.isNotEmpty) ...[
           SliverPersistentHeader(
@@ -204,6 +178,32 @@ class _HomePageState extends State<HomePage> {
               }, childCount: _othersRooms.length),
             ),
         ],
+
+        // ---- 本地游戏 ----
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _PinnedHeaderDelegate(
+            height: _headerHeight,
+            child: _buildHeader(
+              expanded: _localExpanded,
+              onToggle: () => setState(() => _localExpanded = !_localExpanded),
+              title: S.local,
+            ),
+          ),
+        ),
+        if (_localExpanded)
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final type = LocalItemType.values[index];
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.gamepad),
+                  title: Text(S.localGameName(type.toString().split('.').last)),
+                  onTap: () => _homeManager.routeLocal(type),
+                ),
+              );
+            }, childCount: LocalItemType.values.length),
+          ),
       ],
     );
   }
