@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../l10n/strings.dart';
+import '../l10n/strings.dart';
 import '../widget/dialog/template_dialog.dart';
 import 'network_engine.dart';
 import '../network/network_message.dart';

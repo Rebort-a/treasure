@@ -4,7 +4,7 @@ import '../00.common/game/gamer.dart';
 import '../00.common/game/map.dart';
 import '../00.common/tool/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'extension.dart';
 

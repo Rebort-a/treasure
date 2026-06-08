@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../00.common/widget/notifier_navigator.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/parchment_texture.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
 

@@ -5,7 +5,7 @@ import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/net_prepare_widget.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
@@ -70,7 +70,9 @@ class NetGomokuPage extends StatelessWidget {
     builder: (_, gamer, __) {
       String text = '';
       if (_manager.board.gameOver) {
-        text = S.sideWin(gamer == TurnGamerType.rear ? S.blackSide : S.whiteSide);
+        text = S.sideWin(
+          gamer == TurnGamerType.rear ? S.blackSide : S.whiteSide,
+        );
       } else {
         final side = gamer == TurnGamerType.front ? S.blackSide : S.whiteSide;
         text = gamer == _manager.netTurnEngine.playerType

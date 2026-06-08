@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:treasure/04.elemental_battle/base/energy.dart';
 
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import '../base/effect.dart';
 import '../middle/elemental.dart';
 import '../middle/player.dart';
@@ -85,7 +85,10 @@ class _StatusPageState extends State<StatusPage> {
 
   Widget _buildSkillsList() {
     return ListTile(
-      title: Text(S.masteredSkills, style: TextStyle(fontWeight: FontWeight.bold)),
+      title: Text(
+        S.masteredSkills,
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
       subtitle: Column(
         children: widget.elemental
             .getAppointSkills(_index)
@@ -98,7 +101,10 @@ class _StatusPageState extends State<StatusPage> {
 
   Widget _buildEffectsList() {
     return ListTile(
-      title: Text(S.activeEffects, style: TextStyle(fontWeight: FontWeight.bold)),
+      title: Text(
+        S.activeEffects,
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
       subtitle: Column(
         children: widget.elemental
             .getAppointEffects(_index)

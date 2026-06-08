@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../l10n/strings.dart';
+import '../l10n/strings.dart';
 import '../config/network_config.dart';
 import '../widget/dialog/template_dialog.dart';
 import '../tool/notifiers.dart';
@@ -439,7 +439,9 @@ class NetworkEngine {
     }
 
     // 如果超过一半字符是 emoji，且总字符数少于等于8，认为是纯 emoji
-    return emojiCount > 0 && emojiCount >= cleaned.length / 2 && cleaned.length <= 8;
+    return emojiCount > 0 &&
+        emojiCount >= cleaned.length / 2 &&
+        cleaned.length <= 8;
   }
 
   void sendNetworkMessage(MessageType type, String content) {
@@ -471,7 +473,11 @@ class NetworkEngine {
   }
 
   /// 发送图片消息（Base64 编码）
-  void sendImageMessage(String base64Image, {String? fileName, String? blurHash}) {
+  void sendImageMessage(
+    String base64Image, {
+    String? fileName,
+    String? blurHash,
+  }) {
     final buf = StringBuffer('{"data":"$base64Image"');
     if (fileName != null) buf.write(',"name":"$fileName"');
     if (blurHash != null) buf.write(',"hash":"$blurHash"');
@@ -592,8 +598,8 @@ class NetworkEngine {
         final sizeStr = size < 1024
             ? '$size B'
             : size < 1024 * 1024
-                ? '${(size / 1024).toStringAsFixed(1)} KB'
-                : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+            ? '${(size / 1024).toStringAsFixed(1)} KB'
+            : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
         return '[$name, $sizeStr]';
       }
       final name = json['name'] as String?;

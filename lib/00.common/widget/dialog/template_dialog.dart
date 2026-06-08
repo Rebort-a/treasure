@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../l10n/strings.dart';
+import '../../l10n/strings.dart';
 import '../int_slider.dart';
 
 class SliderData {
@@ -312,7 +312,10 @@ class DialogTemplate {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(S.currentValue('${sliderData.value}'), style: TextStyle(fontSize: 16)),
+              Text(
+                S.currentValue('${sliderData.value}'),
+                style: TextStyle(fontSize: 16),
+              ),
               const SizedBox(height: 20),
               Row(
                 children: [

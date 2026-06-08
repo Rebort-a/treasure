@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../l10n/l10n.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/l10n.dart';
+import '../00.common/l10n/strings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -16,9 +16,7 @@ class SettingsPage extends StatelessWidget {
           _buildSection(
             context,
             title: S.general,
-            children: [
-              _buildLanguageTile(context),
-            ],
+            children: [_buildLanguageTile(context)],
           ),
           const SizedBox(height: 8),
           _buildSection(
@@ -90,9 +88,7 @@ class SettingsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => SimpleDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(S.language),
         children: [
           RadioGroup<AppLocale>(

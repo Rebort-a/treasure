@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'local_manager.dart';
 import 'foundation_widget.dart';
@@ -45,8 +45,16 @@ class _GoLocalPageState extends State<GoLocalPage> {
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
                   _manager.board.gameOver
-                      ? S.sideWin(player == StoneState.white ? S.blackSide : S.whiteSide)
-                      : S.currentTurn(player == StoneState.black ? S.blackSide : S.whiteSide),
+                      ? S.sideWin(
+                          player == StoneState.white
+                              ? S.blackSide
+                              : S.whiteSide,
+                        )
+                      : S.currentTurn(
+                          player == StoneState.black
+                              ? S.blackSide
+                              : S.whiteSide,
+                        ),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,

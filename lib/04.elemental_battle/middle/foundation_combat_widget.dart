@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import 'foundation_combat_manager.dart';
 import 'elemental.dart';
 import 'common.dart';
@@ -68,10 +68,22 @@ class BattleInfoRegion extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
         _buildInfoRow(_buildInfoName(), _buildInfoEmoji()),
-        _buildInfoRow(_buildInfoLabel(S.levelLabel), _buildInfoNotifier(info.level)),
-        _buildInfoRow(_buildInfoLabel(S.healthLabel), _buildInfoNotifier(info.health)),
-        _buildInfoRow(_buildInfoLabel(S.attackLabel), _buildInfoNotifier(info.attack)),
-        _buildInfoRow(_buildInfoLabel(S.defenceLabel), _buildInfoNotifier(info.defence)),
+        _buildInfoRow(
+          _buildInfoLabel(S.levelLabel),
+          _buildInfoNotifier(info.level),
+        ),
+        _buildInfoRow(
+          _buildInfoLabel(S.healthLabel),
+          _buildInfoNotifier(info.health),
+        ),
+        _buildInfoRow(
+          _buildInfoLabel(S.attackLabel),
+          _buildInfoNotifier(info.attack),
+        ),
+        _buildInfoRow(
+          _buildInfoLabel(S.defenceLabel),
+          _buildInfoNotifier(info.defence),
+        ),
         _buildGlobalStatus(),
       ],
     );

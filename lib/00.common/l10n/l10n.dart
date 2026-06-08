@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/tool/storage_service.dart';
+import '../tool/storage_service.dart';
 
 /// 支持的语言
 enum AppLocale { zh, en }
@@ -30,8 +30,7 @@ class LanguageProvider {
   }
 
   void toggle() {
-    locale.value =
-        locale.value == AppLocale.zh ? AppLocale.en : AppLocale.zh;
+    locale.value = locale.value == AppLocale.zh ? AppLocale.en : AppLocale.zh;
     _save();
   }
 
@@ -45,7 +44,5 @@ class LanguageProvider {
   }
 
   Locale get flutterLocale =>
-      locale.value == AppLocale.zh
-          ? const Locale('zh')
-          : const Locale('en');
+      locale.value == AppLocale.zh ? const Locale('zh') : const Locale('en');
 }

@@ -5,7 +5,7 @@ import '../00.common/config/network_config.dart';
 import '../00.common/network/network_room.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'home_manager.dart';
 import 'route.dart';
 import 'settings_page.dart';

@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../00.common/tool/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 class Manager {
@@ -291,7 +291,9 @@ class Manager {
         builder: (_) => AlertDialog(
           title: Text(S.gameOver),
           content: Text(
-            victory ? S.difficultyTimeSeconds(_difficulty.label, elapsed.value) : S.youLost,
+            victory
+                ? S.difficultyTimeSeconds(_difficulty.label, elapsed.value)
+                : S.youLost,
           ),
           actions: [
             TextButton(

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../00.common/widget/button/cool_button.dart';
 import '../00.common/widget/container/glass_container.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'constant.dart';
 import 'manager.dart';
@@ -339,7 +339,10 @@ class SpaceShipPage extends StatelessWidget {
   Widget _buildAchievementsList() {
     final unlocked = _manager.unlockedAchievements;
     if (unlocked.isEmpty) {
-      return Text(S.noAchievements, style: const TextStyle(color: Colors.white70));
+      return Text(
+        S.noAchievements,
+        style: const TextStyle(color: Colors.white70),
+      );
     }
 
     return Wrap(

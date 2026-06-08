@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:treasure/00.common/tool/storage_service.dart';
-import 'package:treasure/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/l10n.dart';
 
 void main() {
   group('LanguageProvider', () {

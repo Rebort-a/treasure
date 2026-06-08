@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../00.common/widget/banner/banner_template.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import '../middle/prop.dart';
 import '../middle/player.dart';
 

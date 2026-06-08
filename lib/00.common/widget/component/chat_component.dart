@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../../model/chat_message.dart';
 import '../../style/chat_theme.dart';
-import '../../../l10n/strings.dart';
+import '../../l10n/strings.dart';
 import '../blur_hash_image.dart';
 import '../../engine/network_engine.dart';
 import '../../network/network_message.dart';
@@ -574,9 +574,7 @@ class _MessageListState extends State<MessageList> {
       }
     }
 
-    messenger.showSnackBar(
-      SnackBar(content: Text('${S.savedTo}: $savePath')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text('${S.savedTo}: $savePath')));
   }
 
   Widget _systemMsg(ChatMessage msg) {

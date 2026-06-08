@@ -152,11 +152,13 @@ class HomeManager {
     int port,
     NetItemType type,
   ) async {
+    String roomName = 'remote';
     String? encryptionKey;
     final body = await http_fetch.fetchRoomInfo(host, port);
     if (body != null) {
       try {
         final json = jsonDecode(body);
+        if (json['source'] != null) roomName = json['source'] as String;
         encryptionKey = json['content'] != null
             ? RoomInfo.getKeyFromJsonString(json['content'] as String)
             : null;
@@ -164,7 +166,7 @@ class HomeManager {
     }
 
     final room = RoomInfo(
-      name: 'remote',
+      name: roomName,
       type: type.index,
       address: host,
       port: port,

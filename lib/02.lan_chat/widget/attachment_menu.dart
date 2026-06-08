@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 
 /// 附件选择菜单
 /// 通过传入不同的回调来控制显示哪些选项。
@@ -9,11 +9,7 @@ class AttachmentMenu extends StatelessWidget {
   final VoidCallback? onImagePick;
   final VoidCallback? onFilePick;
 
-  const AttachmentMenu({
-    super.key,
-    this.onImagePick,
-    this.onFilePick,
-  });
+  const AttachmentMenu({super.key, this.onImagePick, this.onFilePick});
 
   @override
   Widget build(BuildContext context) {

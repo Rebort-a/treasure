@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/network/network_room.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'route.dart';
 
 class RoomDialog {
@@ -53,7 +53,7 @@ class RoomDialog {
   static void showJoinByIpDialog({
     required BuildContext context,
     required Function(String userName, String host, int port, NetItemType type)
-        onConfirm,
+    onConfirm,
   }) {
     String userName = '';
     String host = '';
@@ -75,8 +75,7 @@ class RoomDialog {
               const SizedBox(height: 8),
               TextField(
                 onChanged: (v) => host = v,
-                decoration: InputDecoration(
-                    hintText: S.hostIp),
+                decoration: InputDecoration(hintText: S.hostIp),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -91,10 +90,12 @@ class RoomDialog {
                   if (v != null) setState(() => selectedType = v);
                 },
                 items: NetItemType.values
-                    .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(t.toString().split('.').last),
-                        ))
+                    .map(
+                      (t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t.toString().split('.').last),
+                      ),
+                    )
                     .toList(),
                 decoration: InputDecoration(labelText: S.game),
               ),

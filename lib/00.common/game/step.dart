@@ -1,4 +1,4 @@
-import '../../l10n/strings.dart';
+import '../l10n/strings.dart';
 
 // 游戏进展类型
 enum GameStep {

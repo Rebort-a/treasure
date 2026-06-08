@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import 'elemental.dart';
 import '../base/energy.dart';
 import '../base/skill.dart';

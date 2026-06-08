@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../00.common/widget/grid_boundary.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
 
@@ -58,8 +58,10 @@ class ThreeTilesPage extends StatelessWidget {
         ),
         ValueListenableBuilder<List<CardNotifier>>(
           valueListenable: _manager.cards,
-          builder: (_, cards, __) =>
-              Text(S.remaining(cards.length), style: const TextStyle(fontSize: 16)),
+          builder: (_, cards, __) => Text(
+            S.remaining(cards.length),
+            style: const TextStyle(fontSize: 16),
+          ),
         ),
       ],
     ),

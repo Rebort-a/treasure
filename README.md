@@ -1,8 +1,8 @@
 <p align="center">
-  <h1 align="center">🏴‍☠️ Treasure</h1>
+  <h1 align="center">🧰 Treasure</h1>
   <p align="center">
-    <b>A cross-platform multiplayer game collection built with Flutter</b><br/>
-    <i>跨平台多人游戏合集 — 纯 Dart，零依赖</i>
+    <b>A treasure for developer, featuring multiple cross-platform applications built with Flutter</b><br/>
+    <i>个人开发者的百宝箱，包含多个基于Flutter构建的跨平台应用程序</i>
   </p>
 </p>
 
@@ -14,11 +14,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/🎮_11_Local_Games-FF6B6B?style=for-the-badge" alt="11 Local Games">
-  <img src="https://img.shields.io/badge/🌐_5_LAN_Games_%2B_1_Chat-4ECDC4?style=for-the-badge" alt="5 LAN Games + 1 Chat">
+  <img src="https://img.shields.io/badge/🎮_11_Applications-FF6B6B?style=for-the-badge" alt="11 Local Games">
   <img src="https://img.shields.io/badge/🖥️_Pure_Dart_3D_Engine-9B59B6?style=for-the-badge" alt="Pure Dart 3D Engine">
   <img src="https://img.shields.io/badge/📡_Zero_Config_LAN_Play-2ECC71?style=for-the-badge" alt="Zero Config LAN">
-  <img src="https://img.shields.io/badge/📦_Pure_Dart_Zero_Dependencies-F39C12?style=for-the-badge" alt="Pure Dart Zero Dependencies">
 </p>
 
 ---
@@ -29,91 +27,66 @@
 >
 > No install. No download. Just open and play.
 >
-> 无需安装，无需下载，打开即玩。
-
-### 🧊 Minecraft 3D Engine — Pure Dart, No OpenGL | 纯 Dart 3D 引擎
-
-> A voxel world rendered entirely with `CustomPainter` — zero GPU dependencies.
->
-> 纯 Dart 软渲染的体素世界，零 GPU 依赖。
-
-<p align="center">
-  <img src="docs/images/gifs/minecraft_demo.gif" alt="Minecraft 3D Engine Demo" width="600">
-</p>
+> 六端合一，无界通信，无需安装，即刻体验web端。
 
 ### Preview | 预览
 
 | | | |
 |:---:|:---:|:---:|
 | ![Home](docs/images/screenshots/game_show_0.png) | ![Board Games](docs/images/screenshots/game_show_1.png) | ![Action Games](docs/images/screenshots/game_show_2.png) |
-| ![LAN Chat](docs/images/screenshots/lan_chat.png) | ![Spaceship](docs/images/gifs/spaceship.gif) | ![Minecraft](docs/images/gifs/minecraft_demo.gif) |
+| ![LAN Chat](docs/images/gifs/lan_chat.gif) | ![Spaceship](docs/images/gifs/spaceship.gif) | ![Minecraft](docs/images/gifs/minecraft.gif) |
 
 ---
 
 ## 💡 What Is This? | 这是什么？
 
-**Treasure** is a cross-platform multiplayer game collection built entirely with Flutter. **11 local games + 5 LAN multiplayer games + 1 chat room** — all written in pure Dart with near-zero third-party dependencies.
+A treasure box containing multiple applications — from a simple local Gobang to a multiplayer Minecraft. | 
+包含多款应用的百宝箱，小到单机版五子棋，大到多人联机我的世界。拆解每一款应用/游戏背后的原理，并进行复刻。
 
-**Treasure** 是一个完全用 Flutter 构建的跨平台多人游戏合集。**11 款单机游戏 + 5 款局域网联机游戏 + 1 个聊天室** — 纯 Dart 编写，几乎零第三方依赖。
+Every app/game is reverse-engineered and rebuilt from scratch. All apps share one framework with the same design philosophy and directory structure, with strict layer dependencies. Master one, and you can seamlessly pick up the next. | 所有应用都复用同一款框架，有相同的设计理念和目录结构，层与层之间的依赖关系严格清晰，学完一款可以无缝衔接下一款。
 
-### Highlights | 亮点
+Six platforms, one codebase. No central server required — LAN multiplayer works out of the box. | 六端合一，无界通信。无需中心服务器，局域网也可联机。
 
-| Feature | 特性 | Description |
-|---------|------|-------------|
-| 🧩 **From Scratch** | **从零开始** | Socket networking, 3D renderer, physics engine — all hand-written |
-| 🌐 **LAN Multiplayer** | **局域网联机** | UDP broadcast/multicast room discovery. Same WiFi = instant play |
-| 🎮 **16 Games** | **16 款游戏** | Board games, action, RPG, 3D voxel world, physics simulation |
-| 🖥️ **Cross-Platform** | **跨平台** | Android, iOS, Web, Windows, Linux |
-| 📦 **Pure Dart** | **纯 Dart** | 核心零依赖，所有第三方插件均可按需移除 |
+The code principle is simplicity and zero dependencies. Whether it's networking or 3D rendering, everything is hand-written. Reusable code is fully reused. Simple code, powerful results — a perfect tutorial for beginners. | 代码原则是简约和零依赖，无论是网络通信还是3D效果，全部手搓，能复用的代码全部复用，简单的代码实现强大的功能，堪称新手教学典范。
 
 ---
 
-## 📦 Game List | 游戏列表
+## 📦 Application List | 应用列表
 
-### Board Games | 棋类
+| # | Name | 名称 | Type | Description | 特色 |
+|---|------|------|------|-------------|------|
+| 02 | **LAN Chat** | 局域网聊天 | LAN | 文字/图片/文件聊天，表情面板 | 毛玻璃 UI、BlurHash 渐进加载、XOR 加密传输 |
+| 03 | **Animal Chess** | 斗兽棋 | Local + LAN | 经典斗兽棋，翻棋对战 | 回合制联机引擎 |
+| 04 | **Elemental Battle** | 五行对决 | Local + LAN | 五行 RPG，25 种独特技能 | 五行相克、迷宫探索、道具商店、Boss 战 |
+| 05 | **Gobang** | 五子棋 | Local + LAN | 五子连珠，支持悔棋 | 联机对战 |
+| 06 | **Greedy Snake** | 贪吃蛇 | Local + LAN | 多人贪吃蛇 | 空间网格碰撞检测、实时对战 |
+| 07 | **Go** | 围棋 | Local + LAN | 完整围棋规则 | 提子、打劫、禁入、联机对弈 |
+| 08 | **Sudoku** | 数独 | Local | 自动生成谜题 | 多难度等级 |
+| 09 | **Guess** | 猜词 | Local | Emoji 猜词 | 趣味猜词玩法 |
+| 10 | **Three Tiles** | 三消麻将 | Local | 三消玩法 | 道具系统 |
+| 11 | **Spaceship** | 太空飞船 | Local | 俯视角射击 | Boss 战、道具、成就系统 |
+| 12 | **Soft Body** | 软体模拟 | Local | 弹簧-质点物理模拟 | 欧拉/Verlet 双积分、3D 三角网格 |
+| 13 | **Minecraft** | 我的世界 | Local | 纯 Dart 3D 体素引擎 | 程序化世界（7 种生物群系）、八叉树+裁剪+面合并优化、AABB 碰撞物理 |
 
-| # | Game | 游戏 | Mode | Description |
-|---|------|------|------|-------------|
-| 03 | **Animal Chess** | 斗兽棋 | Local + LAN | Classic animal chess with hidden piece reveal |
-| 05 | **Gobang** | 五子棋 | Local + LAN | Five-in-a-row with undo support |
-| 07 | **Go** | 围棋 | Local + LAN | Full rules: capture, ko, suicide prevention |
-
-### Action Games | 动作游戏
-
-| # | Game | 游戏 | Mode | Description |
-|---|------|------|------|-------------|
-| 06 | **Greedy Snake** | 贪吃蛇 | Local + LAN | Multiplayer snake with spatial grid collision |
-| 11 | **Spaceship** | 太空飞船 | Local | Top-down shooter with bosses, props, achievements |
-
-### Simulation | 模拟
-
-| # | Game | 游戏 | Mode | Description |
-|---|------|------|------|-------------|
-| 04 | **Elemental Battle** | 元素之战 | Local + LAN | Five-element RPG with 25 unique skills |
-| 12 | **Soft Body** | 软体模拟 | Local | Spring-mass physics (Euler/Verlet integration) |
-| 13 | **Minecraft** | 我的世界 | Local | Pure Dart 3D voxel engine with procedural world |
-
-### Puzzle | 益智
-
-| # | Game | 游戏 | Mode | Description |
-|---|------|------|------|-------------|
-| 08 | **Sudoku** | 数独 | Local | Auto-generated puzzles |
-| 09 | **Guess** | 猜词 | Local | Emoji word guessing |
-| 10 | **Three Tiles** | 三消麻将 | Local | Tile-matching puzzle with props |
-
-### Other | 其他
-
-| # | Game | 游戏 | Mode | Description |
-|---|------|------|------|-------------|
-| 02 | **LAN Chat** | 局域网聊天 | LAN | Pure text chat room |
+> `01.home` — Home page router, not listed above.
 
 ---
 
 ## 🏗️ Architecture | 架构设计
 
-All modules follow a consistent **three-layer architecture**:
+All modules follow a consistent **three-layer architecture** with two organizational patterns:
 
-所有模块遵循统一的**三层架构**：
+所有模块遵循统一的**三层架构**，有两种组织方式：
+
+All modules share the same logical **three-layer architecture** (base → middle → upper), organized in two physical patterns:
+
+所有模块共享同一套**三层架构**（base → middle → upper），物理组织方式有两种：
+
+### Pattern A: Standard Framework | 标准框架
+
+Each layer is a subdirectory. Used by complex modules (`04.elemental_battle`, `13.minecraft`):
+
+各层为独立子目录，用于复杂模块：
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -129,38 +102,58 @@ All modules follow a consistent **three-layer architecture**:
 ```
 
 ```
+04.elemental_battle/
+├── base/     # elements, skills, items, maps...
+├── middle/   # battle logic, AI, maze generation...
+└── upper/    # pages, widgets, HUD...
+
+13.minecraft/
+├── base/     # vector, matrix, aabb, block, chunk, octree...
+├── middle/   # manager, world_generator, chunk_manager...
+└── upper/    # page, widget, scene_render, frustum...
+```
+
+### Pattern B: Flat Framework | 扁平框架
+
+Each layer is a single file within the module root. Used by the remaining modules (#02–#03, #05–#12):
+
+各层为模块根目录下的单个文件，用于其余模块：
+
+```
+├── base.dart               # Data models | 数据模型 (base)
+├── foundation_manager.dart # Shared logic | 通用逻辑
+├── local_manager.dart      # Local mode logic | 单机逻辑 (middle)
+├── local_page.dart         # Local mode UI | 单机界面 (upper)
+├── net_manager.dart        # LAN mode logic | 联机逻辑 (middle)
+└── net_page.dart           # LAN mode UI | 联机界面 (upper)
+```
+
+> Note: Simpler modules (#08–#12, no LAN mode) omit `net_*` files and may merge foundation/local logic into a single `manager.dart`. | 注意：纯单机模块（#08–#12）无 `net_*` 文件，`foundation_manager.dart` 与 `local_manager.dart` 可能合并为 `manager.dart`。
+
+### Project Layout | 项目目录
+
+```
 lib/
 ├── 00.common/       # Shared modules (engine, network, widgets)
 │   ├── engine/      # Network engines (base, turn-based, real-time)
 │   ├── network/     # UDP/TCP/WebSocket, encryption, room discovery
 │   └── widget/      # Reusable UI components
 ├── 01.home/         # Home page
-├── 02.lan_chat/     # LAN chat room
-├── 03.animal_chess/ # 斗兽棋
+├── 02.lan_chat/     # LAN chat room (flat)
+├── 03.animal_chess/ # 斗兽棋 (flat)
+├── 04.elemental_battle/ # 五行对决 (standard)
+├── 05.gobang/       # 五子棋 (flat)
 ├── ...
-└── 13.minecraft/    # 3D voxel engine
-```
-
-Each game module follows a consistent pattern:
-
-每个游戏模块遵循统一结构：
-
-```
-├── base.dart               # Data models | 数据模型
-├── foundation_manager.dart # Shared logic | 通用逻辑
-├── local_manager.dart      # Local mode logic | 单机逻辑
-├── local_page.dart         # Local mode UI | 单机界面
-├── net_manager.dart        # LAN mode logic | 联机逻辑
-└── net_page.dart           # LAN mode UI | 联机界面
+└── 13.minecraft/    # 3D voxel engine (standard)
 ```
 
 ---
 
 ## 🌐 Network Architecture | 网络架构
 
-Dual network mode, switchable via one line in `config/network_config.dart`:
+Dual network mode, switchable via one line in `lib/00.common/config/network_config.dart`:
 
-双网络方案，通过 `config/network_config.dart` 一行切换：
+双网络方案，通过 `lib/00.common/config/network_config.dart` 一行切换：
 
 ```dart
 const NetworkMode networkMode = NetworkMode.socket;     // TCP + UDP (native)
@@ -188,83 +181,22 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 
 ---
 
-## 🔧 Technical Highlights | 技术亮点
-
-### Minecraft 3D Engine | 3D 引擎
-
-- Pure Dart software renderer — no OpenGL, no Vulkan | 纯 Dart 软渲染，无依赖
-- Procedural world: 7 biomes via temperature/humidity noise | 基于温湿度噪声的 7 种生物群系
-- Optimization: octree, back-face culling, frustum culling, occlusion culling, face merging | 八叉树+裁剪+面合并优化
-- AABB collision detection, gravity, friction, jumping | AABB 碰撞+物理
-
-> Full docs: [lib/13.minecraft/README.md](lib/13.minecraft/README.md)
-
-### Soft Body Physics | 软体物理
-
-- Spring-mass model with Hooke's law + damping | 弹簧-质点模型+胡克定律+阻尼
-- Dual integration: Euler method and Verlet integration | 欧拉法和 Verlet 积分双方案
-- 3D cylindrical tube structure with triangular mesh | 3D 圆柱体三角网格结构
-
-### Elemental Battle RPG | 元素之战
-
-- Five elements (Metal/Wood/Water/Fire/Earth) × 5 skill tiers | 五行 × 5 类技能
-- 25 unique skills: passive, active, advanced, auxiliary, ultimate | 25 个独特技能
-- Rich effect system: parry, lifesteal, enchant, counter, burn | 格挡/吸血/附魔/反击/灼烧等
-
-### LAN Auto-Discovery | 局域网自动发现
-
-- socket mode: UDP broadcast + multicast, zero-config | UDP 广播+组播，零配置
-- webSocket mode: HTTP scan + WebSocket, browser multiplayer | HTTP 扫描+WebSocket，浏览器联机
-- Dual NIC auto-traversal | 双网卡自动遍历
-
----
-
 ## 📦 Dependencies | 依赖说明
 
-> **设计原则：Pure Dart, zero dependencies.**
+> **为了提高用户体验，引入了一些增益插件，下面提供删除方法，便捷改回零依赖。**
+
+| 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
+|------|---------|---------|---------|----------|
+| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/connection.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
+| `http` | Web 端 HTTP 获取房间信息（名称、加密密钥等）<br/>Fetch room info (name, encryption key) for Web | `00.common/network/http_fetch.dart` | 删除 `http_fetch.dart` 文件<br/>Delete `http_fetch.dart` | Web 端手动加入房间时无法获取房间名和加密密钥<br/>Web cannot fetch room name & encryption key when joining by IP |
+| `image_picker` | 聊天发送图片<br/>Send images in chat | `02.lan_chat/net_page.dart` | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项<br/>Delete `_pickImage()`, attachment menu auto-hides album | 聊天无法发送图片<br/>Cannot send images |
+| `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `02.lan_chat/net_page.dart`、`00.common/widget/component/chat_component.dart` | 删除 `_pickFile()` 方法和 `_saveFile()` 中的 FilePicker 调用<br/>Delete `_pickFile()` and FilePicker calls in `_saveFile()` | 聊天无法发送和保存文件<br/>Cannot send or save files |
+| `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/tool/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |
+| `cupertino_icons` | iOS 风格图标<br/>iOS style icons | 全局 Global | 用 Material Icons 替代后从 `pubspec.yaml` 移除<br/>Replace with Material Icons, remove from pubspec | 无功能影响，仅图标风格变化<br/>No functional impact, icon style only |
+
+> **平台权限 Platform Permissions**：`image_picker` 需要 Android `READ_MEDIA_IMAGES`（13+）/ `READ_EXTERNAL_STORAGE`（12-）和 iOS `NSPhotoLibraryUsageDescription`。`file_picker` 需要 Android `WRITE_EXTERNAL_STORAGE`（9-）。已在 `AndroidManifest.xml` 和 `Info.plist` 中声明，移除插件后可同步删除。
 >
-> 核心功能（网络通信、游戏逻辑、3D 引擎、UI 组件）全部手写，不依赖任何第三方库。
-> 以下插件仅为特定功能引入，每个都可按说明移除，恢复零依赖。
-
-| 插件 | 引入原因 | 影响范围 | 移除后影响 | 移除方法 |
-|------|---------|---------|----------|---------|
-| `web_socket_channel` | 兼容 Web 端通信 | `00.common/network/connection.dart` | **Web 端失去联机功能**，仅原生平台（Android/iOS/Windows/Linux）可联机 | 在 `config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码 |
-| `http` | Web 端 HTTP 扫描发现房间 | `00.common/network/http_fetch.dart` | **Web 端无法自动发现房间**，需手动输入 IP 加入 | 删除 `http_fetch.dart` 文件 |
-| `image_picker` | 聊天发送图片 | `02.lan_chat/net_page.dart` | **聊天无法发送图片**，仅支持文本/文件/表情 | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项 |
-| `file_picker` | 聊天发送文件 | `02.lan_chat/net_page.dart` | **聊天无法发送文件**，仅支持文本/图片/表情 | 删除 `_pickFile()` 方法，附件菜单自动隐藏文件选项 |
-| `path_provider` | 获取应用专属存储目录 | `00.common/tool/storage_service.dart` | **Android/iOS 无法持久化**（语言设置、游戏进度、排行榜丢失），桌面端不受影响 | 删除 `StorageService` 中 `path_provider` 相关代码，改用 `Directory.current`（仅桌面端可用） |
-| `cupertino_icons` | iOS 风格图标 | 全局 | 无功能影响，仅图标风格变化 | 用 Material Icons 替代后移除 |
-
-> **平台权限说明**：`image_picker` 需要 Android `READ_MEDIA_IMAGES`（Android 13+）/ `READ_EXTERNAL_STORAGE`（Android 12-）和 iOS `NSPhotoLibraryUsageDescription`。已在 `AndroidManifest.xml` 和 `Info.plist` 中声明。移除 `image_picker` 后可同步删除这些权限声明。
-
-### 完全零依赖方案
-
-如果不需要 Web 端联机和聊天文件/图片功能，执行以下操作即可恢复完全零依赖：
-
-```bash
-# 1. 切换到原生 Socket 模式（Web 端将失去联机功能）
-# 编辑 lib/00.common/config/network_config.dart
-# 将 NetworkMode.webSocket 改为 NetworkMode.socket
-
-# 2. 从 pubspec.yaml 删除以下依赖：
-#    web_socket_channel  （影响：Web 端无法联机）
-#    http                （影响：Web 端无法自动发现房间）
-#    image_picker        （影响：聊天无法发送图片）
-#    file_picker         （影响：聊天无法发送文件）
-
-# 3. 删除相关文件
-rm lib/00.common/network/http_fetch.dart
-
-# 4. 删除 net_page.dart 中的 image_picker / file_picker import 和相关方法
-
-# 5. 删除平台权限声明（可选）
-# android/app/src/main/AndroidManifest.xml: 删除 READ_MEDIA_IMAGES、READ_EXTERNAL_STORAGE
-# ios/Runner/Info.plist: 删除 NSPhotoLibraryUsageDescription
-
-# 6. 清理
-flutter pub get
-flutter analyze
-```
+> `image_picker` requires Android `READ_MEDIA_IMAGES` (13+) / `READ_EXTERNAL_STORAGE` (12-) and iOS `NSPhotoLibraryUsageDescription`. `file_picker` requires Android `WRITE_EXTERNAL_STORAGE` (9-). Already declared in `AndroidManifest.xml` and `Info.plist`; remove alongside plugins.
 
 ---
 
@@ -299,20 +231,11 @@ flutter build windows --release
 flutter build ios --release
 ```
 
----
+### Test | 测试
 
-## 📊 Stats | 项目数据
-
-<p align="center">
-  <table>
-    <tr>
-      <td align="center"><b>11</b><br/>Local Games</td>
-      <td align="center"><b>5</b><br/>LAN Games</td>
-      <td align="center"><b>5</b><br/>Platforms</td>
-      <td align="center"><b>5</b><br/>Dependencies (all removable)</td>
-    </tr>
-  </table>
-</p>
+```bash
+flutter test
+```
 
 ---
 
@@ -321,6 +244,8 @@ flutter build ios --release
 | Module | Link |
 |--------|------|
 | 🧊 Minecraft 3D Engine | [lib/13.minecraft/README.md](lib/13.minecraft/README.md) |
+| 🤝 Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 📋 Changelog | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
 

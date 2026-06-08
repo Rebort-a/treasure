@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'manager.dart';
 
 class GuessPage extends StatelessWidget {

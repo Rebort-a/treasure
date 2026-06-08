@@ -7,7 +7,7 @@ import '../00.common/game/step.dart';
 import '../00.common/network/network_room.dart';
 
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 
 import 'net_manager.dart';
 import 'foundation_widget.dart';
@@ -98,7 +98,9 @@ class NetAnimalChessPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        gamer == _manager.netTurnEngine.playerType ? S.yourTurn() : S.opponentTurn(),
+        gamer == _manager.netTurnEngine.playerType
+            ? S.yourTurn()
+            : S.opponentTurn(),
         style: globalTheme.textTheme.titleMedium?.copyWith(color: Colors.white),
       ),
     ),

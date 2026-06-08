@@ -6,7 +6,7 @@ import '../00.common/tool/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/tool/storage_service.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'algorithm.dart';
 import 'base.dart';
 
@@ -264,7 +264,10 @@ class Manager {
           ),
           const SizedBox(height: 16),
           Text(
-            S.difficultyTime('$_difficulty', TimerCounter.formatDuration(_timer.tick)),
+            S.difficultyTime(
+              '$_difficulty',
+              TimerCounter.formatDuration(_timer.tick),
+            ),
             style: nightTheme.value
                 ? MagicTheme.bodyStyle
                 : BaseTheme.bodyStyle,
@@ -349,7 +352,9 @@ class Manager {
         final map = cellJson as Map<String, dynamic>;
         final type = CellType.values[map['type'] as int];
         final fixedDigit = map['fixedDigit'] as int? ?? 0;
-        final spareDigits = List<int>.from(map['spareDigits'] as List<dynamic>? ?? []);
+        final spareDigits = List<int>.from(
+          map['spareDigits'] as List<dynamic>? ?? [],
+        );
 
         final cell = CellNotifier(
           SudokuCell(

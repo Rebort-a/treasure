@@ -11,7 +11,7 @@ import '../00.common/tool/notifiers.dart';
 import '../00.common/network/network_message.dart';
 import '../00.common/network/network_room.dart';
 
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 

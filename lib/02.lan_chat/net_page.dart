@@ -12,7 +12,7 @@ import '../00.common/style/chat_theme.dart';
 import '../00.common/tool/blur_hash.dart';
 import '../00.common/widget/component/chat_component.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
 import 'widget/emoji_panel.dart';
 import 'widget/attachment_menu.dart';
@@ -181,7 +181,8 @@ class _NetChatPageState extends State<NetChatPage> {
             child: MessageList(
               networkEngine: _manager.networkEngine,
               theme: _theme,
-              topPadding: MediaQuery.of(context).padding.top + kToolbarHeight + 4,
+              topPadding:
+                  MediaQuery.of(context).padding.top + kToolbarHeight + 4,
             ),
           ),
         ),

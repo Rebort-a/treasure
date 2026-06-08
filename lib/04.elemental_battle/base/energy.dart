@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'effect.dart';
 import 'skill.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 
 // 属性枚举类型
 enum AttributeType {

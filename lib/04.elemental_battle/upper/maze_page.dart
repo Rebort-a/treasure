@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../00.common/widget/notifier_navigator.dart';
 import '../../00.common/widget/button/scale_button.dart';
 import '../../00.common/image/image_manager.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import '../base/energy.dart';
 
 import 'maze_manager.dart';
@@ -24,7 +24,8 @@ class MazePage extends StatelessWidget {
     toolbarHeight: 32.0,
     title: ValueListenableBuilder<int>(
       valueListenable: _manager.floorNum,
-      builder: (context, value, _) => Text(value > 0 ? S.floorName(value) : S.mainCity),
+      builder: (context, value, _) =>
+          Text(value > 0 ? S.floorName(value) : S.mainCity),
     ),
     centerTitle: true,
   );
@@ -204,7 +205,10 @@ class MazePage extends StatelessWidget {
         text: S.status,
         onPressed: () => _manager.navigateToStatusPage(context),
       ),
-      _ActionButton(text: S.switchElement, onPressed: _manager.switchPlayerNext),
+      _ActionButton(
+        text: S.switchElement,
+        onPressed: _manager.switchPlayerNext,
+      ),
     ];
 
     return direction == Axis.horizontal

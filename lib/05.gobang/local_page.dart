@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/game/gamer.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'local_manager.dart';
 import 'foundation_widget.dart';
 
@@ -44,8 +44,16 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
                   _manager.board.gameOver == false
-                      ? S.currentTurn(gamer == TurnGamerType.front ? S.blackSide : S.whiteSide)
-                      : S.sideWin(gamer == TurnGamerType.rear ? S.blackSide : S.whiteSide),
+                      ? S.currentTurn(
+                          gamer == TurnGamerType.front
+                              ? S.blackSide
+                              : S.whiteSide,
+                        )
+                      : S.sideWin(
+                          gamer == TurnGamerType.rear
+                              ? S.blackSide
+                              : S.whiteSide,
+                        ),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 
 import 'local_manager.dart';
 import 'foundation_widget.dart';

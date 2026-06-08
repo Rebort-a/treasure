@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:treasure/04.elemental_battle/base/energy.dart';
 
 import '../../00.common/game/gamer.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import '../../00.common/widget/dialog/template_dialog.dart';
 import '../../00.common/tool/notifiers.dart';
 import 'elemental.dart';
@@ -61,7 +61,9 @@ abstract class FoundationalCombatManager {
   );
 
   void initCombat(TurnGamerType playerType) {
-    final info = playerType == TurnGamerType.front ? S.yourTurnAct : S.enemyTurnWait;
+    final info = playerType == TurnGamerType.front
+        ? S.yourTurnAct
+        : S.enemyTurnWait;
     addCombatInfo(
       "${' '.padRight(100)}\n"
       "$info\n",
@@ -152,7 +154,12 @@ abstract class FoundationalCombatManager {
         : EnergyType.values[action.targetIndex];
 
     addCombatInfo(
-      S.castSkill(source.getAppointName(source.current), skill.name, target.getAppointName(targetIndex), skill.description),
+      S.castSkill(
+        source.getAppointName(source.current),
+        skill.name,
+        target.getAppointName(targetIndex),
+        skill.description,
+      ),
     );
 
     CombatResult result = CombatResult.undecided;
@@ -213,7 +220,10 @@ abstract class FoundationalCombatManager {
     if (!elemental.switchAliveByOrder()) return false;
 
     addCombatInfo(
-      S.switchTo(elemental.baseName, elemental.getAppointName(elemental.current)),
+      S.switchTo(
+        elemental.baseName,
+        elemental.getAppointName(elemental.current),
+      ),
     );
     return true;
   }

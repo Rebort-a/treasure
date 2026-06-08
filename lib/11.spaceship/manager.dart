@@ -7,7 +7,7 @@ import '../00.common/widget/banner/banner_template.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/notifiers.dart';
 import '../00.common/tool/storage_service.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'constant.dart';
 

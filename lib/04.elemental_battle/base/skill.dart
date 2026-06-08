@@ -1,5 +1,5 @@
 import 'effect.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 
 enum SkillID {
   // 基础技

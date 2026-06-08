@@ -7,7 +7,7 @@ import '../../00.common/engine/net_turn_engine.dart';
 import '../../00.common/game/step.dart';
 import '../../00.common/network/network_message.dart';
 import '../../00.common/network/network_room.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 
 import '../middle/foundation_combat_manager.dart';
 import '../middle/elemental.dart';
@@ -61,7 +61,9 @@ class NetCombatManager extends FoundationalCombatManager {
 
   // 定义动作处理局部函数
   void _actionHandler(bool isSelf, NetworkMessage message) {
-    final action = GameAction.fromJson(jsonDecode(message.content) as Map<String, dynamic>);
+    final action = GameAction.fromJson(
+      jsonDecode(message.content) as Map<String, dynamic>,
+    );
     final actionType = _getActionType(action.actionIndex);
 
     if (isSelf && (netTurnEngine.playerType != currentGamer.value)) {

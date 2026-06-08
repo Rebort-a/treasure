@@ -4,7 +4,7 @@ import '../00.common/network/network_room.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/net_prepare_widget.dart';
 import '../00.common/widget/notifier_navigator.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
@@ -69,7 +69,9 @@ class GoNetPage extends StatelessWidget {
     builder: (_, player, __) {
       String text = '';
       if (_manager.board.gameOver) {
-        text = S.sideWin(player == StoneState.white ? S.blackSide : S.whiteSide);
+        text = S.sideWin(
+          player == StoneState.white ? S.blackSide : S.whiteSide,
+        );
       } else {
         final side = player == StoneState.black ? S.blackSide : S.whiteSide;
         text = player == _manager.localPlayer

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:treasure/00.common/tool/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../l10n/strings.dart';
+import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 class GuessManager {
@@ -98,9 +98,8 @@ class GuessManager {
     markItems.value = List.from(guessItems.value);
   }
 
-  String get _displayText => _isGameOver
-      ? S.timeTaken(_timer.tick)
-      : S.correctCount(_correctCount);
+  String get _displayText =>
+      _isGameOver ? S.timeTaken(_timer.tick) : S.correctCount(_correctCount);
 
   int get _correctCount {
     int count = 0;

@@ -4,7 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import '00.common/style/theme.dart';
 import '00.common/tool/storage_service.dart';
 import '01.home/home_page.dart';
-import 'l10n/l10n.dart';
+import '00.common/l10n/l10n.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

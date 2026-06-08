@@ -1,12 +1,17 @@
 import 'dart:math';
 
 import '../../00.common/image/entity.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 import '../base/energy.dart';
 import 'elemental.dart';
 
 class RandomEnemy extends ElementalEntity {
-  static final enemyNames = [S.enemyImp, S.enemyClown, S.enemyDemon, S.enemyKing];
+  static final enemyNames = [
+    S.enemyImp,
+    S.enemyClown,
+    S.enemyDemon,
+    S.enemyKing,
+  ];
 
   final int grade;
 

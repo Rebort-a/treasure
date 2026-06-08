@@ -9,7 +9,7 @@ import '../../00.common/widget/dialog/template_dialog.dart';
 import '../../00.common/tool/notifiers.dart';
 import '../../00.common/image/entity.dart';
 import '../../00.common/game/map.dart';
-import '../../l10n/strings.dart';
+import '../../00.common/l10n/strings.dart';
 
 import '../base/energy.dart';
 import '../base/map.dart';
