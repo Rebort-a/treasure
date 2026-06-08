@@ -130,18 +130,21 @@ class _CoolButtonState extends State<CoolButton>
                 ),
 
                 // 按钮内容（图标+文字）
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      widget.icon,
-                      color: Colors.white,
-                      size: widget.iconSize,
-                    ),
-                    SizedBox(width: widget.gap),
-                    Text(widget.text, style: widget.textStyle),
-                  ],
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.icon,
+                        color: Colors.white,
+                        size: widget.iconSize,
+                      ),
+                      SizedBox(width: widget.gap),
+                      Text(widget.text, style: widget.textStyle),
+                    ],
+                  ),
                 ),
               ),
             ),

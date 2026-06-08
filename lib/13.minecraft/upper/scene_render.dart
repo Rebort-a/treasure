@@ -377,7 +377,8 @@ class ScenePainter extends CustomPainter {
     final clippedVertices = _clipToScreenBounds(screenVertices, size);
     if (clippedVertices.length < 3) return;
 
-    _drawPolygonFace(canvas, face.blockType, clippedVertices, face.normal);
+    final fogFactor = _calcFogFactor(face.bounds.center.toVector3());
+    _drawPolygonFace(canvas, face.blockType, clippedVertices, face.normal, fogFactor);
   }
 
   void _renderSingleBlock(Canvas canvas, Size size, Block block) {
@@ -428,7 +429,8 @@ class ScenePainter extends CustomPainter {
 
     if (clippedVertices.length < 3) return;
 
-    _drawPolygonFace(canvas, block.type, clippedVertices, face.normal);
+    final fogFactor = _calcFogFactor(block.position.toVector3());
+    _drawPolygonFace(canvas, block.type, clippedVertices, face.normal, fogFactor, block.powerLevel);
 
     // 绘制调试信息
     if (debugConfig.showFaceNormals) {
@@ -524,17 +526,50 @@ class ScenePainter extends CustomPainter {
     );
   }
 
+  /// 雾效颜色（与天空背景一致）
+  static const Color _fogColor = Color(0xFF87CEEB);
+
+  /// 红石灯亮色
+  static const Color _lampOnColor = Color(0xFFFFEB3B);
+  /// 红石灯灭色
+  static const Color _lampOffColor = Color(0xFF424242);
+
+  /// 获取方块颜色（红石方块根据 powerLevel 变化）
+  Color _getBlockColor(BlockType type, int powerLevel) {
+    switch (type) {
+      case BlockType.redstoneDust:
+        // 暗红 → 亮红，根据信号强度
+        final ratio = powerLevel / 15.0;
+        return Color.lerp(const Color(0xFF440000), const Color(0xFFFF0000), ratio)!;
+      case BlockType.redstoneLamp:
+        return powerLevel > 0 ? _lampOnColor : _lampOffColor;
+      case BlockType.redstoneTorch:
+        return const Color(0xFFFF4444);
+      case BlockType.lever:
+        return powerLevel > 0
+            ? const Color(0xFFA5D6A7) // 激活：亮绿
+            : const Color(0xFF795548); // 未激活：暗棕
+      default:
+        return type.color;
+    }
+  }
+
   void _drawPolygonFace(
     Canvas canvas,
     BlockType blockType,
     List<Offset> vertices,
-    Vector3Int normal,
-  ) {
+    Vector3Int normal, [
+    double fogFactor = 0.0,
+    int powerLevel = 0,
+  ]) {
     final path = Path()..addPolygon(vertices, true);
-    final baseColor = blockType.color;
+    final baseColor = _getBlockColor(blockType, powerLevel);
     final shadedColor = _applyFaceLighting(baseColor, normal);
+    final finalColor = fogFactor > 0
+        ? Color.lerp(shadedColor, _fogColor, fogFactor)!
+        : shadedColor;
 
-    canvas.drawPath(path, Paint()..color = shadedColor);
+    canvas.drawPath(path, Paint()..color = finalColor);
 
     if (blockType != BlockType.glass) {
       canvas.drawPath(
@@ -545,6 +580,14 @@ class ScenePainter extends CustomPainter {
           ..strokeWidth = 1,
       );
     }
+  }
+
+  /// 计算雾效因子（0=无雾，1=全雾）
+  double _calcFogFactor(Vector3 worldPos) {
+    final dist = (worldPos - sceneInfo.position).magnitude;
+    if (dist <= Constants.fogStart) return 0.0;
+    if (dist >= Constants.fogEnd) return 1.0;
+    return (dist - Constants.fogStart) / (Constants.fogEnd - Constants.fogStart);
   }
 
   /// 应用面光照

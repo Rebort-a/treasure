@@ -57,6 +57,17 @@ class WorldGenerator {
   static const int _maxSurfaceLayers = 6;
   static const double _zeroLayerChance = 0.01;
 
+  // 矿石配置（基岩上方 Y 范围内随机分布）
+  static const int _oreMinY = -50;
+  static const int _oreMaxY = 10;
+  static const Map<BlockType, double> _oreChances = {
+    BlockType.coalOre: 0.03,
+    BlockType.ironOre: 0.02,
+    BlockType.goldOre: 0.008,
+    BlockType.diamondOre: 0.003,
+    BlockType.emeraldOre: 0.005,
+  };
+
   // 噪音配置
   static const double _noiseTempScale = 0.002;
   static const double _noiseHumidityScale = 0.003;
@@ -290,6 +301,35 @@ class WorldGenerator {
           type: BlockType.bedrock,
         );
         chunk.addBlock(bedrockBlock);
+
+        // 生成湖泊（地表低于海平面时填充水）
+        if (surfaceTopY < Constants.worldSeaLevel && layers > 0) {
+          for (int y = surfaceTopY + _blockSize;
+              y <= Constants.worldSeaLevel;
+              y += _blockSize) {
+            chunk.addBlock(Block(
+              position: Vector3Int(worldXBase + x, y, worldZBase + z),
+              type: BlockType.water,
+            ));
+          }
+        }
+
+        // 生成地下矿石
+        for (int y = _oreMinY; y <= _oreMaxY; y += _blockSize) {
+          if (y >= surfaceTopY) continue; // 不在地表以上生成
+          final pos = Vector3Int(worldXBase + x, y, worldZBase + z);
+          if (!chunk.aabb.contains(pos)) continue;
+
+          final oreRandom = math.Random(
+            pos.x * 73856093 ^ pos.y * 19349663 ^ pos.z * 83492791,
+          );
+          for (final entry in _oreChances.entries) {
+            if (oreRandom.nextDouble() < entry.value) {
+              chunk.addBlock(Block(position: pos, type: entry.key));
+              break;
+            }
+          }
+        }
       }
     }
 

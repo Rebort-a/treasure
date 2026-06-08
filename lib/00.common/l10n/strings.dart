@@ -11,6 +11,7 @@ class S {
   static String get cancel => isZh ? '取消' : 'Cancel';
   static String get close => isZh ? '关闭' : 'Close';
   static String get ok => isZh ? '确定' : 'OK';
+  static String get clear => isZh ? '清除' : 'Clear';
   static String get exit => isZh ? '退出' : 'Exit';
   static String get restart => isZh ? '重开' : 'Restart';
   static String get create => isZh ? '创建' : 'Create';
@@ -149,6 +150,16 @@ class S {
   static String difficultyTime(String d, String t) =>
       isZh ? '难度: $d 用时: $t' : 'Difficulty: $d Time: $t';
   static String get startNewGame => isZh ? '开始新游戏' : 'Start New Game';
+  static String get importPuzzle => isZh ? '导入棋局' : 'Import Puzzle';
+  static String get importFailConflict =>
+      isZh ? '棋盘中存在冲突，请检查行、列或宫格中是否有重复数字'
+      : 'Board has conflicts. Check rows, columns and boxes for duplicates.';
+  static String get importFailEmpty =>
+      isZh ? '请至少填写一个数字' : 'Fill in at least one number.';
+  static String get importFailNotUnique =>
+      isZh ? '该棋局没有唯一解，请调整数字' : 'The puzzle has no unique solution. Adjust the numbers.';
+  static String get confirmImport => isZh ? '确认导入' : 'Confirm';
+  static String get cancelImport => isZh ? '取消' : 'Cancel';
 
   // ==================== 猜枚 ====================
   static String get guess => isZh ? '猜枚' : 'Guess';
@@ -221,6 +232,11 @@ class S {
   static String get achEightKills => isZh ? '八连杀' : 'Eight Streak';
   static String get achEightKillsDesc =>
       isZh ? '连续击败八个敌人' : 'Defeat 8 enemies in a row';
+
+  // ==================== 塔防 ====================
+  static String get towerDefense => isZh ? '塔防' : 'Tower Defense';
+  static String get startWave => isZh ? '开始波次' : 'Start Wave';
+  static String get netTowerDefense => isZh ? '联机塔防' : 'Net Tower Defense';
 
   // ==================== 五行之战 通用 ====================
   static String get attack => isZh ? '攻击' : 'Attack';
@@ -476,6 +492,8 @@ class S {
         return isZh ? '软环' : 'Soft';
       case 'minecraft':
         return isZh ? '我的世界' : 'Minecraft';
+      case 'towerDefense':
+        return isZh ? '塔防' : 'Tower Defense';
       case 'onlyChat':
         return isZh ? '聊天室' : 'Chat';
       default:
@@ -497,6 +515,8 @@ class S {
         return isZh ? '贪吃蛇' : 'Greedy Snake';
       case 'weiqi':
         return isZh ? '围棋' : 'Go';
+      case 'towerDefense':
+        return isZh ? '塔防' : 'Tower Defense';
       default:
         return raw;
     }

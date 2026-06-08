@@ -19,6 +19,7 @@ class Connection {
       await channel.ready;
       return Connection._(channel);
     } else {
+      // ignore: close_sinks — socket lifecycle managed by close()
       final socket = await Socket.connect(host, port);
       return Connection._(socket);
     }

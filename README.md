@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">🧰 Treasure</h1>
   <p align="center">
-    <b>A treasure for developer, featuring multiple cross-platform applications built with Flutter</b><br/>
+    <b>A treasure for developers, featuring multiple cross-platform applications built with Flutter</b><br/>
     <i>个人开发者的百宝箱，包含多个基于Flutter构建的跨平台应用程序</i>
   </p>
 </p>
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/🎮_11_Applications-FF6B6B?style=for-the-badge" alt="11 Local Games">
+  <img src="https://img.shields.io/badge/📱_13_Applications-FF6B6B?style=for-the-badge" alt="13 Applications">
   <img src="https://img.shields.io/badge/🖥️_Pure_Dart_3D_Engine-9B59B6?style=for-the-badge" alt="Pure Dart 3D Engine">
   <img src="https://img.shields.io/badge/📡_Zero_Config_LAN_Play-2ECC71?style=for-the-badge" alt="Zero Config LAN">
 </p>
@@ -40,14 +40,13 @@
 
 ## 💡 What Is This? | 这是什么？
 
-A treasure box containing multiple applications — from a simple local Gobang to a multiplayer Minecraft. | 
-包含多款应用的百宝箱，小到单机版五子棋，大到多人联机我的世界。拆解每一款应用/游戏背后的原理，并进行复刻。
+A collection of cross-platform applications built with Flutter — from a simple Gobang to a 3D Minecraft engine powered by pure Dart. Every app is reverse-engineered and rebuilt from scratch. | 基于 Flutter 构建的跨平台应用合集，从单机五子棋到纯 Dart 驱动的 3D 我的世界引擎，拆解每一款应用背后的原理并进行复刻。
 
-Every app/game is reverse-engineered and rebuilt from scratch. All apps share one framework with the same design philosophy and directory structure, with strict layer dependencies. Master one, and you can seamlessly pick up the next. | 所有应用都复用同一款框架，有相同的设计理念和目录结构，层与层之间的依赖关系严格清晰，学完一款可以无缝衔接下一款。
+All apps share a unified framework with consistent design philosophy and directory structure, with clear separation between data, logic, and UI layers. Master one, and you can seamlessly pick up the next. | 所有应用复用统一的框架，遵循一致的设计理念与目录结构，数据、逻辑、UI 三层严格分离，学完一款即可无缝衔接下一款。
 
-Six platforms, one codebase. No central server required — LAN multiplayer works out of the box. | 六端合一，无界通信。无需中心服务器，局域网也可联机。
+Six platforms, one codebase. No central server required — LAN multiplayer works out of the box. | 六端合一，无需中心服务器，开箱即联。
 
-The code principle is simplicity and zero dependencies. Whether it's networking or 3D rendering, everything is hand-written. Reusable code is fully reused. Simple code, powerful results — a perfect tutorial for beginners. | 代码原则是简约和零依赖，无论是网络通信还是3D效果，全部手搓，能复用的代码全部复用，简单的代码实现强大的功能，堪称新手教学典范。
+The codebase follows the principle of simplicity and zero dependencies. Whether networking or 3D rendering, everything is hand-crafted with zero third-party dependencies. Reusable code is fully abstracted and shared. | 代码遵循简约与零依赖原则，无论是网络通信还是 3D 渲染，全部手写实现，可复用代码充分抽象共享。
 
 ---
 
@@ -56,17 +55,18 @@ The code principle is simplicity and zero dependencies. Whether it's networking 
 | # | Name | 名称 | Type | Description | 特色 |
 |---|------|------|------|-------------|------|
 | 02 | **LAN Chat** | 局域网聊天 | LAN | 文字/图片/文件聊天，表情面板 | 毛玻璃 UI、BlurHash 渐进加载、XOR 加密传输 |
-| 03 | **Animal Chess** | 斗兽棋 | Local + LAN | 经典斗兽棋，翻棋对战 | 回合制联机引擎 |
+| 03 | **Animal Chess** | 斗兽棋 | Local + LAN | 经典斗兽棋，翻棋对战 | AI 对手、回合制联机引擎 |
 | 04 | **Elemental Battle** | 五行对决 | Local + LAN | 五行 RPG，25 种独特技能 | 五行相克、迷宫探索、道具商店、Boss 战 |
-| 05 | **Gobang** | 五子棋 | Local + LAN | 五子连珠，支持悔棋 | 联机对战 |
+| 05 | **Gobang** | 五子棋 | Local + LAN | 五子连珠，支持悔棋 | AI 对手、联机对战 |
 | 06 | **Greedy Snake** | 贪吃蛇 | Local + LAN | 多人贪吃蛇 | 空间网格碰撞检测、实时对战 |
-| 07 | **Go** | 围棋 | Local + LAN | 完整围棋规则 | 提子、打劫、禁入、联机对弈 |
+| 07 | **Go** | 围棋 | Local + LAN | 完整围棋规则 | AI 对手、提子、打劫、禁入、联机对弈 |
 | 08 | **Sudoku** | 数独 | Local | 自动生成谜题 | 多难度等级 |
 | 09 | **Guess** | 猜词 | Local | Emoji 猜词 | 趣味猜词玩法 |
 | 10 | **Three Tiles** | 三消麻将 | Local | 三消玩法 | 道具系统 |
 | 11 | **Spaceship** | 太空飞船 | Local | 俯视角射击 | Boss 战、道具、成就系统 |
 | 12 | **Soft Body** | 软体模拟 | Local | 弹簧-质点物理模拟 | 欧拉/Verlet 双积分、3D 三角网格 |
-| 13 | **Minecraft** | 我的世界 | Local | 纯 Dart 3D 体素引擎 | 程序化世界（7 种生物群系）、八叉树+裁剪+面合并优化、AABB 碰撞物理 |
+| 13 | **Minecraft** | 我的世界 | Local | 纯 Dart 3D 体素引擎 | 红石系统、距离雾效、水面/矿石生成、八叉树+裁剪+面合并优化 |
+| 14 | **Tower Defense** | 塔防 | Local + LAN | 合作防守，随机地图 | 4 种防御塔、4 种敌人、20 波次、联机合作 |
 
 > `01.home` — Home page router, not listed above.
 
@@ -77,10 +77,6 @@ The code principle is simplicity and zero dependencies. Whether it's networking 
 All modules follow a consistent **three-layer architecture** with two organizational patterns:
 
 所有模块遵循统一的**三层架构**，有两种组织方式：
-
-All modules share the same logical **three-layer architecture** (base → middle → upper), organized in two physical patterns:
-
-所有模块共享同一套**三层架构**（base → middle → upper），物理组织方式有两种：
 
 ### Pattern A: Standard Framework | 标准框架
 
@@ -101,18 +97,6 @@ Each layer is a subdirectory. Used by complex modules (`04.elemental_battle`, `1
 └─────────────────────────────────────────────────┘
 ```
 
-```
-04.elemental_battle/
-├── base/     # elements, skills, items, maps...
-├── middle/   # battle logic, AI, maze generation...
-└── upper/    # pages, widgets, HUD...
-
-13.minecraft/
-├── base/     # vector, matrix, aabb, block, chunk, octree...
-├── middle/   # manager, world_generator, chunk_manager...
-└── upper/    # page, widget, scene_render, frustum...
-```
-
 ### Pattern B: Flat Framework | 扁平框架
 
 Each layer is a single file within the module root. Used by the remaining modules (#02–#03, #05–#12):
@@ -128,8 +112,6 @@ Each layer is a single file within the module root. Used by the remaining module
 └── net_page.dart           # LAN mode UI | 联机界面 (upper)
 ```
 
-> Note: Simpler modules (#08–#12, no LAN mode) omit `net_*` files and may merge foundation/local logic into a single `manager.dart`. | 注意：纯单机模块（#08–#12）无 `net_*` 文件，`foundation_manager.dart` 与 `local_manager.dart` 可能合并为 `manager.dart`。
-
 ### Project Layout | 项目目录
 
 ```
@@ -144,7 +126,8 @@ lib/
 ├── 04.elemental_battle/ # 五行对决 (standard)
 ├── 05.gobang/       # 五子棋 (flat)
 ├── ...
-└── 13.minecraft/    # 3D voxel engine (standard)
+├── 13.minecraft/    # 3D voxel engine (standard)
+└── 14.tower_defense/ # Tower defense (flat)
 ```
 
 ---
@@ -183,7 +166,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 
 ## 📦 Dependencies | 依赖说明
 
-> **为了提高用户体验，引入了一些增益插件，下面提供删除方法，便捷改回零依赖。**
+> **To enhance the user experience, some convenience plugins are included. Below are removal instructions for reverting to zero dependencies.** | **为了提高用户体验，引入了一些辅助插件，下面提供删除方法，便捷改回零依赖。**
 
 | 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
 |------|---------|---------|---------|----------|
@@ -226,6 +209,9 @@ flutter build apk --release
 
 # Windows
 flutter build windows --release
+
+# Linux
+flutter build linux --release
 
 # iOS (requires macOS)
 flutter build ios --release

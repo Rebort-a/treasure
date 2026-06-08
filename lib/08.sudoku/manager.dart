@@ -9,6 +9,7 @@ import '../00.common/tool/storage_service.dart';
 import '../00.common/l10n/strings.dart';
 import 'algorithm.dart';
 import 'base.dart';
+import 'import_page.dart';
 
 class Manager {
   late final TimerCounter _timer; // 计时器
@@ -229,6 +230,55 @@ class Manager {
     if (selectedCellIndex.value < 0) return;
     selectedCell.unlock();
     _saveProgress();
+  }
+
+  void openImport() {
+    pageNavigator.value = (context) async {
+      final result = await Navigator.push<List<List<int>>>(
+        context,
+        MaterialPageRoute(builder: (_) => const SudokuImportPage()),
+      );
+      if (result != null && context.mounted) {
+        loadImportedPuzzle(result);
+      }
+    };
+  }
+
+  void loadImportedPuzzle(List<List<int>> puzzle) {
+    _clearSelectedCell();
+    boardSize = 9;
+    boardLevel = 3;
+    _difficulty = 0;
+
+    final solver = BacktrackingSolver(level: boardLevel);
+    _solution = solver.solve(puzzle);
+
+    cells.clear();
+    for (int i = 0; i < boardSize; i++) {
+      for (int j = 0; j < boardSize; j++) {
+        final value = puzzle[i][j];
+        if (value != 0) {
+          cells.add(
+            CellNotifier(
+              SudokuCell(
+                row: i,
+                col: j,
+                type: CellType.fixed,
+                fixedDigit: value,
+              ),
+            ),
+          );
+        } else {
+          cells.add(
+            CellNotifier(SudokuCell(row: i, col: j, type: CellType.editable)),
+          );
+        }
+      }
+    }
+
+    _timer.restart();
+    isGameOver.value = false;
+    _clearProgress();
   }
 
   void leavePage() {

@@ -34,6 +34,11 @@ enum BlockType {
   brick, // 砖块
   // 特殊类型
   air, // 空气
+  // 红石系统
+  redstoneDust, // 红石粉
+  redstoneTorch, // 红石火把
+  lever, // 拉杆
+  redstoneLamp, // 红石灯
 }
 
 extension BlockTypeProperties on BlockType {
@@ -60,6 +65,10 @@ extension BlockTypeProperties on BlockType {
     BlockType.planks: const Color(0xFF8D6E63),
     BlockType.brick: const Color(0xFFB71C1C),
     BlockType.air: const Color(0x00000000),
+    BlockType.redstoneDust: const Color(0xFFCC0000),
+    BlockType.redstoneTorch: const Color(0xFFFF4444),
+    BlockType.lever: const Color(0xFF795548),
+    BlockType.redstoneLamp: const Color(0xFF424242),
   }[this]!;
 
   bool get isPenetrate =>
@@ -82,6 +91,16 @@ extension BlockTypeProperties on BlockType {
     BlockType.diamondOre,
     BlockType.emeraldOre,
   ].contains(this);
+
+  bool get isRedstone => [
+    BlockType.redstoneDust,
+    BlockType.redstoneTorch,
+    BlockType.lever,
+    BlockType.redstoneLamp,
+  ].contains(this);
+
+  bool get isRedstoneConductor =>
+      isRedstone || this == BlockType.air;
 }
 
 /// 方块面数据
@@ -106,6 +125,9 @@ class Block {
   final FixedBoxCollider collider;
   final List<Vector3Int> _vertices;
   late final List<BlockFace> _faces;
+
+  /// 红石信号强度（0-15）
+  int powerLevel = 0;
 
   Vector3? _lastCameraPosition;
   List<BlockFace>? _cachedVisibleFaces;

@@ -131,6 +131,12 @@ class Constants {
   /// 屏幕Y轴翻转（1.0为正常，-1.0为翻转）
   static const double screenYFlip = 1.0;
 
+  /// 雾效起始距离
+  static const double fogStart = 20.0;
+
+  /// 雾效结束距离
+  static const double fogEnd = 50.0;
+
   // ============================
   // UI参数
   // ============================

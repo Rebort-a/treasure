@@ -5,13 +5,40 @@ import '../00.common/style/theme.dart';
 import '../00.common/widget/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 
+import 'ai_manager.dart';
+import 'foundation_manager.dart';
 import 'local_manager.dart';
 import 'foundation_widget.dart';
 
-class LocalAnimalChessPage extends StatelessWidget {
-  final LocalManager _manager = LocalManager();
+class LocalAnimalChessPage extends StatefulWidget {
+  const LocalAnimalChessPage({super.key});
 
-  LocalAnimalChessPage({super.key});
+  @override
+  State<LocalAnimalChessPage> createState() => _LocalAnimalChessPageState();
+}
+
+class _LocalAnimalChessPageState extends State<LocalAnimalChessPage> {
+  bool _vsAi = false;
+  late FoundationalManager _manager;
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = LocalManager();
+  }
+
+  void _toggleAi(bool value) {
+    setState(() {
+      _vsAi = value;
+      _manager = value ? AiManager() : LocalManager();
+    });
+  }
+
+  void _restart() {
+    setState(() {
+      _manager = _vsAi ? AiManager() : LocalManager();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => _buildPage();
@@ -25,12 +52,20 @@ class LocalAnimalChessPage extends StatelessWidget {
     ),
     title: Text(S.animalChess),
     centerTitle: true,
-    // 添加设置按钮
     actions: [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('AI', style: TextStyle(fontSize: 13)),
+          Switch(value: _vsAi, onChanged: _toggleAi),
+        ],
+      ),
+      IconButton(
+        icon: const Icon(Icons.refresh),
+        onPressed: _restart,
+      ),
       IconButton(
         icon: const Icon(Icons.tune),
-        // icon: const Icon(Icons.multitrack_audio_sharp),
-        // icon: const Icon(Icons.equalizer),
         onPressed: _manager.showBoardSizeSelector,
       ),
     ],

@@ -18,6 +18,8 @@ import '../10.three_tiles/page.dart';
 import '../11.spaceship/page.dart';
 import '../12.soft/page.dart';
 import '../13.minecraft/upper/page.dart';
+import '../14.tower_defense/local_page.dart';
+import '../14.tower_defense/net_page.dart';
 
 enum LocalItemType {
   animalChess,
@@ -31,6 +33,7 @@ enum LocalItemType {
   spaceship,
   soft,
   minecraft,
+  towerDefense,
 }
 
 enum NetItemType {
@@ -40,6 +43,7 @@ enum NetItemType {
   gobang,
   greedySnake,
   weiqi,
+  towerDefense,
 }
 
 extension LocalItemTypeExtension on LocalItemType {
@@ -67,6 +71,8 @@ extension LocalItemTypeExtension on LocalItemType {
         return SoftPage();
       case LocalItemType.minecraft:
         return MinecraftPage();
+      case LocalItemType.towerDefense:
+        return TowerDefensePage();
     }
   }
 }
@@ -86,6 +92,8 @@ extension NetItemTypeExtension on NetItemType {
         return NetGreedySnakePage(userName: userName, roomInfo: roomInfo);
       case NetItemType.weiqi:
         return GoNetPage(userName: userName, roomInfo: roomInfo);
+      case NetItemType.towerDefense:
+        return NetTowerDefensePage(userName: userName, roomInfo: roomInfo);
     }
   }
 }

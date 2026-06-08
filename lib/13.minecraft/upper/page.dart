@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -63,10 +64,10 @@ class _MinecraftPageState extends State<MinecraftPage> {
           const IgnorePointer(child: Crosshair()),
 
           // 输入控制（按平台区分）
-          if (Platform.isWindows || Platform.isMacOS || Platform.isLinux)
+          if (kIsWeb || Platform.isWindows || Platform.isMacOS || Platform.isLinux)
             _buildDesktopControl(cm),
-          if (Platform.isAndroid || Platform.isIOS) _buildMobileGesture(cm),
-          if (Platform.isAndroid || Platform.isIOS) _buildMobileControl(cm),
+          if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) _buildMobileGesture(cm),
+          if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) _buildMobileControl(cm),
 
           // 背包栏（竖屏靠上，横屏靠下）
           _buildHotbar(),

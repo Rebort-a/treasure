@@ -9,6 +9,7 @@ import 'chunk_manager.dart';
 import 'common.dart';
 import 'control_manager.dart';
 import 'raycast.dart';
+import 'redstone_manager.dart';
 
 /// 游戏管理器
 class Manager with ChangeNotifier implements TickerProvider {
@@ -19,6 +20,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   late final Player _player;
   late final ControlManager _controlManager;
   late final ChunkManager _chunkManager;
+  late final RedstoneManager _redstoneManager;
 
   // 方块交互
   RaycastHit? targetedBlock;
@@ -46,6 +48,7 @@ class Manager with ChangeNotifier implements TickerProvider {
       ..rotateView(0, -0.5); // 初始向下看约 29°
     _controlManager = ControlManager(_player, this);
     _chunkManager = ChunkManager();
+    _redstoneManager = RedstoneManager();
     _chunkManager.updateChunks(_player.position);
     _updateVisibleBlocks();
     _startGameLoop();
@@ -140,8 +143,11 @@ class Manager with ChangeNotifier implements TickerProvider {
   bool destroyTargetedBlock() {
     final target = targetedBlock;
     if (target == null) return false;
-    if (_chunkManager.destroyBlock(target.block.position)) {
-      addInventory(target.block.type);
+    final pos = target.block.position;
+    final type = target.block.type;
+    if (_chunkManager.destroyBlock(pos)) {
+      addInventory(type);
+      _redstoneManager.onBlockDestroyed(_chunkManager, pos, type);
       targetedBlock = null;
       _needsUpdate = true;
       return true;
@@ -149,10 +155,18 @@ class Manager with ChangeNotifier implements TickerProvider {
     return false;
   }
 
-  /// 在目标面放置方块
+  /// 在目标面放置方块（点击拉杆则切换状态）
   bool placeBlock() {
     final target = targetedBlock;
     if (target == null) return false;
+
+    // 点击拉杆 → 切换开关
+    if (target.block.type == BlockType.lever) {
+      _redstoneManager.toggleLever(_chunkManager, target.block.position);
+      _needsUpdate = true;
+      return true;
+    }
+
     final selectedType = currentSelectedType;
     if (selectedType == null) return false;
 
@@ -165,6 +179,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     );
     if (_chunkManager.placeBlock(placePos, selectedType)) {
       removeInventory(selectedType);
+      _redstoneManager.onBlockPlaced(_chunkManager, placePos, selectedType);
       _needsUpdate = true;
       return true;
     }

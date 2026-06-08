@@ -36,23 +36,37 @@ class SudokuPage extends StatelessWidget {
 
   AppBar _buildAppBar(bool isNightMode) {
     return AppBar(
-      title: Text(S.sudoku, style: isNightMode ? MagicTheme.titleStyle : null),
+      title:
+          Text(S.sudoku, style: isNightMode ? MagicTheme.titleStyle : null),
       backgroundColor: isNightMode
           ? MagicTheme.magicBackground.withValues(alpha: 0.7)
           : null,
-      leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back,
-          color: isNightMode ? MagicTheme.gold : null,
-        ),
-        onPressed: _manager.leavePage,
-        hoverColor: isNightMode ? MagicTheme.gold.withValues(alpha: 0.2) : null,
+      leadingWidth: 148,
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildLeadingAction(
+            icon: Icons.arrow_back,
+            onPressed: _manager.leavePage,
+            isNightMode: isNightMode,
+          ),
+          _buildLeadingAction(
+            icon: Icons.file_upload,
+            onPressed: _manager.openImport,
+            isNightMode: isNightMode,
+          ),
+          _buildLeadingAction(
+            icon: Icons.refresh,
+            onPressed: _manager.resetGame,
+            isNightMode: isNightMode,
+          ),
+        ],
       ),
       centerTitle: true,
       actions: [
         _buildAppBarAction(
-          icon: Icons.refresh,
-          onPressed: _manager.resetGame,
+          icon: isNightMode ? Icons.sunny : Icons.nights_stay,
+          onPressed: () => _manager.setNightTheme(!isNightMode),
           isNightMode: isNightMode,
         ),
         _buildAppBarAction(
@@ -60,12 +74,25 @@ class SudokuPage extends StatelessWidget {
           onPressed: _manager.showSelector,
           isNightMode: isNightMode,
         ),
-        _buildAppBarAction(
-          icon: isNightMode ? Icons.sunny : Icons.nights_stay,
-          onPressed: () => _manager.setNightTheme(!isNightMode),
-          isNightMode: isNightMode,
-        ),
       ],
+    );
+  }
+
+  Widget _buildLeadingAction({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required bool isNightMode,
+  }) {
+    return SizedBox(
+      width: 48,
+      child: IconButton(
+        icon: Icon(icon, color: isNightMode ? MagicTheme.gold : null, size: 22),
+        onPressed: onPressed,
+        hoverColor:
+            isNightMode ? MagicTheme.gold.withValues(alpha: 0.2) : null,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 48),
+      ),
     );
   }
 
