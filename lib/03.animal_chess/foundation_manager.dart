@@ -23,6 +23,67 @@ abstract class FoundationalManager {
   int _redAnimalsCount = AnimalType.values.length;
   int _blueAnimalsCount = AnimalType.values.length;
 
+  /// 上一局赢家（用于重开时决定先手）
+  TurnGamerType? lastWinner;
+
+  int get boardSize => _boardSize;
+
+  /// 获取指定位置的可移动目标列表
+  List<int> getPossibleMoves(int index) {
+    final row = index ~/ _boardSize;
+    final col = index % _boardSize;
+    final moves = <int>[];
+
+    for (final (int dr, int dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]) {
+      final int nr = row + dr;
+      final int nc = col + dc;
+      if (nr >= 0 && nr < _boardSize && nc >= 0 && nc < _boardSize) {
+        final int ni = nr * _boardSize + nc;
+        if (_isValidMove(index, ni)) {
+          moves.add(ni);
+        }
+      }
+    }
+
+    return moves;
+  }
+
+  /// 获取所有隐藏棋子位置
+  List<int> get hiddenIndices {
+    final result = <int>[];
+    for (int i = 0; i < displayMap.value.length; i++) {
+      final grid = displayMap.value[i].value;
+      if (grid.hasAnimal && grid.animal!.isHidden) {
+        result.add(i);
+      }
+    }
+    return result;
+  }
+
+  /// 获取指定玩家的已翻开棋子位置
+  List<int> getRevealedIndices(TurnGamerType player) {
+    final result = <int>[];
+    for (int i = 0; i < displayMap.value.length; i++) {
+      final grid = displayMap.value[i].value;
+      if (grid.hasAnimal && !grid.animal!.isHidden && grid.animal!.owner == player) {
+        result.add(i);
+      }
+    }
+    return result;
+  }
+
+  /// 获取棋盘上所有存活的动物（用于 AI 评估）
+  Iterable<Animal> get allAnimals sync* {
+    for (final grid in displayMap.value) {
+      if (grid.value.hasAnimal) {
+        yield grid.value.animal!;
+      }
+    }
+  }
+
+  /// 获取网格类型
+  GridType getGridType(int index) => displayMap.value[index].value.type;
+
   void showBoardSizeSelector() {
     pageNavigator.value = (context) {
       DialogTemplate.intSliderDialog(
@@ -45,6 +106,12 @@ abstract class FoundationalManager {
     setupBoard();
     _placeAllAnimalRandom();
     resetGameState();
+  }
+
+  /// 仅重置棋盘结构（清空所有棋子），不放置新棋子
+  void resetBoard() {
+    setupBoard();
+    _markedGrid.clear();
   }
 
   void setupBoard() {
@@ -246,16 +313,20 @@ abstract class FoundationalManager {
   }
 
   void _checkGameEnd() {
-    // 使用计数器检查游戏结束
     if (_redAnimalsCount <= 0) {
-      showChessResult(false); // 蓝方获胜
+      lastWinner = TurnGamerType.rear;
+      showChessResult(false);
     } else if (_blueAnimalsCount <= 0) {
-      showChessResult(true); // 红方获胜
+      lastWinner = TurnGamerType.front;
+      showChessResult(true);
     }
   }
 
   bool _isSelected(int index) =>
       _markedGrid.isNotEmpty && _markedGrid.first == index;
+
+  /// 外部可设置的重开回调（由 local_page 注入）
+  void Function()? onRestart;
 
   void showChessResult(bool isRedWin) {
     pageNavigator.value = (context) {
@@ -265,40 +336,32 @@ abstract class FoundationalManager {
           return AlertDialog(
             title: Text(S.gameOver),
             content: Text(isRedWin ? S.redWin() : S.blueWin()),
-            actions: buildDialogActions(context),
+            actions: [
+              TextButton(
+                child: Text(S.exit),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _navigateToBack();
+                },
+              ),
+              TextButton(
+                child: Text(S.restart),
+                onPressed: () {
+                  Navigator.pop(context);
+                  onRestart?.call();
+                },
+              ),
+              TextButton(
+                child: Text(S.cancel),
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ],
           );
         },
       );
     };
-  }
-
-  List<Widget> buildDialogActions(BuildContext context) {
-    return [
-      TextButton(
-        child: Text(S.exit),
-        onPressed: () {
-          Navigator.pop(context);
-          _navigateToBack();
-        },
-      ),
-      TextButton(
-        child: Text(S.restart),
-        onPressed: () {
-          Navigator.pop(context);
-          _restart();
-        },
-      ),
-      TextButton(
-        child: Text(S.cancel),
-        onPressed: () {
-          Navigator.pop(context);
-        },
-      ),
-    ];
-  }
-
-  void _restart() {
-    initGame();
   }
 
   void leavePage() {

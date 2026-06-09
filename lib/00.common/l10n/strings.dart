@@ -235,6 +235,7 @@ class S {
 
   // ==================== 塔防 ====================
   static String get towerDefense => isZh ? '塔防' : 'Tower Defense';
+  static String get surrender => isZh ? '投降' : 'Surrender';
   static String get startWave => isZh ? '开始波次' : 'Start Wave';
   static String get netTowerDefense => isZh ? '联机塔防' : 'Net Tower Defense';
 

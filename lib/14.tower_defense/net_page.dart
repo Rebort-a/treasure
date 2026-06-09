@@ -92,25 +92,35 @@ class NetTowerDefensePage extends StatelessWidget {
   }
 
   Widget _buildHud() {
-    return ValueListenableBuilder4(
+    return ValueListenableBuilder6(
       _manager.gold,
       _manager.lives,
       _manager.waveNumber,
       _manager.state,
-      builder: (_, gold, lives, wave, state, __) {
+      _manager.kills,
+      _manager.escaped,
+      builder: (_, gold, lives, wave, state, kills, escaped, __) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: Colors.black87,
           child: Row(
             children: [
               _hudItem(Icons.monetization_on, Colors.amber, '$gold'),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               _hudItem(Icons.favorite, Colors.red, '$lives'),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               _hudItem(Icons.waves, Colors.cyan, 'W$wave'),
+              const SizedBox(width: 12),
+              _hudItem(Icons.whatshot, Colors.orange, '$kills'),
+              const SizedBox(width: 12),
+              _hudItem(Icons.directions_run, Colors.grey, '$escaped'),
               const Spacer(),
               if (state == GameState.playing)
                 const Text('⚔️', style: TextStyle(fontSize: 18))
+              else if (state == GameState.won)
+                Text(S.victory, style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))
+              else if (state == GameState.lost)
+                Text(S.defeat, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
               else
                 ElevatedButton(
                   onPressed: _manager.startNextWave,
@@ -160,7 +170,7 @@ class NetTowerDefensePage extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_towerEmoji(type), style: const TextStyle(fontSize: 24)),
+                      Text(towerEmoji(type), style: const TextStyle(fontSize: 24)),
                       Text(config.name, style: const TextStyle(color: Colors.white, fontSize: 11)),
                       Text('${config.cost}g', style: const TextStyle(color: Colors.amber, fontSize: 11)),
                     ],
@@ -174,14 +184,6 @@ class NetTowerDefensePage extends StatelessWidget {
     );
   }
 
-  String _towerEmoji(TowerType type) {
-    return switch (type) {
-      TowerType.arrow => '🏹',
-      TowerType.cannon => '💣',
-      TowerType.ice => '❄️',
-      TowerType.magic => '🔮',
-    };
-  }
 }
 
 class _NetGamePainter extends CustomPainter {
@@ -226,6 +228,11 @@ class _GamePainterHelper {
         RRect.fromRectAndRadius(rect, const Radius.circular(4)),
         Paint()..color = TowerColors.get(tower.type),
       );
+      final tp = TextPainter(
+        text: TextSpan(text: towerEmoji(tower.type), style: const TextStyle(fontSize: 20)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2));
     }
 
     for (final enemy in manager.enemies.value) {

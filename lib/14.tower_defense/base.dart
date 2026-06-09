@@ -293,7 +293,7 @@ class GameMapData {
   bool canBuild(int x, int y) =>
       inBounds(x, y) && cells[y][x] == CellType.empty;
 
-  factory GameMapData.generate({int width = 20, int height = 15, int? seed}) {
+  factory GameMapData.generate({int width = 20, int height = 12, int? seed}) {
     final rand = Random(seed ?? DateTime.now().millisecondsSinceEpoch);
     final cells = List.generate(height, (_) => List.filled(width, CellType.empty));
     final path = <GridPos>[];
@@ -337,7 +337,7 @@ enum GameState { preparing, playing, won, lost }
 // ==================== 颜色 ====================
 
 class TowerColors {
-  static const arrow = Color(0xFF4CAF50);
+  static const arrow = Color(0xFF8D6E63);
   static const cannon = Color(0xFFFF5722);
   static const ice = Color(0xFF03A9F4);
   static const magic = Color(0xFF9C27B0);
@@ -349,6 +349,13 @@ class TowerColors {
     TowerType.magic => magic,
   };
 }
+
+String towerEmoji(TowerType type) => switch (type) {
+  TowerType.arrow => '🏹',
+  TowerType.cannon => '💣',
+  TowerType.ice => '❄️',
+  TowerType.magic => '🔮',
+};
 
 class EnemyColors {
   static const goblin = Color(0xFF8BC34A);

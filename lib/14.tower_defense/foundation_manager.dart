@@ -21,6 +21,8 @@ class FoundationManager {
   final AlwaysNotifier<int> waveNumber = AlwaysNotifier(0);
   final AlwaysNotifier<GameState> state = AlwaysNotifier(GameState.preparing);
   final AlwaysNotifier<TowerType?> selectedTower = AlwaysNotifier(null);
+  final AlwaysNotifier<int> kills = AlwaysNotifier(0);
+  final AlwaysNotifier<int> escaped = AlwaysNotifier(0);
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
@@ -44,6 +46,8 @@ class FoundationManager {
     waveNumber.value = 0;
     state.value = GameState.preparing;
     selectedTower.value = null;
+    kills.value = 0;
+    escaped.value = 0;
     _waveQueue = [];
     _waveActive = false;
     _enemyMap.clear();
@@ -109,8 +113,13 @@ class FoundationManager {
     if (enemies.value.any((e) => e.alive)) return;
 
     _waveActive = false;
-    // 波次结束后给奖励金币
     gold.value += 20 + waveNumber.value * 5;
+
+    if (waveNumber.value >= 20) {
+      state.value = GameState.won;
+    } else {
+      state.value = GameState.preparing;
+    }
   }
 
   // ==================== 敌人逻辑 ====================
@@ -127,6 +136,7 @@ class FoundationManager {
       if (enemy.pathProgress >= path.length - 1) {
         enemy.alive = false;
         lives.value--;
+        escaped.value++;
       }
 
       // 减速效果衰减
@@ -240,9 +250,9 @@ class FoundationManager {
       if (target.hp <= 0) {
         target.alive = false;
         gold.value += target.reward;
+        kills.value++;
       }
 
-      // 溅射伤害
       if (p.splashRadius > 0) {
         final tIdx = target.pathIndex;
         if (tIdx < map.path.length) {
@@ -258,6 +268,7 @@ class FoundationManager {
               if (enemy.hp <= 0) {
                 enemy.alive = false;
                 gold.value += enemy.reward;
+                kills.value++;
               }
             }
           }

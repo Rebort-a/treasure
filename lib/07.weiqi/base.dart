@@ -42,6 +42,7 @@ class GoBoard {
   List<Map<String, dynamic>> moveHistory = []; // 记录落子历史：位置、颜色、提子
   AlwaysNotifier<StoneState> currentPlayer = AlwaysNotifier(StoneState.black);
   bool gameOver = false;
+  StoneState? lastWinner;
   Map<String, dynamic>? lastCapture; // 用于处理劫争
 
   GoBoard({required this.size}) {
@@ -238,10 +239,10 @@ class GoBoard {
 
   // 认输
   void resign() {
+    lastWinner = currentPlayer.value == StoneState.black
+        ? StoneState.white
+        : StoneState.black;
     gameOver = true;
-    currentPlayer.value = currentPlayer.value == StoneState.black
-        ? StoneState.black
-        : StoneState.white;
   }
 
   // 悔棋

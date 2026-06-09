@@ -40,6 +40,7 @@ class Board {
     TurnGamerType.front,
   );
   bool gameOver = false;
+  TurnGamerType? lastWinner;
 
   Board({required this.size}) {
     grids.value = List.generate(size * size, (index) {
@@ -85,6 +86,7 @@ class Board {
       }
       if (count >= 5) {
         gameOver = true;
+        lastWinner = currentGamer.value;
         break;
       }
     }

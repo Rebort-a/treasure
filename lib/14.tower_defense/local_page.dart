@@ -23,8 +23,13 @@ class _TowerDefensePageState extends State<TowerDefensePage>
     super.initState();
     _manager = LocalManager();
     _ticker = AnimationController(vsync: this, duration: const Duration(seconds: 1))
-      ..addListener(() => _manager.update(1 / 60))
+      ..addListener(_onTick)
       ..repeat();
+  }
+
+  void _onTick() {
+    _manager.update(1 / 60);
+    setState(() {});
   }
 
   @override
@@ -65,38 +70,39 @@ class _TowerDefensePageState extends State<TowerDefensePage>
   }
 
   Widget _buildHud() {
-    return ValueListenableBuilder4(
-      _manager.gold,
-      _manager.lives,
-      _manager.waveNumber,
-      _manager.state,
-      builder: (context, gold, lives, wave, state, _) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.black87,
-          child: Row(
-            children: [
-              _hudItem(Icons.monetization_on, Colors.amber, '$gold'),
-              const SizedBox(width: 16),
-              _hudItem(Icons.favorite, Colors.red, '$lives'),
-              const SizedBox(width: 16),
-              _hudItem(Icons.waves, Colors.cyan, 'W$wave'),
-              const Spacer(),
-              if (state == GameState.playing)
-                const Text('⚔️', style: TextStyle(fontSize: 18))
-              else if (state == GameState.won)
-                Text(S.victory, style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))
-              else if (state == GameState.lost)
-                Text(S.defeat, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
-              else
-                ElevatedButton(
-                  onPressed: _manager.startNextWave,
-                  child: Text(S.startWave),
-                ),
-            ],
-          ),
-        );
-      },
+    final gold = _manager.gold.value;
+    final lives = _manager.lives.value;
+    final wave = _manager.waveNumber.value;
+    final gameState = _manager.state.value;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.black87,
+      child: Row(
+        children: [
+          _hudItem(Icons.monetization_on, Colors.amber, '$gold'),
+          const SizedBox(width: 12),
+          _hudItem(Icons.favorite, Colors.red, '$lives'),
+          const SizedBox(width: 12),
+          _hudItem(Icons.waves, Colors.cyan, 'W$wave'),
+          const SizedBox(width: 12),
+          _hudItem(Icons.whatshot, Colors.orange, '${_manager.kills.value}'),
+          const SizedBox(width: 12),
+          _hudItem(Icons.directions_run, Colors.grey, '${_manager.escaped.value}'),
+          const Spacer(),
+          if (gameState == GameState.playing)
+            const Text('⚔️', style: TextStyle(fontSize: 18))
+          else if (gameState == GameState.won)
+            Text(S.victory, style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))
+          else if (gameState == GameState.lost)
+            Text(S.defeat, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+          else
+            ElevatedButton(
+              onPressed: _manager.startNextWave,
+              child: Text(S.startWave),
+            ),
+        ],
+      ),
     );
   }
 
@@ -111,27 +117,17 @@ class _TowerDefensePageState extends State<TowerDefensePage>
   }
 
   Widget _buildGameArea() {
-    return ValueListenableBuilder(
-      valueListenable: _manager.towers,
-      builder: (_, __, ___) {
-        return ValueListenableBuilder(
-          valueListenable: _manager.enemies,
-          builder: (_, __, ___) {
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                return GestureDetector(
-                  onTapUp: (details) => _handleTap(details, constraints),
-                  child: CustomPaint(
-                    size: Size(
-                      _manager.map.width * FoundationManager.cellSize,
-                      _manager.map.height * FoundationManager.cellSize,
-                    ),
-                    painter: _GamePainter(_manager),
-                  ),
-                );
-              },
-            );
-          },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onTapUp: (details) => _handleTap(details, constraints),
+          child: CustomPaint(
+            size: Size(
+              _manager.map.width * FoundationManager.cellSize,
+              _manager.map.height * FoundationManager.cellSize,
+            ),
+            painter: _GamePainter(_manager),
+          ),
         );
       },
     );
@@ -151,56 +147,44 @@ class _TowerDefensePageState extends State<TowerDefensePage>
   }
 
   Widget _buildShopPanel() {
-    return ValueListenableBuilder(
-      valueListenable: _manager.selectedTower,
-      builder: (_, selected, __) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          color: Colors.grey[900],
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: TowerType.values.map((type) {
-              final config = TowerConfigs.getConfig(type);
-              final isSelected = selected == type;
-              return GestureDetector(
-                onTap: () => setState(() {
-                  _manager.selectTowerType(isSelected ? null : type);
-                }),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? TowerColors.get(type).withValues(alpha: 0.3) : null,
-                    border: Border.all(
-                      color: isSelected ? TowerColors.get(type) : Colors.grey,
-                      width: isSelected ? 2 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_towerEmoji(type), style: const TextStyle(fontSize: 24)),
-                      Text(config.name, style: const TextStyle(color: Colors.white, fontSize: 11)),
-                      Text('${config.cost}g', style: const TextStyle(color: Colors.amber, fontSize: 11)),
-                    ],
-                  ),
+    final selected = _manager.selectedTower.value;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      color: Colors.grey[900],
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: TowerType.values.map((type) {
+          final config = TowerConfigs.getConfig(type);
+          final isSelected = selected == type;
+          return GestureDetector(
+            onTap: () => setState(() {
+              _manager.selectTowerType(isSelected ? null : type);
+            }),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected ? TowerColors.get(type).withValues(alpha: 0.3) : null,
+                border: Border.all(
+                  color: isSelected ? TowerColors.get(type) : Colors.grey,
+                  width: isSelected ? 2 : 1,
                 ),
-              );
-            }).toList(),
-          ),
-        );
-      },
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(towerEmoji(type), style: const TextStyle(fontSize: 24)),
+                  Text(config.name, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                  Text('${config.cost}g', style: const TextStyle(color: Colors.amber, fontSize: 11)),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
-  String _towerEmoji(TowerType type) {
-    return switch (type) {
-      TowerType.arrow => '🏹',
-      TowerType.cannon => '💣',
-      TowerType.ice => '❄️',
-      TowerType.magic => '🔮',
-    };
-  }
 }
 
 /// 游戏画面绘制
@@ -228,7 +212,7 @@ class _GamePainter extends CustomPainter {
       }
     }
 
-    // 绘制路径箭头方向
+    // 绘制路径方向指示
     final path = map.path;
     for (int i = 0; i < path.length - 1; i++) {
       final cur = path[i];
@@ -237,46 +221,37 @@ class _GamePainter extends CustomPainter {
       final cy = cur.y * cellSize + cellSize / 2;
       final nx = next.x * cellSize + cellSize / 2;
       final ny = next.y * cellSize + cellSize / 2;
-      final mx = (cx + nx) / 2;
-      final my = (cy + ny) / 2;
-      canvas.drawCircle(Offset(mx, my), 2, Paint()..color = Colors.white38);
+      canvas.drawCircle(Offset((cx + nx) / 2, (cy + ny) / 2), 2, Paint()..color = Colors.white38);
     }
 
-    // 绘制起点/终点标记
+    // 起点/终点
     if (path.isNotEmpty) {
-      final start = path.first;
-      final end = path.last;
-      _drawMarker(canvas, start.x, start.y, cellSize, Colors.green, 'S');
-      _drawMarker(canvas, end.x, end.y, cellSize, Colors.red, 'E');
+      _drawMarker(canvas, path.first.x, path.first.y, cellSize, Colors.green, 'S');
+      _drawMarker(canvas, path.last.x, path.last.y, cellSize, Colors.red, 'E');
     }
 
-    // 绘制防御塔
+    // 防御塔
     for (final tower in manager.towers.value) {
       final rect = Rect.fromLTWH(
-        tower.pos.x * cellSize + 2,
-        tower.pos.y * cellSize + 2,
-        cellSize - 4,
-        cellSize - 4,
+        tower.pos.x * cellSize + 2, tower.pos.y * cellSize + 2,
+        cellSize - 4, cellSize - 4,
       );
       final color = TowerColors.get(tower.type);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        Paint()..color = color,
-      );
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), Paint()..color = color);
 
-      // 等级指示
+      final tp = TextPainter(
+        text: TextSpan(text: towerEmoji(tower.type), style: const TextStyle(fontSize: 20)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2));
+
       if (tower.level > 1) {
         final starPaint = Paint()..color = Colors.amber;
         for (int i = 0; i < tower.level; i++) {
-          canvas.drawCircle(
-            Offset(rect.left + 6 + i * 8, rect.top + 6),
-            2.5,
-            starPaint,
-          );
+          canvas.drawCircle(Offset(rect.left + 6 + i * 8, rect.top + 6), 2.5, starPaint);
         }
       }
 
-      // 范围指示（选中时）
       if (manager.selectedTower.value == tower.type) {
         canvas.drawCircle(
           Offset(rect.center.dx, rect.center.dy),
@@ -286,7 +261,7 @@ class _GamePainter extends CustomPainter {
       }
     }
 
-    // 绘制敌人
+    // 敌人
     for (final enemy in manager.enemies.value) {
       if (!enemy.alive) continue;
       final pos = manager.getEnemyPixelPos(enemy);
@@ -296,7 +271,6 @@ class _GamePainter extends CustomPainter {
       canvas.drawCircle(pos, radius, Paint()..color = color);
       canvas.drawCircle(pos, radius, Paint()..color = Colors.black45..style = PaintingStyle.stroke..strokeWidth = 1);
 
-      // 血条
       final hpRatio = enemy.hp / enemy.config.maxHp;
       if (hpRatio < 1.0) {
         final barWidth = radius * 2;
@@ -322,6 +296,44 @@ class _GamePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+/// 六值组合 ValueListenableBuilder
+class ValueListenableBuilder6<A, B, C, D, E, F> extends StatelessWidget {
+  final ValueListenable<A> a;
+  final ValueListenable<B> b;
+  final ValueListenable<C> c;
+  final ValueListenable<D> d;
+  final ValueListenable<E> e;
+  final ValueListenable<F> f;
+  final Widget Function(BuildContext, A, B, C, D, E, F, Widget?) builder;
+
+  const ValueListenableBuilder6(this.a, this.b, this.c, this.d, this.e, this.f,
+      {super.key, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<A>(
+      valueListenable: a,
+      builder: (_, va, __) => ValueListenableBuilder<B>(
+        valueListenable: b,
+        builder: (_, vb, __) => ValueListenableBuilder<C>(
+          valueListenable: c,
+          builder: (_, vc, __) => ValueListenableBuilder<D>(
+            valueListenable: d,
+            builder: (_, vd, __) => ValueListenableBuilder<E>(
+              valueListenable: e,
+              builder: (_, ve, __) => ValueListenableBuilder<F>(
+                valueListenable: f,
+                builder: (ctx, vf, ___) =>
+                    builder(ctx, va, vb, vc, vd, ve, vf, null),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 四值组合 ValueListenableBuilder
