@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/widget/button/cool_button.dart';
 import '../00.common/widget/container/glass_container.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'constant.dart';
@@ -174,7 +174,7 @@ class SpaceShipPage extends StatelessWidget {
             ),
             const SizedBox(height: 15),
             _buildActionButton(
-              text: S.gameSettings,
+              text: S.settings,
               color: Colors.green,
               onPressed: _manager.showSettingDialog,
             ),

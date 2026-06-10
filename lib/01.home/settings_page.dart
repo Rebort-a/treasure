@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-
 import '../00.common/l10n/l10n.dart';
 import '../00.common/l10n/strings.dart';
+import '../00.common/style/theme.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -9,16 +9,15 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(S.gameSettings)),
+      appBar: AppBar(title: Text(S.settings)),
       body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          const SizedBox(height: 8),
           _buildSection(
             context,
             title: S.general,
-            children: [_buildLanguageTile(context)],
+            children: [_buildLanguageTile(context), _buildThemeTile(context)],
           ),
-          const SizedBox(height: 8),
           _buildSection(
             context,
             title: S.about,
@@ -54,17 +53,19 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Card(
-            margin: EdgeInsets.zero,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        ...children.map((child) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Card(
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: child,
             ),
-            child: Column(children: children),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
@@ -76,11 +77,61 @@ class SettingsPage extends StatelessWidget {
         return ListTile(
           leading: const Icon(Icons.language),
           title: Text(S.language),
-          subtitle: Text(currentLocale == AppLocale.zh ? '中文' : 'English'),
+          subtitle: Text(currentLocale == AppLocale.zh ? S.chinese : S.english),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _showLanguageDialog(context, currentLocale),
         );
       },
+    );
+  }
+
+  Widget _buildThemeTile(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeProvider.instance.themeMode,
+      builder: (context, currentTheme, _) {
+        return ListTile(
+          leading: const Icon(Icons.palette),
+          title: Text(S.theme),
+          subtitle: Text(
+            currentTheme == ThemeMode.light ? S.themeLight : S.themeDark,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showThemeDialog(context, currentTheme),
+        );
+      },
+    );
+  }
+
+  void _showThemeDialog(BuildContext context, ThemeMode currentTheme) {
+    showDialog(
+      context: context,
+      builder: (_) => SimpleDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(S.theme),
+        children: [
+          RadioGroup<ThemeMode>(
+            groupValue: currentTheme,
+            onChanged: (v) async {
+              if (v == null) return;
+              Navigator.pop(context);
+              await ThemeProvider.instance.setThemeMode(v);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<ThemeMode>(
+                  title: Text(S.themeLight),
+                  value: ThemeMode.light,
+                ),
+                RadioListTile<ThemeMode>(
+                  title: Text(S.themeDark),
+                  value: ThemeMode.dark,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -93,20 +144,20 @@ class SettingsPage extends StatelessWidget {
         children: [
           RadioGroup<AppLocale>(
             groupValue: currentLocale,
-            onChanged: (v) {
+            onChanged: (v) async {
               if (v == null) return;
               Navigator.pop(context);
-              LanguageProvider.instance.setLocale(v);
+              await LanguageProvider.instance.setLocale(v);
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 RadioListTile<AppLocale>(
-                  title: const Text('中文'),
+                  title: Text(S.chinese),
                   value: AppLocale.zh,
                 ),
                 RadioListTile<AppLocale>(
-                  title: const Text('English'),
+                  title: Text(S.english),
                   value: AppLocale.en,
                 ),
               ],

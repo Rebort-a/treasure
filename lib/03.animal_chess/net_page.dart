@@ -6,7 +6,7 @@ import '../00.common/widget/component/chat_component.dart';
 import '../00.common/game/step.dart';
 import '../00.common/network/network_room.dart';
 
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 
 import 'net_manager.dart';
@@ -74,7 +74,7 @@ class NetAnimalChessPage extends StatelessWidget {
                   flex: 3,
                   child: FoundationalWidget(
                     displayMap: _manager.displayMap,
-                    onGridSelected: _manager.sendActionMessage,
+                    onGridSelected: _manager.requestSelectGrid,
                   ),
                 ),
               ]

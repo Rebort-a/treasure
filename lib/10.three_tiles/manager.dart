@@ -6,7 +6,7 @@ import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 class Manager {
-  /// 虚拟棋牌和卡片尺寸，用来做层级判断
+  /// 虚拟棋盘和卡片尺寸，用来做层级判断
   /// 在显示时会根据真实尺寸动态映射
   static const double boardVirtualWidth = 600;
   static const double boardVirtualHeight = 800;

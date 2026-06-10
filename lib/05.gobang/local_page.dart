@@ -65,7 +65,8 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
             onSelected: (value) {
               switch (value) {
                 case 'restart':
-                  final winnerIsAi = _vsAi && _manager.board.lastWinner == _ai?.aiSide;
+                  final winnerIsAi =
+                      _vsAi && _manager.board.lastWinner == _ai?.faction;
                   _ai?.dispose();
                   _ai = null;
                   setState(() {
@@ -73,7 +74,9 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
                     if (_vsAi) {
                       _ai = _GomokuAi(
                         manager: _manager,
-                        aiSide: winnerIsAi ? TurnGamerType.front : TurnGamerType.rear,
+                        faction: winnerIsAi
+                            ? TurnGamerType.front
+                            : TurnGamerType.rear,
                       );
                       if (winnerIsAi) _ai!.startIfMyTurn();
                     }
@@ -87,11 +90,19 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'restart',
-                child: ListTile(leading: const Icon(Icons.refresh), title: Text(S.restart), dense: true),
+                child: ListTile(
+                  leading: const Icon(Icons.refresh),
+                  title: Text(S.restart),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'undo',
-                child: ListTile(leading: const Icon(Icons.undo), title: const Text('Undo'), dense: true),
+                child: ListTile(
+                  leading: const Icon(Icons.undo),
+                  title: const Text('Undo'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'ai',
@@ -131,12 +142,20 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
                               ? S.blackSide
                               : S.whiteSide,
                         ),
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               );
             },
           ),
-          Expanded(child: FoundationalWidget(manager: _manager, onGridSelected: _onGridSelected)),
+          Expanded(
+            child: FoundationalWidget(
+              manager: _manager,
+              onGridSelected: _onGridSelected,
+            ),
+          ),
         ],
       ),
     );
@@ -146,11 +165,11 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
 /// 五子棋 AI 控制器
 class _GomokuAi {
   final FoundationalManager manager;
-  late final TurnGamerType aiSide;
+  late final TurnGamerType faction;
   bool _thinking = false;
 
-  _GomokuAi({required this.manager, TurnGamerType? aiSide}) {
-    this.aiSide = aiSide ?? manager.board.currentGamer.value;
+  _GomokuAi({required this.manager, TurnGamerType? faction}) {
+    this.faction = faction ?? manager.board.currentGamer.value;
     manager.board.currentGamer.addListener(_onTurnChanged);
   }
 
@@ -161,20 +180,23 @@ class _GomokuAi {
   void _onTurnChanged() => startIfMyTurn();
 
   void startIfMyTurn() {
-    if (manager.board.currentGamer.value == aiSide && !_thinking && !manager.board.gameOver) {
+    if (manager.board.currentGamer.value == faction &&
+        !_thinking &&
+        !manager.board.gameOver) {
       _doAiMove();
     }
   }
 
   void humanSelect(int index) {
-    if (manager.board.currentGamer.value == aiSide) return;
+    if (manager.board.currentGamer.value == faction) return;
     manager.placePiece(index);
   }
 
   void _doAiMove() {
     _thinking = true;
     Future.delayed(const Duration(milliseconds: 200), () {
-      if (manager.board.gameOver || manager.board.currentGamer.value != aiSide) {
+      if (manager.board.gameOver ||
+          manager.board.currentGamer.value != faction) {
         _thinking = false;
         return;
       }
@@ -188,8 +210,12 @@ class _GomokuAi {
     final board = manager.board;
     final size = board.size;
     final grids = board.grids.value;
-    final aiPiece = aiSide == TurnGamerType.front ? PieceType.black : PieceType.white;
-    final humanPiece = aiPiece == PieceType.black ? PieceType.white : PieceType.black;
+    final aiPiece = faction == TurnGamerType.front
+        ? PieceType.black
+        : PieceType.white;
+    final humanPiece = aiPiece == PieceType.black
+        ? PieceType.white
+        : PieceType.black;
 
     int? bestMove;
     int bestScore = -1;
@@ -205,7 +231,12 @@ class _GomokuAi {
     return bestMove;
   }
 
-  int _evaluatePosition(int index, PieceType aiPiece, PieceType humanPiece, int size) {
+  int _evaluatePosition(
+    int index,
+    PieceType aiPiece,
+    PieceType humanPiece,
+    int size,
+  ) {
     int score = 0;
     final row = index ~/ size;
     final col = index % size;
@@ -218,29 +249,53 @@ class _GomokuAi {
     return score;
   }
 
-  int _evaluateDirection(int row, int col, int dr, int dc, PieceType aiPiece, PieceType humanPiece, int size) {
+  int _evaluateDirection(
+    int row,
+    int col,
+    int dr,
+    int dc,
+    PieceType aiPiece,
+    PieceType humanPiece,
+    int size,
+  ) {
     int aiCount = 0, humanCount = 0;
     int aiOpen = 0, humanOpen = 0;
 
     int r = row + dr, c = col + dc;
     while (r >= 0 && r < size && c >= 0 && c < size) {
       final state = manager.board.grids.value[r * size + c].value.type;
-      if (state == aiPiece) { aiCount++; }
-      else if (state == humanPiece) { humanCount++; break; }
-      else { aiOpen++; break; }
-      r += dr; c += dc;
+      if (state == aiPiece) {
+        aiCount++;
+      } else if (state == humanPiece) {
+        humanCount++;
+        break;
+      } else {
+        aiOpen++;
+        break;
+      }
+      r += dr;
+      c += dc;
     }
 
-    r = row - dr; c = col - dc;
+    r = row - dr;
+    c = col - dc;
     while (r >= 0 && r < size && c >= 0 && c < size) {
       final state = manager.board.grids.value[r * size + c].value.type;
-      if (state == aiPiece) { aiCount++; }
-      else if (state == humanPiece) { humanCount++; break; }
-      else { aiOpen++; break; }
-      r -= dr; c -= dc;
+      if (state == aiPiece) {
+        aiCount++;
+      } else if (state == humanPiece) {
+        humanCount++;
+        break;
+      } else {
+        aiOpen++;
+        break;
+      }
+      r -= dr;
+      c -= dc;
     }
 
-    return _scorePattern(aiCount, aiOpen, isAi: true) + _scorePattern(humanCount, humanOpen, isAi: false);
+    return _scorePattern(aiCount, aiOpen, isAi: true) +
+        _scorePattern(humanCount, humanOpen, isAi: false);
   }
 
   int _scorePattern(int count, int openEnds, {required bool isAi}) {

@@ -29,18 +29,20 @@ class LanguageProvider {
     }
   }
 
-  void toggle() {
+  Future<void> _save() async {
+    final data = await StorageService.instance.read('settings');
+    data['language'] = locale.value.index;
+    StorageService.instance.write('settings', data);
+  }
+
+  Future<void> toggle() async {
     locale.value = locale.value == AppLocale.zh ? AppLocale.en : AppLocale.zh;
-    _save();
+    await _save();
   }
 
-  void setLocale(AppLocale l) {
+  Future<void> setLocale(AppLocale l) async {
     locale.value = l;
-    _save();
-  }
-
-  void _save() {
-    StorageService.instance.write('settings', {'language': locale.value.index});
+    await _save();
   }
 
   Locale get flutterLocale =>

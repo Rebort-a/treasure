@@ -1,4 +1,4 @@
-import '../image/entity.dart';
+import 'entity.dart';
 
 enum Direction { down, left, up, right }
 

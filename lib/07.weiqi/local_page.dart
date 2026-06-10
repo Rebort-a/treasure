@@ -66,7 +66,8 @@ class _GoLocalPageState extends State<GoLocalPage> {
                 case 'surrender':
                   _manager.resign();
                 case 'restart':
-                  final winnerIsAi = _vsAi && _manager.board.lastWinner == _ai?.aiSide;
+                  final winnerIsAi =
+                      _vsAi && _manager.board.lastWinner == _ai?.faction;
                   _ai?.dispose();
                   _ai = null;
                   setState(() {
@@ -74,7 +75,9 @@ class _GoLocalPageState extends State<GoLocalPage> {
                     if (_vsAi) {
                       _ai = _GoAi(
                         manager: _manager,
-                        aiSide: winnerIsAi ? StoneState.black : StoneState.white,
+                        faction: winnerIsAi
+                            ? StoneState.black
+                            : StoneState.white,
                       );
                       if (winnerIsAi) _ai!.startIfMyTurn();
                     }
@@ -88,15 +91,27 @@ class _GoLocalPageState extends State<GoLocalPage> {
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'surrender',
-                child: ListTile(leading: const Icon(Icons.flag), title: Text(S.surrender), dense: true),
+                child: ListTile(
+                  leading: const Icon(Icons.flag),
+                  title: Text(S.surrender),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'restart',
-                child: ListTile(leading: const Icon(Icons.refresh), title: Text(S.restart), dense: true),
+                child: ListTile(
+                  leading: const Icon(Icons.refresh),
+                  title: Text(S.restart),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'undo',
-                child: ListTile(leading: const Icon(Icons.undo), title: const Text('Undo'), dense: true),
+                child: ListTile(
+                  leading: const Icon(Icons.undo),
+                  title: const Text('Undo'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'ai',
@@ -136,12 +151,20 @@ class _GoLocalPageState extends State<GoLocalPage> {
                               ? S.blackSide
                               : S.whiteSide,
                         ),
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               );
             },
           ),
-          Expanded(child: GoFoundationWidget(manager: _manager, onGridSelected: _onGridSelected)),
+          Expanded(
+            child: GoFoundationWidget(
+              manager: _manager,
+              onGridSelected: _onGridSelected,
+            ),
+          ),
         ],
       ),
     );
@@ -151,11 +174,11 @@ class _GoLocalPageState extends State<GoLocalPage> {
 /// 围棋 AI 控制器
 class _GoAi {
   final GoFoundationalManager manager;
-  late final StoneState aiSide;
+  late final StoneState faction;
   bool _thinking = false;
 
-  _GoAi({required this.manager, StoneState? aiSide}) {
-    this.aiSide = aiSide ?? manager.board.currentPlayer.value;
+  _GoAi({required this.manager, StoneState? faction}) {
+    this.faction = faction ?? manager.board.currentPlayer.value;
     manager.board.currentPlayer.addListener(_onTurnChanged);
   }
 
@@ -166,20 +189,23 @@ class _GoAi {
   void _onTurnChanged() => startIfMyTurn();
 
   void startIfMyTurn() {
-    if (manager.board.currentPlayer.value == aiSide && !_thinking && !manager.board.gameOver) {
+    if (manager.board.currentPlayer.value == faction &&
+        !_thinking &&
+        !manager.board.gameOver) {
       _doAiMove();
     }
   }
 
   void humanSelect(int index) {
-    if (manager.board.currentPlayer.value == aiSide) return;
+    if (manager.board.currentPlayer.value == faction) return;
     manager.placePiece(index);
   }
 
   void _doAiMove() {
     _thinking = true;
     Future.delayed(const Duration(milliseconds: 300), () {
-      if (manager.board.gameOver || manager.board.currentPlayer.value != aiSide) {
+      if (manager.board.gameOver ||
+          manager.board.currentPlayer.value != faction) {
         _thinking = false;
         return;
       }
@@ -238,41 +264,77 @@ class _GoAi {
     final row = index ~/ size;
     final col = index % size;
     final grids = manager.board.grids.value;
-    final humanPiece = aiSide == StoneState.black ? StoneState.white : StoneState.black;
+    final humanPiece = faction == StoneState.black
+        ? StoneState.white
+        : StoneState.black;
 
     final center = size ~/ 2;
     score += max(0, (center - (row - center).abs() - (col - center).abs())) * 2;
 
     const directions = [(0, 1), (1, 0), (1, 1), (1, -1)];
     for (final (dr, dc) in directions) {
-      score += _evaluateDirection(row, col, dr, dc, aiSide, humanPiece, size, grids);
+      score += _evaluateDirection(
+        row,
+        col,
+        dr,
+        dc,
+        faction,
+        humanPiece,
+        size,
+        grids,
+      );
     }
     return score;
   }
 
-  int _evaluateDirection(int row, int col, int dr, int dc, StoneState aiPiece, StoneState humanPiece, int size, List<dynamic> grids) {
+  int _evaluateDirection(
+    int row,
+    int col,
+    int dr,
+    int dc,
+    StoneState aiPiece,
+    StoneState humanPiece,
+    int size,
+    List<dynamic> grids,
+  ) {
     int aiCount = 0, humanCount = 0;
     int aiOpen = 0, humanOpen = 0;
 
     int r = row + dr, c = col + dc;
     while (r >= 0 && r < size && c >= 0 && c < size) {
       final state = grids[r * size + c].value.state;
-      if (state == aiPiece) { aiCount++; }
-      else if (state == humanPiece) { humanCount++; break; }
-      else { aiOpen++; break; }
-      r += dr; c += dc;
+      if (state == aiPiece) {
+        aiCount++;
+      } else if (state == humanPiece) {
+        humanCount++;
+        break;
+      } else {
+        aiOpen++;
+        break;
+      }
+      r += dr;
+      c += dc;
     }
 
-    r = row - dr; c = col - dc;
+    r = row - dr;
+    c = col - dc;
     while (r >= 0 && r < size && c >= 0 && c < size) {
       final state = grids[r * size + c].value.state;
-      if (state == aiPiece) { aiCount++; }
-      else if (state == humanPiece) { humanCount++; break; }
-      else { aiOpen++; break; }
-      r -= dr; c -= dc;
+      if (state == aiPiece) {
+        aiCount++;
+      } else if (state == humanPiece) {
+        humanCount++;
+        break;
+      } else {
+        aiOpen++;
+        break;
+      }
+      r -= dr;
+      c -= dc;
     }
 
-    return _scorePattern(aiCount, aiOpen) + (_scorePattern(humanCount, humanOpen) * 1.2).toInt();
+    return _scorePattern(aiCount, aiOpen) +
+        (_scorePattern(humanCount, humanOpen) * 1.2).toInt();
   }
 
   int _scorePattern(int count, int openEnds) {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../00.common/widget/grid_boundary.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/canvas/grid_boundary.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';

@@ -1,8 +1,53 @@
 import 'package:flutter/material.dart';
 
+import '../tool/storage_service.dart';
+
 ThemeData globalTheme = ThemeData(
   colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
 );
+
+ThemeData globalDarkTheme = ThemeData(
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: Colors.deepPurple,
+    brightness: Brightness.dark,
+  ),
+);
+
+/// 主题设置状态管理（持久化）
+class ThemeProvider {
+  static final ThemeProvider instance = ThemeProvider._();
+  ThemeProvider._();
+
+  final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.light);
+
+  /// 重置状态，仅用于测试
+  @visibleForTesting
+  void resetForTesting() {
+    themeMode.value = ThemeMode.light;
+  }
+
+  /// 从本地加载主题设置
+  Future<void> load() async {
+    final data = await StorageService.instance.read('settings');
+    if (data['themeMode'] != null) {
+      final index = data['themeMode'] as int;
+      if (index >= 0 && index < ThemeMode.values.length) {
+        themeMode.value = ThemeMode.values[index];
+      }
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeMode.value = mode;
+    await _save();
+  }
+
+  Future<void> _save() async {
+    final data = await StorageService.instance.read('settings');
+    data['themeMode'] = themeMode.value.index;
+    StorageService.instance.write('settings', data);
+  }
+}
 
 class BaseTheme {
   static const Color backgroundColor = Color(0xfff9f9f9);

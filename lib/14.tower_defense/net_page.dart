@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/network/network_room.dart';
 import '../00.common/game/step.dart';
-import '../00.common/widget/net_prepare_widget.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -49,7 +48,15 @@ class NetTowerDefensePage extends StatelessWidget {
           return Column(
             children: [
               NotifierNavigator(navigatorHandler: _manager.pageNavigator),
-              Expanded(child: NetPrepareWidget(step: step)),
+              Expanded(child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 20),
+                  Text(step.getExplanation(), style: const TextStyle(fontSize: 16)),
+                ],
+              )),
             ],
           );
         },

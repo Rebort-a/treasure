@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../00.common/config/network_config.dart';
 import '../00.common/network/network_room.dart';
 import '../00.common/style/theme.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'home_manager.dart';
 import 'route.dart';
@@ -19,21 +19,16 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _homeManager = HomeManager();
+  List<CreatedRoomInfo> get _createdRooms => _homeManager.createdRooms.value;
+  List<RoomInfo> get _othersRooms => _homeManager.othersRooms.value;
 
-  bool _localExpanded = true;
   bool _createdExpanded = true;
   bool _othersExpanded = true;
-
-  List<CreatedRoomInfo> _createdRooms = [];
-  List<RoomInfo> _othersRooms = [];
-
-  static const double _headerHeight = 48.0;
+  bool _localExpanded = true;
 
   @override
   void initState() {
     super.initState();
-    _createdRooms = _homeManager.createdRooms.value;
-    _othersRooms = _homeManager.othersRooms.value;
     _homeManager.createdRooms.addListener(_onRoomsChanged);
     _homeManager.othersRooms.addListener(_onRoomsChanged);
   }
@@ -47,10 +42,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onRoomsChanged() {
-    setState(() {
-      _createdRooms = _homeManager.createdRooms.value;
-      _othersRooms = _homeManager.othersRooms.value;
-    });
+    setState(() {});
   }
 
   @override
@@ -94,123 +86,124 @@ class _HomePageState extends State<HomePage> {
         ),
 
         // ---- 创建的房间 ----
-        if (_createdRooms.isNotEmpty) ...[
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _PinnedHeaderDelegate(
-              height: _headerHeight,
-              child: _buildHeader(
-                expanded: _createdExpanded,
-                onToggle: () =>
-                    setState(() => _createdExpanded = !_createdExpanded),
-                title: S.createdRooms,
-                trailing: _createdRooms.length > 1
-                    ? TextButton(
-                        onPressed: _homeManager.stopAllCreatedRooms,
-                        child: Text(S.stopAll),
-                      )
-                    : null,
+        ..._buildSection<CreatedRoomInfo>(
+          list: _createdRooms,
+          expanded: _createdExpanded,
+          toggle: () => setState(() => _createdExpanded = !_createdExpanded),
+          title: S.createdRooms,
+          trailing: _createdRooms.length > 1
+              ? TextButton(
+                  onPressed: _homeManager.stopAllCreatedRooms,
+                  child: Text(S.stopAll),
+                )
+              : null,
+          buildItem: (room, idx) => _buildRoomCard(
+            room: room,
+            actions: [
+              TextButton(
+                onPressed: () => _homeManager.showJoinRoomDialog(room),
+                child: Text(S.join),
               ),
-            ),
+              TextButton(
+                onPressed: () => _homeManager.stopCreatedRoom(idx),
+                child: Text(S.stop),
+              ),
+            ],
           ),
-          if (_createdExpanded)
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final room = _createdRooms[index];
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.home),
-                    title: Text(
-                      "${room.name} ${S.netGameName(NetItemType.values[room.type].toString().split('.').last)}",
-                    ),
-                    subtitle: Text('${room.address}:${room.port}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextButton(
-                          onPressed: () =>
-                              _homeManager.showJoinRoomDialog(room),
-                          child: Text(S.join),
-                        ),
-                        TextButton(
-                          onPressed: () => _homeManager.stopCreatedRoom(index),
-                          child: Text(S.stop),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }, childCount: _createdRooms.length),
-            ),
-        ],
+        ),
 
         // ---- 其他房间 ----
-        if (_othersRooms.isNotEmpty) ...[
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _PinnedHeaderDelegate(
-              height: _headerHeight,
-              child: _buildHeader(
-                expanded: _othersExpanded,
-                onToggle: () =>
-                    setState(() => _othersExpanded = !_othersExpanded),
-                title: S.otherRooms,
+        ..._buildSection<RoomInfo>(
+          list: _othersRooms,
+          expanded: _othersExpanded,
+          toggle: () => setState(() => _othersExpanded = !_othersExpanded),
+          title: S.otherRooms,
+          buildItem: (room, _) => _buildRoomCard(
+            room: room,
+            actions: [
+              TextButton(
+                onPressed: () => _homeManager.showJoinRoomDialog(room),
+                child: Text(S.join),
               ),
-            ),
+            ],
           ),
-          if (_othersExpanded)
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final room = _othersRooms[index];
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.home),
-                    title: Text(
-                      "${room.name} ${S.netGameName(NetItemType.values[room.type].toString().split('.').last)}",
-                    ),
-                    subtitle: Text('${room.address}:${room.port}'),
-                    trailing: TextButton(
-                      onPressed: () => _homeManager.showJoinRoomDialog(room),
-                      child: Text(S.join),
-                    ),
-                  ),
-                );
-              }, childCount: _othersRooms.length),
-            ),
-        ],
+        ),
 
-        // ---- 本地游戏 ----
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _PinnedHeaderDelegate(
-            height: _headerHeight,
-            child: _buildHeader(
-              expanded: _localExpanded,
-              onToggle: () => setState(() => _localExpanded = !_localExpanded),
-              title: S.local,
+        // ---- 本地应用 ----
+        ..._buildSection<LocalItemType>(
+          list: LocalItemType.values.toList(),
+          expanded: _localExpanded,
+          toggle: () => setState(() => _localExpanded = !_localExpanded),
+          title: S.local,
+          isLocalStatic: true,
+          buildLocalItem: (type, _) => Card(
+            child: ListTile(
+              leading: const Icon(Icons.gamepad),
+              title: Text(S.roomTypeString(type.toString().split('.').last)),
+              onTap: () => _homeManager.routeLocal(type),
             ),
           ),
         ),
-        if (_localExpanded)
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final type = LocalItemType.values[index];
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.gamepad),
-                  title: Text(S.localGameName(type.toString().split('.').last)),
-                  onTap: () => _homeManager.routeLocal(type),
-                ),
-              );
-            }, childCount: LocalItemType.values.length),
-          ),
       ],
     );
   }
 
+  Widget _buildRoomCard({
+    required RoomInfo room,
+    required List<Widget> actions,
+  }) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.home),
+        title: Text(
+          "${room.name} ${S.roomTypeString(NetItemType.values[room.type].toString())}",
+        ),
+        subtitle: Text('${room.address}:${room.port}'),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: actions),
+      ),
+    );
+  }
+
+  List<Widget> _buildSection<T>({
+    required List<T> list,
+    required bool expanded,
+    required VoidCallback toggle,
+    required String title,
+    Widget? trailing,
+    Widget Function(T item, int index)? buildItem,
+    Widget Function(T item, int index)? buildLocalItem,
+    bool isLocalStatic = false,
+  }) {
+    if (list.isEmpty && !isLocalStatic) return const [];
+
+    return [
+      SliverPersistentHeader(
+        pinned: true,
+        delegate: _PinnedHeaderDelegate(
+          height: 48,
+          child: _buildHeader(
+            expanded: expanded,
+            toggle: toggle,
+            title: title,
+            trailing: trailing,
+          ),
+        ),
+      ),
+      if (expanded)
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (ctx, idx) => isLocalStatic
+                ? buildLocalItem!(list[idx], idx)
+                : buildItem!(list[idx], idx),
+            childCount: list.length,
+          ),
+        ),
+    ];
+  }
+
   Widget _buildHeader({
     required bool expanded,
-    required VoidCallback onToggle,
+    required VoidCallback toggle,
     required String title,
     Widget? trailing,
   }) {
@@ -218,7 +211,7 @@ class _HomePageState extends State<HomePage> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ListTile(
         dense: true,
-        leading: ExpandIcon(isExpanded: expanded, onPressed: (_) => onToggle()),
+        leading: ExpandIcon(isExpanded: expanded, onPressed: (_) => toggle()),
         title: Text(title, style: globalTheme.textTheme.titleLarge),
         trailing: trailing,
       ),
@@ -226,7 +219,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/// 顶层 pinned header delegate，不嵌套在 SliverMainAxisGroup 内
 class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double height;
   final Widget child;

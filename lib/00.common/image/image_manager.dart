@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'entity.dart';
+import '../game/entity.dart';
 
 class ImageSplitter {
   final String imagePath;

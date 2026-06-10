@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'manager.dart';
 
@@ -68,7 +68,7 @@ class GuessPage extends StatelessWidget {
     );
   }
 
-  /// 2. 棋牌区
+  /// 2.棋盘区
   Widget _buildBoardArea() {
     return Expanded(
       child: Center(

@@ -51,13 +51,13 @@ void main() {
     });
 
     group('setLocale', () {
-      test('setLocale changes locale to specified value', () {
-        LanguageProvider.instance.setLocale(AppLocale.zh);
+      test('setLocale changes locale to specified value', () async {
+        await LanguageProvider.instance.setLocale(AppLocale.zh);
         expect(LanguageProvider.instance.locale.value, equals(AppLocale.zh));
       });
 
       test('setLocale persists — reload restores value', () async {
-        LanguageProvider.instance.setLocale(AppLocale.zh);
+        await LanguageProvider.instance.setLocale(AppLocale.zh);
 
         // 模拟重新加载
         LanguageProvider.instance.resetForTesting();

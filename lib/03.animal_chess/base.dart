@@ -58,6 +58,13 @@ class Animal {
       _ => true,
     };
   }
+
+  Animal clone() => Animal(
+    type: type,
+    owner: owner,
+    isSelected: isSelected,
+    isHidden: isHidden,
+  );
 }
 
 class Grid {
@@ -74,4 +81,28 @@ class Grid {
   });
 
   bool get hasAnimal => animal != null;
+
+  Grid clone() {
+    return Grid(
+      coordinate: coordinate,
+      type: type,
+      isHighlighted: isHighlighted,
+      animal: animal?.clone(),
+    );
+  }
+}
+
+sealed class GameAction {
+  final int index;
+  const GameAction(this.index);
+}
+
+class FlipAction extends GameAction {
+  const FlipAction(super.index);
+}
+
+class MoveAction extends GameAction {
+  final int from;
+  final int to;
+  const MoveAction(this.from, this.to) : super(from);
 }

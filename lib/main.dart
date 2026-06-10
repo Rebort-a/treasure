@@ -11,8 +11,9 @@ void main() async {
 
   // 初始化存储服务
   await StorageService.instance.init();
-  // 加载持久化的语言设置
+  // 加载持久化的语言和主题设置
   await LanguageProvider.instance.load();
+  await ThemeProvider.instance.load();
 
   runApp(const MyApp());
 }
@@ -24,16 +25,21 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<AppLocale>(
       valueListenable: LanguageProvider.instance.locale,
-      builder: (_, __, ___) => MaterialApp(
-        theme: globalTheme,
-        locale: LanguageProvider.instance.flutterLocale,
-        supportedLocales: const [Locale('zh'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        home: const HomePage(),
+      builder: (_, __, ___) => ValueListenableBuilder<ThemeMode>(
+        valueListenable: ThemeProvider.instance.themeMode,
+        builder: (_, themeMode, ___) => MaterialApp(
+          theme: globalTheme,
+          darkTheme: globalDarkTheme,
+          themeMode: themeMode,
+          locale: LanguageProvider.instance.flutterLocale,
+          supportedLocales: const [Locale('zh'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: const HomePage(),
+        ),
       ),
     );
   }

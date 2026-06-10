@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../00.common/game/map.dart';
-import '../../00.common/image/entity.dart';
+import '../../00.common/game/entity.dart';
 import '../base/effect.dart';
 import '../base/energy.dart';
 import '../base/skill.dart';
@@ -505,14 +505,18 @@ class Elemental {
     return json.encode(data);
   }
 
-  static String nameFromJson(Map<String, dynamic> json) => json['name'] as String;
+  static String nameFromJson(Map<String, dynamic> json) =>
+      json['name'] as String;
   static EnergyConfigs configsFromJson(Map<String, dynamic> json) =>
       EnergyConfigs.fromString(json['configs'] as String);
-  static int currentFromJson(Map<String, dynamic> json) => json['current'] as int;
+  static int currentFromJson(Map<String, dynamic> json) =>
+      json['current'] as int;
 
   factory Elemental.fromJson(Map<String, dynamic> json) {
     final String name = Elemental.nameFromJson(json);
-    final EnergyConfigs configs = EnergyConfigs.fromString(json['configs'] as String);
+    final EnergyConfigs configs = EnergyConfigs.fromString(
+      json['configs'] as String,
+    );
     final int current = Elemental.currentFromJson(json);
     return Elemental(baseName: name, configs: configs, current: current);
   }

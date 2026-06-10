@@ -4,15 +4,15 @@ import 'base.dart';
 import 'foundation_manager.dart';
 
 class GoAiManager extends GoFoundationalManager {
-  final StoneState aiSide;
+  final StoneState faction;
   bool _aiThinking = false;
 
-  GoAiManager({this.aiSide = StoneState.white});
+  GoAiManager({this.faction = StoneState.white});
 
   @override
   void placePiece(int index) {
     if (board.gameOver || _aiThinking) return;
-    if (board.currentPlayer.value == aiSide) return;
+    if (board.currentPlayer.value == faction) return;
 
     if (board.placeStone(index)) {
       if (!board.gameOver) {
@@ -28,7 +28,7 @@ class GoAiManager extends GoFoundationalManager {
   }
 
   void _triggerAiMove() {
-    if (board.currentPlayer.value != aiSide || board.gameOver) return;
+    if (board.currentPlayer.value != faction || board.gameOver) return;
     _aiThinking = true;
 
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -99,9 +99,10 @@ class GoAiManager extends GoFoundationalManager {
     final row = index ~/ size;
     final col = index % size;
     final grids = board.grids.value;
-    final aiPiece = aiSide;
-    final humanPiece =
-        aiSide == StoneState.black ? StoneState.white : StoneState.black;
+    final aiPiece = faction;
+    final humanPiece = faction == StoneState.black
+        ? StoneState.white
+        : StoneState.black;
 
     // 中心偏好
     final center = size ~/ 2;
@@ -113,7 +114,14 @@ class GoAiManager extends GoFoundationalManager {
 
     for (final (dr, dc) in directions) {
       score += _evaluateDirection(
-        row, col, dr, dc, aiPiece, humanPiece, size, grids,
+        row,
+        col,
+        dr,
+        dc,
+        aiPiece,
+        humanPiece,
+        size,
+        grids,
       );
     }
 
@@ -121,8 +129,13 @@ class GoAiManager extends GoFoundationalManager {
   }
 
   int _evaluateDirection(
-    int row, int col, int dr, int dc,
-    StoneState aiPiece, StoneState humanPiece, int size,
+    int row,
+    int col,
+    int dr,
+    int dc,
+    StoneState aiPiece,
+    StoneState humanPiece,
+    int size,
     List<dynamic> grids,
   ) {
     int aiCount = 0, humanCount = 0;

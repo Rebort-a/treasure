@@ -97,7 +97,7 @@ class RoomDialog {
                       ),
                     )
                     .toList(),
-                decoration: InputDecoration(labelText: S.game),
+                decoration: InputDecoration(labelText: S.type),
               ),
             ],
           ),

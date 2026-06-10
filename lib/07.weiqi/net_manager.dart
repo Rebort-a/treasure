@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../00.common/engine/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
-import '../00.common/game/net_turn_game_base.dart';
 import '../00.common/game/step.dart';
 import '../00.common/tool/notifiers.dart';
 import '../00.common/network/network_message.dart';
@@ -13,26 +12,23 @@ import 'base.dart';
 import 'foundation_manager.dart';
 
 class GoNetManager extends GoFoundationalManager {
-  late final NetTurnGameService _netService;
-
-  NetTurnGameService get netService => _netService;
-  NetTurnGameEngine get netTurnEngine => _netService.netTurnEngine;
-
-  AlwaysNotifier<void Function(BuildContext)> get pageNavigator =>
-      _netService.pageNavigator;
+  late final NetTurnGameEngine netTurnEngine;
+  final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
+      AlwaysNotifier((_) {});
 
   StoneState get localPlayer => netTurnEngine.playerType == TurnGamerType.front
       ? StoneState.black
       : StoneState.white;
 
   GoNetManager({required String userName, required RoomInfo roomInfo}) {
-    _netService = NetTurnGameService(
+    netTurnEngine = NetTurnGameEngine(
       userName: userName,
       roomInfo: roomInfo,
-      onSearch: _onSearch,
-      onResource: _onResource,
-      onAction: _onAction,
-      onExit: _onExit,
+      navigatorHandler: pageNavigator,
+      searchHandler: _onSearch,
+      resourceHandler: _onResource,
+      actionHandler: _onAction,
+      exitHandler: _onExit,
     );
   }
 
@@ -80,5 +76,5 @@ class GoNetManager extends GoFoundationalManager {
     }
   }
 
-  void leavePage() => _netService.leavePage();
+  void leavePage() => netTurnEngine.leavePage();
 }

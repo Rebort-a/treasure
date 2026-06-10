@@ -33,13 +33,18 @@ class S {
   static String get joinByIp => isZh ? '手动加入' : 'Join by IP';
   static String get enterUserName => isZh ? '输入用户名' : 'Enter user name';
   static String get userName => isZh ? '用户名' : 'User name';
-  static String get hostIp =>
-      isZh ? '主机IP (如 192.168.1.100)' : 'Host IP (e.g. 192.168.1.100)';
+  static String get hostIp => isZh ? '主机IP' : 'Host IP';
   static String get port => isZh ? '端口' : 'Port';
   static String get game => isZh ? '游戏' : 'Game';
+  static String get type => isZh ? '类型' : 'Type';
   static String get leave => isZh ? '离开' : 'Leave';
   static String get leaveRoom => isZh ? '即将退出房间' : 'About to leave the room';
   static String get language => isZh ? '语言' : 'Language';
+  static String get theme => isZh ? '主题' : 'Theme';
+  static String get themeLight => isZh ? '浅色' : 'Light';
+  static String get themeDark => isZh ? '深色' : 'Dark';
+  static String get chinese => '中文';
+  static String get english => 'English';
 
   // ==================== 通用网络 ====================
   static String get disconnected => isZh ? '连接断开' : 'Disconnected';
@@ -113,7 +118,7 @@ class S {
   // ==================== 斗兽棋 ====================
   static String get animalChess => isZh ? '斗兽棋' : 'Animal Chess';
   static String get netAnimalChess => isZh ? '联机斗兽棋' : 'Net Animal Chess';
-  static String get setBoardSize => isZh ? '设置棋牌大小' : 'Set Board Size';
+  static String get setBoardSize => isZh ? '设置棋盘大小' : 'Set Board Size';
   static String redTurn() => isZh ? '红方回合' : "Red's Turn";
   static String blueTurn() => isZh ? '蓝方回合' : "Blue's Turn";
   static String yourTurn() => isZh ? '你的回合' : 'Your Turn';
@@ -151,13 +156,14 @@ class S {
       isZh ? '难度: $d 用时: $t' : 'Difficulty: $d Time: $t';
   static String get startNewGame => isZh ? '开始新游戏' : 'Start New Game';
   static String get importPuzzle => isZh ? '导入棋局' : 'Import Puzzle';
-  static String get importFailConflict =>
-      isZh ? '棋盘中存在冲突，请检查行、列或宫格中是否有重复数字'
+  static String get importFailConflict => isZh
+      ? '棋盘中存在冲突，请检查行、列或宫格中是否有重复数字'
       : 'Board has conflicts. Check rows, columns and boxes for duplicates.';
   static String get importFailEmpty =>
       isZh ? '请至少填写一个数字' : 'Fill in at least one number.';
-  static String get importFailNotUnique =>
-      isZh ? '该棋局没有唯一解，请调整数字' : 'The puzzle has no unique solution. Adjust the numbers.';
+  static String get importFailNotUnique => isZh
+      ? '该棋局没有唯一解，请调整数字'
+      : 'The puzzle has no unique solution. Adjust the numbers.';
   static String get confirmImport => isZh ? '确认导入' : 'Confirm';
   static String get cancelImport => isZh ? '取消' : 'Cancel';
 
@@ -187,7 +193,7 @@ class S {
   static String get startGame => isZh ? '开始游戏' : 'Start Game';
   static String get gamePaused => isZh ? '游戏暂停' : 'Game Paused';
   static String get continueGame => isZh ? '继续游戏' : 'Continue';
-  static String get gameSettings => isZh ? '设置' : 'Settings';
+  static String get settings => isZh ? '设置' : 'Settings';
   static String get general => isZh ? '通用' : 'General';
   static String get about => isZh ? '关于' : 'About';
   static String get version => isZh ? '版本' : 'Version';
@@ -469,8 +475,10 @@ class S {
   static String get boardDataEmpty2 => isZh ? '棋盘数据为空' : 'Board data is empty';
 
   // ==================== 对局游戏名翻译 ====================
-  static String localGameName(String raw) {
+  static String roomTypeString(String raw) {
     switch (raw) {
+      case 'onlyChat':
+        return isZh ? '聊天室' : 'Chat';
       case 'animalChess':
         return isZh ? '斗兽棋' : 'Animal Chess';
       case 'elementalBattle':
@@ -493,29 +501,6 @@ class S {
         return isZh ? '软环' : 'Soft';
       case 'minecraft':
         return isZh ? '我的世界' : 'Minecraft';
-      case 'towerDefense':
-        return isZh ? '塔防' : 'Tower Defense';
-      case 'onlyChat':
-        return isZh ? '聊天室' : 'Chat';
-      default:
-        return raw;
-    }
-  }
-
-  static String netGameName(String raw) {
-    switch (raw) {
-      case 'onlyChat':
-        return isZh ? '聊天室' : 'Chat';
-      case 'animalChess':
-        return isZh ? '斗兽棋' : 'Animal Chess';
-      case 'elementalBattle':
-        return isZh ? '五行之战' : 'Elemental Battle';
-      case 'gobang':
-        return isZh ? '五子棋' : 'Gomoku';
-      case 'greedySnake':
-        return isZh ? '贪吃蛇' : 'Greedy Snake';
-      case 'weiqi':
-        return isZh ? '围棋' : 'Go';
       case 'towerDefense':
         return isZh ? '塔防' : 'Tower Defense';
       default:

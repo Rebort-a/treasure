@@ -17,11 +17,10 @@ class CreatedRoomInfo extends RoomInfo {
   CreatedRoomInfo({
     required super.name,
     required super.type,
-    required super.address,
     required super.port,
     required this.server,
     super.encryptionKey,
-  });
+  }) : super(address: 'localhost');
 }
 
 class HomeManager {
@@ -108,7 +107,6 @@ class HomeManager {
       CreatedRoomInfo(
         name: roomName,
         type: roomType.index,
-        address: 'localhost',
         port: server.port,
         server: server,
         encryptionKey: encryptionKey,

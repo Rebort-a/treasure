@@ -1,523 +1,784 @@
 import 'dart:math';
-
 import '../00.common/game/gamer.dart';
+import '../00.common/game/map.dart';
 import 'base.dart';
-import 'foundation_manager.dart';
 
-/// AI 难度
 enum AiDifficulty { easy, medium, hard }
 
-/// 走法
-sealed class AiMove {
-  final int index;
-  const AiMove(this.index);
+/// Zobrist 哈希
+class Zobrist {
+  static final Random _rand = Random();
+  static late Map<TurnGamerType, Map<int, int>> playerPiece;
+  static late Map<int, int> flipHash;
+  static late int turnHash;
+  static int _lastBoardSize = 0;
+
+  static void init(int boardSize) {
+    if (_lastBoardSize == boardSize) return;
+    _lastBoardSize = boardSize;
+
+    playerPiece = {TurnGamerType.front: {}, TurnGamerType.rear: {}};
+    flipHash = {};
+
+    for (int i = 0; i < boardSize * boardSize; i++) {
+      flipHash[i] = _rand64();
+      playerPiece[TurnGamerType.front]![i] = _rand64();
+      playerPiece[TurnGamerType.rear]![i] = _rand64();
+    }
+    turnHash = _rand64();
+  }
+
+  static int _rand64() =>
+      (_rand.nextInt(1 << 30) << 30) | _rand.nextInt(1 << 30);
 }
 
-class FlipMove extends AiMove {
-  const FlipMove(super.index);
+/// 置换表节点
+class TTEntry {
+  final double score;
+  final int depth;
+  final int flag; // 0=EXACT, 1=LOWERBOUND, 2=UPPERBOUND
+  TTEntry(this.score, this.depth, this.flag);
 }
 
-class StepMove extends AiMove {
-  final int from;
-  final int to;
-  const StepMove(this.from, this.to) : super(from);
+const int ttExact = 0;
+const int ttLowerBound = 1;
+const int ttUpperBound = 2;
+
+class TranspositionTable {
+  final Map<int, TTEntry> _table = {};
+  void put(int key, double score, int depth, int flag) {
+    final existing = _table[key];
+    if (existing == null || existing.depth <= depth) {
+      _table[key] = TTEntry(score, depth, flag);
+    }
+  }
+
+  TTEntry? get(int key) => _table[key];
+  void clear() => _table.clear();
 }
 
-/// 棋盘快照（用于 AI 模拟）
+// ==================== 核心状态转换函数 ====================
+/// 应用移动操作，返回新的格子列表、红方剩余数量、蓝方剩余数量
+(List<Grid>, int, int) _applyMoveToGrids(
+  List<Grid> grids,
+  MoveAction action,
+  int redCount,
+  int blueCount,
+) {
+  final newGrids = grids.map((g) => g.clone()).toList();
+  int newRed = redCount;
+  int newBlue = blueCount;
+
+  final fromGrid = newGrids[action.from];
+  final toGrid = newGrids[action.to];
+  final attacker = fromGrid.animal!;
+
+  newGrids[action.from] = fromGrid..animal = null;
+
+  if (toGrid.hasAnimal) {
+    final defender = toGrid.animal!;
+    final aWin = attacker.canEat(defender);
+    final dWin = defender.canEat(attacker);
+
+    if (aWin && dWin) {
+      // 同归于尽
+      newGrids[action.to] = toGrid..animal = null;
+      if (attacker.owner == TurnGamerType.front) {
+        newRed--;
+      } else {
+        newBlue--;
+      }
+      if (defender.owner == TurnGamerType.front) {
+        newRed--;
+      } else {
+        newBlue--;
+      }
+    } else if (aWin) {
+      // 攻击方吃掉防守方
+      newGrids[action.to] = toGrid..animal = attacker;
+      if (defender.owner == TurnGamerType.front) {
+        newRed--;
+      } else {
+        newBlue--;
+      }
+    } else if (dWin) {
+      // 攻击方被反杀
+      if (attacker.owner == TurnGamerType.front) {
+        newRed--;
+      } else {
+        newBlue--;
+      }
+    } else {
+      throw StateError('Invalid move: cannot eat $attacker -> $defender');
+    }
+  } else {
+    newGrids[action.to] = toGrid..animal = attacker;
+  }
+
+  return (newGrids, newRed, newBlue);
+}
+
+/// 应用翻开操作，返回新的格子列表、红方剩余数量、蓝方剩余数量
+(List<Grid>, int, int) _applyFlipToGrids(
+  List<Grid> grids,
+  FlipAction action,
+  int redCount,
+  int blueCount,
+) {
+  final newGrids = grids.map((g) => g.clone()).toList();
+  int newRed = redCount;
+  int newBlue = blueCount;
+
+  final oldGrid = newGrids[action.index];
+  final animal = oldGrid.animal!;
+  final revealedAnimal = animal..isHidden = false;
+  newGrids[action.index] = oldGrid..animal = revealedAnimal;
+
+  if (animal.owner == TurnGamerType.front) {
+    newRed++;
+  } else {
+    newBlue++;
+  }
+  return (newGrids, newRed, newBlue);
+}
+
+// ==================== 棋盘快照 ====================
 class BoardSnapshot {
-  final List<Animal?> cells;
-  final List<GridType> gridTypes;
+  final List<Grid> gridList;
   final int size;
   final TurnGamerType currentTurn;
-  final int redCount;
-  final int blueCount;
+  final int _redCount; // 缓存，避免每次遍历
+  final int _blueCount;
+  final List<int> _hiddenPositions; // 缓存
+  late final int hash;
 
-  BoardSnapshot({
-    required this.cells,
-    required this.gridTypes,
+  int get redCount => _redCount;
+  int get blueCount => _blueCount;
+  List<int> get hiddenPositions => _hiddenPositions;
+
+  BoardSnapshot._({
+    required this.gridList,
     required this.size,
     required this.currentTurn,
-    required this.redCount,
-    required this.blueCount,
-  });
+    required int redCount,
+    required int blueCount,
+    required List<int> hiddenPositions,
+  }) : _redCount = redCount,
+       _blueCount = blueCount,
+       _hiddenPositions = hiddenPositions {
+    hash = _computeHash();
+  }
 
-  /// 从管理器创建快照
-  factory BoardSnapshot.from(FoundationalManager manager, TurnGamerType aiSide) {
-    final size = manager.boardSize;
-    final cells = <Animal?>[];
-    final gridTypes = <GridType>[];
+  factory BoardSnapshot.fromBoard({
+    required List<Grid> board,
+    required int size,
+    required TurnGamerType currentTurn,
+  }) {
+    final List<Grid> newGrids = [];
+    final hiddenPos = <int>[];
     int red = 0, blue = 0;
-
-    for (int i = 0; i < size * size; i++) {
-      final grid = manager.displayMap.value[i].value;
-      gridTypes.add(grid.type);
-      if (grid.hasAnimal) {
-        final animal = grid.animal!;
-        // 隐藏棋子对 AI 透明：AI 只知道自己的棋子类型，对方隐藏棋子视为未知
-        if (animal.isHidden && animal.owner != aiSide) {
-          cells.add(null); // 未知棋子
+    for (int i = 0; i < board.length; i++) {
+      final g = board[i];
+      newGrids.add(g.clone());
+      if (g.hasAnimal) {
+        final a = g.animal!;
+        if (a.isHidden) {
+          hiddenPos.add(i);
         } else {
-          cells.add(Animal(
-            type: animal.type,
-            owner: animal.owner,
-            isHidden: animal.isHidden,
-          ));
-          if (animal.owner == TurnGamerType.front) red++;
-          if (animal.owner == TurnGamerType.rear) blue++;
+          if (a.owner == TurnGamerType.front) red++;
+          if (a.owner == TurnGamerType.rear) blue++;
         }
-      } else {
-        cells.add(null);
       }
     }
-
-    return BoardSnapshot(
-      cells: cells,
-      gridTypes: gridTypes,
+    return BoardSnapshot._(
+      gridList: newGrids,
       size: size,
-      currentTurn: manager.currentGamer.value,
+      currentTurn: currentTurn,
       redCount: red,
       blueCount: blue,
+      hiddenPositions: hiddenPos,
     );
   }
 
-  /// 执行走法，返回新快照
-  BoardSnapshot applyMove(AiMove move, TurnGamerType aiSide) {
-    final newCells = List<Animal?>.from(cells);
-    int newRed = redCount, newBlue = blueCount;
-    TurnGamerType nextTurn = currentTurn.opponent;
+  int _computeHash() {
+    int h = 0;
+    for (int i = 0; i < gridList.length; i++) {
+      final grid = gridList[i];
+      if (!grid.hasAnimal) continue;
+      final animal = grid.animal!;
+      if (animal.isHidden) continue;
+      h ^= Zobrist.playerPiece[animal.owner]![i] ?? 0;
+    }
+    for (final i in _hiddenPositions) {
+      h ^= Zobrist.flipHash[i] ?? 0;
+    }
+    if (currentTurn == TurnGamerType.rear) {
+      h ^= Zobrist.turnHash;
+    }
+    return h;
+  }
 
-    switch (move) {
-      case FlipMove(:final index):
-        final old = newCells[index];
-        if (old != null) {
-          newCells[index] = Animal(
-            type: old.type,
-            owner: old.owner,
-            isHidden: false,
-          );
-        }
-      case StepMove(:final from, :final to):
-        final attacker = newCells[from];
-        final defender = newCells[to];
-        newCells[from] = null;
+  BoardSnapshot applyAction(GameAction action) {
+    final (newGrids, newRed, newBlue) = switch (action) {
+      FlipAction _ => _applyFlipToGrids(
+        gridList,
+        action,
+        _redCount,
+        _blueCount,
+      ),
+      MoveAction _ => _applyMoveToGrids(
+        gridList,
+        action,
+        _redCount,
+        _blueCount,
+      ),
+    };
 
-        if (attacker != null && defender != null) {
-          final attackerWins = attacker.canEat(defender);
-          final defenderWins = defender.canEat(attacker);
-
-          if (attackerWins && defenderWins) {
-            newCells[to] = null;
-            if (attacker.owner == TurnGamerType.front) newRed--;
-            if (attacker.owner == TurnGamerType.rear) newBlue--;
-            if (defender.owner == TurnGamerType.front) newRed--;
-            if (defender.owner == TurnGamerType.rear) newBlue--;
-          } else if (attackerWins) {
-            newCells[to] = Animal(
-              type: attacker.type,
-              owner: attacker.owner,
-              isHidden: false,
-            );
-            if (defender.owner == TurnGamerType.front) newRed--;
-            if (defender.owner == TurnGamerType.rear) newBlue--;
-          } else if (defenderWins) {
-            newCells[to] = Animal(
-              type: defender.type,
-              owner: defender.owner,
-              isHidden: false,
-            );
-            if (attacker.owner == TurnGamerType.front) newRed--;
-            if (attacker.owner == TurnGamerType.rear) newBlue--;
-          }
-          // 同类互吃已在 canEat 中处理（返回 true）
-        } else if (attacker != null) {
-          newCells[to] = Animal(
-            type: attacker.type,
-            owner: attacker.owner,
-            isHidden: false,
-          );
-        }
+    // 增量更新隐藏位置：翻棋减少一个，移动不变
+    final List<int> newHidden;
+    if (action is FlipAction) {
+      newHidden = List.from(_hiddenPositions)..remove(action.index);
+    } else {
+      newHidden = _hiddenPositions; // 移动不改变暗子，直接复用
     }
 
-    return BoardSnapshot(
-      cells: newCells,
-      gridTypes: gridTypes,
+    return BoardSnapshot._(
+      gridList: newGrids,
       size: size,
-      currentTurn: nextTurn,
+      currentTurn: currentTurn.opponent,
       redCount: newRed,
       blueCount: newBlue,
+      hiddenPositions: newHidden,
     );
   }
 
-  /// 获取某方所有已翻开棋子的位置
   List<int> getRevealedIndices(TurnGamerType player) {
-    final result = <int>[];
-    for (int i = 0; i < cells.length; i++) {
-      final a = cells[i];
-      if (a != null && !a.isHidden && a.owner == player) {
-        result.add(i);
+    final res = <int>[];
+    for (int i = 0; i < gridList.length; i++) {
+      final g = gridList[i];
+      if (g.hasAnimal && !g.animal!.isHidden && g.animal!.owner == player) {
+        res.add(i);
       }
     }
-    return result;
+    return res;
   }
 
-  /// 获取所有隐藏棋子位置
-  List<int> get hiddenIndices {
-    final result = <int>[];
-    for (int i = 0; i < cells.length; i++) {
-      if (cells[i] != null && cells[i]!.isHidden) {
-        result.add(i);
-      }
+  List<GameAction> generateMoves(TurnGamerType player) {
+    final moves = <GameAction>[];
+    for (final i in _hiddenPositions) {
+      moves.add(FlipAction(i));
     }
-    return result;
-  }
-
-  /// 生成某方所有合法走法
-  List<AiMove> generateMoves(TurnGamerType player) {
-    final moves = <AiMove>[];
-
-    // 翻棋走法
-    for (final i in hiddenIndices) {
-      moves.add(FlipMove(i));
-    }
-
-    // 移动走法
-    final revealed = getRevealedIndices(player);
-    for (final from in revealed) {
-      final animal = cells[from]!;
-      final fromRow = from ~/ size;
-      final fromCol = from % size;
-
-      for (final (int dr, int dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]) {
-        final int nr = fromRow + dr;
-        final int nc = fromCol + dc;
+    final own = getRevealedIndices(player);
+    for (final from in own) {
+      final animal = gridList[from].animal!;
+      final r = from ~/ size;
+      final c = from % size;
+      for (final (dr, dc) in planeAround) {
+        final nr = r + dr;
+        final nc = c + dc;
         if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
-        final int to = nr * size + nc;
-        final target = cells[to];
-
-        // 不能走向己方棋子
-        if (target != null && target.owner == player) continue;
-        // 不能走向隐藏棋子
-        if (target != null && target.isHidden) continue;
-        // 检查地形
-        if (!animal.canMoveTo(gridTypes[from], gridTypes[to])) continue;
-
-        moves.add(StepMove(from, to));
+        final to = nr * size + nc;
+        final toGrid = gridList[to];
+        if (toGrid.hasAnimal &&
+            !toGrid.animal!.isHidden &&
+            toGrid.animal!.owner == player) {
+          continue;
+        }
+        if (toGrid.hasAnimal && !toGrid.animal!.isHidden) {
+          if (!animal.canEat(toGrid.animal!)) continue;
+        }
+        if (toGrid.hasAnimal && toGrid.animal!.isHidden) continue;
+        if (!animal.canMoveTo(gridList[from].type, toGrid.type)) continue;
+        moves.add(MoveAction(from, to));
       }
     }
-
     return moves;
   }
 
-  bool get isGameOver => redCount <= 0 || blueCount <= 0;
+  /// 快速统计可走步数（不分配 [GameAction] 对象），供评估函数使用
+  int mobilityCount(TurnGamerType player) {
+    int count = _hiddenPositions.length;
+    final own = getRevealedIndices(player);
+    for (final from in own) {
+      final animal = gridList[from].animal!;
+      final r = from ~/ size;
+      final c = from % size;
+      for (final (dr, dc) in planeAround) {
+        final nr = r + dr;
+        final nc = c + dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        final to = nr * size + nc;
+        final toGrid = gridList[to];
+        if (toGrid.hasAnimal &&
+            !toGrid.animal!.isHidden &&
+            toGrid.animal!.owner == player) {
+          continue;
+        }
+        if (toGrid.hasAnimal && !toGrid.animal!.isHidden) {
+          if (!animal.canEat(toGrid.animal!)) continue;
+        }
+        if (toGrid.hasAnimal && toGrid.animal!.isHidden) continue;
+        if (!animal.canMoveTo(gridList[from].type, toGrid.type)) continue;
+        count++;
+      }
+    }
+    return count;
+  }
+
+  bool get isGameOver => _redCount <= 0 || _blueCount <= 0;
 }
 
-/// 棋子价值表
+/// 配置
 const Map<AnimalType, int> pieceValues = {
   AnimalType.elephant: 10,
-  AnimalType.tiger: 9,
+  AnimalType.tiger: 10,
   AnimalType.lion: 9,
-  AnimalType.leopard: 8,
-  AnimalType.wolf: 6,
+  AnimalType.leopard: 7,
+  AnimalType.wolf: 5,
   AnimalType.dog: 5,
   AnimalType.cat: 4,
-  AnimalType.mouse: 3,
+  AnimalType.mouse: 5,
 };
 
-/// 斗兽棋 AI 管理器
-class AiManager extends FoundationalManager {
-  AiDifficulty difficulty;
-  final TurnGamerType aiSide;
-  bool _aiThinking = false;
+/// AI 引擎
+class AiEngine {
+  final AiDifficulty difficulty;
+  final Random _random = Random();
+  final TranspositionTable _tt = TranspositionTable();
+  final List<int> _historyHashes = [];
 
-  AiManager({this.aiSide = TurnGamerType.rear, this.difficulty = AiDifficulty.hard}) {
-    initGame();
+  static const int _quiescenceDepthLimit = 4;
+
+  AiEngine({this.difficulty = AiDifficulty.hard});
+
+  void recordHash(int hash) {
+    _historyHashes.add(hash);
+    if (_historyHashes.length > 10) _historyHashes.removeAt(0);
   }
 
-  @override
-  void selectGrid(int index) {
-    if (_aiThinking) return;
-    if (currentGamer.value == aiSide) return;
+  void clear() {
+    _tt.clear();
+    _historyHashes.clear();
+  }
 
-    super.selectGrid(index);
+  GameAction? getBestMove(BoardSnapshot snap) {
+    final moves = snap.generateMoves(snap.currentTurn)..shuffle(_random);
+    if (moves.isEmpty) return null;
+    _tt.clear();
 
-    if (currentGamer.value == aiSide && !_aiThinking) {
-      _triggerAiMove();
+    switch (difficulty) {
+      case AiDifficulty.easy:
+        return _easyMove(snap, moves);
+      case AiDifficulty.medium:
+        return _mediumMove(snap, moves);
+      case AiDifficulty.hard:
+        return _iterativeDeepening(snap, moves);
     }
   }
 
-  /// 外部调用：如果当前轮到 AI，立即开始走棋
-  void startIfMyTurn() {
-    if (currentGamer.value == aiSide && !_aiThinking) {
-      _triggerAiMove();
+  GameAction _easyMove(BoardSnapshot snap, List<GameAction> moves) {
+    final captures = <GameAction>[];
+    for (final m in moves) {
+      if (m is MoveAction) {
+        final t = snap.gridList[m.to];
+        if (t.hasAnimal &&
+            t.animal!.owner != snap.currentTurn &&
+            !t.animal!.isHidden) {
+          captures.add(m);
+        }
+      }
     }
+    if (captures.isNotEmpty) return captures[_random.nextInt(captures.length)];
+    return moves[_random.nextInt(moves.length)];
   }
 
-  void _triggerAiMove() {
-    _aiThinking = true;
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (currentGamer.value != aiSide || _isGameOver) {
-        _aiThinking = false;
-        return;
+  GameAction _mediumMove(BoardSnapshot snap, List<GameAction> moves) {
+    GameAction? best;
+    double maxScore = -double.infinity;
+    for (final m in moves) {
+      final score = _evaluate(snap.applyAction(m), snap.currentTurn);
+      if (score > maxScore) {
+        maxScore = score;
+        best = m;
+      }
+    }
+    return best ?? moves.first;
+  }
+
+  GameAction _iterativeDeepening(BoardSnapshot snap, List<GameAction> moves) {
+    _orderMoves(snap, moves);
+    GameAction? bestMove;
+    // 从深度 1 到 4 迭代加深
+    for (int depth = 1; depth <= 4; depth++) {
+      double best = -double.infinity;
+      GameAction? currentBest;
+      // 如果有上轮的最佳走法，将其移到列表首位优先搜索
+      if (bestMove != null && moves.remove(bestMove)) {
+        moves.insert(0, bestMove);
+      }
+      for (final m in moves) {
+        final score = _alphaBeta(
+          snap.applyAction(m),
+          depth - 1,
+          -double.infinity,
+          double.infinity,
+          false,
+          snap.currentTurn,
+        );
+        if (score > best) {
+          best = score;
+          currentBest = m;
+        }
+      }
+      bestMove = currentBest;
+    }
+    return bestMove ?? moves.first;
+  }
+
+  void _orderMoves(BoardSnapshot snap, List<GameAction> moves) {
+    moves.sort((a, b) {
+      int priority(GameAction m) {
+        if (m case MoveAction(:final to)) {
+          final target = snap.gridList[to];
+          if (target.hasAnimal && !target.animal!.isHidden) return 2;
+          return 1;
+        }
+        return 0; // FlipAction
       }
 
-      final move = _calculateBestMove();
-      if (move != null) {
-        _executeMove(move);
-      }
-      _aiThinking = false;
-
-      if (currentGamer.value == aiSide && !_isGameOver) {
-        _triggerAiMove();
-      }
+      return priority(b).compareTo(priority(a));
     });
   }
 
-  bool get _isGameOver {
-    return displayMap.value
-        .where((g) => g.value.hasAnimal && g.value.animal!.owner == TurnGamerType.front)
-        .isEmpty ||
-        displayMap.value
-        .where((g) => g.value.hasAnimal && g.value.animal!.owner == TurnGamerType.rear)
-        .isEmpty;
-  }
+  double _alphaBeta(
+    BoardSnapshot snap,
+    int depth,
+    double alpha,
+    double beta,
+    bool isMax,
+    TurnGamerType faction,
+  ) {
+    final tt = _tt.get(snap.hash);
+    if (tt != null && tt.depth >= depth) {
+      if (tt.flag == ttExact) return tt.score;
+      if (tt.flag == ttLowerBound) alpha = alpha > tt.score ? alpha : tt.score;
+      if (tt.flag == ttUpperBound) beta = beta < tt.score ? beta : tt.score;
+      if (alpha >= beta) return tt.score;
+    }
 
-  void _executeMove(AiMove move) {
-    switch (move) {
-      case FlipMove(:final index):
-        super.selectGrid(index);
-      case StepMove(:final from, :final to):
-        super.selectGrid(from);
-        super.selectGrid(to);
+    if (depth == 0 || snap.isGameOver) {
+      return _quiescenceSearch(
+        snap,
+        alpha,
+        beta,
+        isMax,
+        faction,
+        _quiescenceDepthLimit,
+      );
+    }
+
+    final player = isMax ? faction : faction.opponent;
+    final moves = snap.generateMoves(player);
+    _orderMoves(snap, moves);
+
+    if (isMax) {
+      double maxSc = -double.infinity;
+      for (final m in moves) {
+        final sc = _alphaBeta(
+          snap.applyAction(m),
+          depth - 1,
+          alpha,
+          beta,
+          false,
+          faction,
+        );
+        maxSc = sc > maxSc ? sc : maxSc;
+        alpha = alpha > maxSc ? alpha : maxSc;
+        if (alpha >= beta) break;
+      }
+      _tt.put(snap.hash, maxSc, depth, alpha >= beta ? ttLowerBound : ttExact);
+      return maxSc;
+    } else {
+      double minSc = double.infinity;
+      for (final m in moves) {
+        final sc = _alphaBeta(
+          snap.applyAction(m),
+          depth - 1,
+          alpha,
+          beta,
+          true,
+          faction,
+        );
+        minSc = sc < minSc ? sc : minSc;
+        beta = beta < minSc ? beta : minSc;
+        if (alpha >= beta) break;
+      }
+      _tt.put(snap.hash, minSc, depth, alpha >= beta ? ttUpperBound : ttExact);
+      return minSc;
     }
   }
 
-  AiMove? _calculateBestMove() {
-    final snapshot = BoardSnapshot.from(this, aiSide);
-    final moves = snapshot.generateMoves(aiSide);
-    if (moves.isEmpty) return null;
+  // 静止搜索：只扩展吃子走法
+  double _quiescenceSearch(
+    BoardSnapshot snap,
+    double alpha,
+    double beta,
+    bool isMax,
+    TurnGamerType faction,
+    int qDepth,
+  ) {
+    double standPat = _evaluate(snap, faction);
+    if (snap.isGameOver || qDepth == 0) return standPat;
 
-    return switch (difficulty) {
-      AiDifficulty.easy => _easyMove(snapshot, moves),
-      AiDifficulty.medium => _mediumMove(snapshot, moves),
-      AiDifficulty.hard => _hardMove(snapshot, moves),
-    };
+    if (isMax) {
+      if (standPat >= beta) return beta;
+      if (standPat > alpha) alpha = standPat;
+
+      final captures = _generateCaptures(snap, faction);
+      for (final m in captures) {
+        final sc = _quiescenceSearch(
+          snap.applyAction(m),
+          alpha,
+          beta,
+          false,
+          faction,
+          qDepth - 1,
+        );
+        if (sc > alpha) alpha = sc;
+        if (alpha >= beta) return beta;
+      }
+      return alpha;
+    } else {
+      if (standPat <= alpha) return alpha;
+      if (standPat < beta) beta = standPat;
+
+      final captures = _generateCaptures(snap, faction.opponent);
+      for (final m in captures) {
+        final sc = _quiescenceSearch(
+          snap.applyAction(m),
+          alpha,
+          beta,
+          true,
+          faction,
+          qDepth - 1,
+        );
+        if (sc < beta) beta = sc;
+        if (alpha >= beta) return alpha;
+      }
+      return beta;
+    }
   }
 
-  // ==================== 简单：随机 + 吃子优先 ====================
-
-  AiMove _easyMove(BoardSnapshot snap, List<AiMove> moves) {
-    final rand = Random();
-
-    // 优先吃子
-    final captures = <AiMove>[];
-    for (final move in moves) {
-      if (move is StepMove) {
-        final target = snap.cells[move.to];
-        if (target != null && target.owner != aiSide) {
-          final attacker = snap.cells[move.from]!;
-          if (attacker.canEat(target)) {
-            captures.add(move);
-          }
+  // 生成吃子走法（供静止搜索使用）
+  List<GameAction> _generateCaptures(BoardSnapshot snap, TurnGamerType player) {
+    final moves = <GameAction>[];
+    final own = snap.getRevealedIndices(player);
+    for (final from in own) {
+      final animal = snap.gridList[from].animal!;
+      final r = from ~/ snap.size;
+      final c = from % snap.size;
+      for (final (dr, dc) in planeAround) {
+        final nr = r + dr;
+        final nc = c + dc;
+        if (nr < 0 || nr >= snap.size || nc < 0 || nc >= snap.size) continue;
+        final to = nr * snap.size + nc;
+        final toGrid = snap.gridList[to];
+        if (toGrid.hasAnimal &&
+            !toGrid.animal!.isHidden &&
+            toGrid.animal!.owner != player &&
+            animal.canEat(toGrid.animal!)) {
+          moves.add(MoveAction(from, to));
         }
       }
     }
-    if (captures.isNotEmpty) return captures[rand.nextInt(captures.length)];
-
-    // 随机走
-    return moves[rand.nextInt(moves.length)];
+    return moves;
   }
 
-  // ==================== 中等：1-Ply 评估 ====================
-
-  AiMove _mediumMove(BoardSnapshot snap, List<AiMove> moves) {
-    AiMove? bestMove;
-    double bestScore = -double.infinity;
-
-    for (final move in moves) {
-      final after = snap.applyMove(move, aiSide);
-      final score = _evaluate(after, aiSide);
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = move;
-      }
-    }
-
-    return bestMove ?? moves.first;
-  }
-
-  // ==================== 困难：2-Ply Minimax ====================
-
-  AiMove _hardMove(BoardSnapshot snap, List<AiMove> moves) {
-    AiMove? bestMove;
-    double bestScore = -double.infinity;
-
-    for (final aiMove in moves) {
-      final afterAi = snap.applyMove(aiMove, aiSide);
-
-      // 如果游戏结束，直接评估
-      if (afterAi.isGameOver) {
-        final score = _evaluate(afterAi, aiSide);
-        if (score > bestScore) {
-          bestScore = score;
-          bestMove = aiMove;
-        }
-        continue;
-      }
-
-      // 模拟对手最优回应
-      final opponentMoves = afterAi.generateMoves(aiSide.opponent);
-      double worstResponse = double.infinity;
-
-      for (final opMove in opponentMoves) {
-        final afterOp = afterAi.applyMove(opMove, aiSide);
-        final score = _evaluate(afterOp, aiSide);
-        if (score < worstResponse) {
-          worstResponse = score;
-        }
-      }
-
-      // 如果对手没有走法（已输），给高分
-      if (opponentMoves.isEmpty) worstResponse = 10000;
-
-      // 综合分 = AI 走后评估 + 对手最优回应后评估 × 0.6
-      final combined = _evaluate(afterAi, aiSide) + worstResponse * 0.6;
-      if (combined > bestScore) {
-        bestScore = combined;
-        bestMove = aiMove;
-      }
-    }
-
-    return bestMove ?? moves.first;
-  }
-
-  // ==================== 评估函数 ====================
-
-  double _evaluate(BoardSnapshot snap, TurnGamerType aiSide) {
+  double _evaluate(BoardSnapshot snap, TurnGamerType faction) {
     if (snap.isGameOver) {
-      final aiCount = aiSide == TurnGamerType.front ? snap.redCount : snap.blueCount;
-      return aiCount > 0 ? 10000 : -10000;
+      final mine = faction == TurnGamerType.front
+          ? snap.redCount
+          : snap.blueCount;
+      return mine > 0 ? 99999 : -99999;
     }
 
     double score = 0;
-    final opSide = aiSide.opponent;
+    final op = faction.opponent;
 
-    // 1. 材料分（40%）
-    double materialScore = 0;
-    for (final animal in snap.cells) {
-      if (animal == null) continue;
-      final value = pieceValues[animal.type]!.toDouble();
-      if (animal.owner == aiSide) {
-        materialScore += value;
+    // 明子统计
+    Map<AnimalType, int> revealedCount = {
+      for (var t in AnimalType.values) t: 0,
+    };
+    for (final g in snap.gridList) {
+      if (g.hasAnimal && !g.animal!.isHidden) {
+        revealedCount[g.animal!.type] = revealedCount[g.animal!.type]! + 1;
+      }
+    }
+
+    // 暗子期望价值
+    double unrevealedTotalValue = 0;
+    int unrevealedTypes = 0;
+    for (var t in AnimalType.values) {
+      int remaining = 2 - revealedCount[t]!;
+      if (remaining > 0) {
+        unrevealedTotalValue += pieceValues[t]! * remaining;
+        unrevealedTypes += remaining;
+      }
+    }
+    double avgHiddenValue = unrevealedTypes > 0
+        ? unrevealedTotalValue / unrevealedTypes
+        : 0;
+    const double hiddenWeight = 0.7;
+
+    // 棋子价值
+    for (final g in snap.gridList) {
+      if (!g.hasAnimal) continue;
+      final a = g.animal!;
+      if (a.isHidden) {
+        score += a.owner == faction
+            ? avgHiddenValue * hiddenWeight
+            : -avgHiddenValue * hiddenWeight;
       } else {
-        materialScore -= value;
+        final v = pieceValues[a.type]!.toDouble();
+        score += a.owner == faction ? v : -v;
       }
     }
-    score += materialScore * 0.4;
 
-    // 2. 机动性分（20%）
-    final aiMoves = snap.generateMoves(aiSide);
-    final opMoves = snap.generateMoves(opSide);
-    score += (aiMoves.length - opMoves.length) * 0.5 * 0.2;
+    // 机动性（使用轻量计数，避免分配 GameAction 对象）
+    score += (snap.mobilityCount(faction) - snap.mobilityCount(op)) * 0.5;
 
-    // 3. 威胁分（25%）
-    score += _threatScore(snap, aiSide) * 0.25;
-
-    // 4. 地形控制分（15%）
-    score += _terrainScore(snap, aiSide) * 0.15;
-
-    // 5. 翻棋信息分
-    final hidden = snap.hiddenIndices.length;
-    if (hidden > 0) {
-      // 场上隐藏棋子越多，翻棋价值越高
-      score += 5.0 * hidden / snap.cells.length;
-    }
-
-    return score;
-  }
-
-  /// 威胁评估：检查每个棋子是否被威胁或威胁他人
-  double _threatScore(BoardSnapshot snap, TurnGamerType aiSide) {
-    double score = 0;
-    final opSide = aiSide.opponent;
-
-    final aiPieces = snap.getRevealedIndices(aiSide);
-    final opPieces = snap.getRevealedIndices(opSide);
-
-    // 己方棋子被威胁 → 扣分
-    for (final aiIdx in aiPieces) {
-      final aiAnimal = snap.cells[aiIdx]!;
-      final aiRow = aiIdx ~/ snap.size;
-      final aiCol = aiIdx % snap.size;
-
-      for (final opIdx in opPieces) {
-        final opAnimal = snap.cells[opIdx]!;
-        final opRow = opIdx ~/ snap.size;
-        final opCol = opIdx % snap.size;
-        final dist = (aiRow - opRow).abs() + (aiCol - opCol).abs();
-
-        if (dist <= 2 && opAnimal.canEat(aiAnimal)) {
-          // 距离越近威胁越大
-          final threat = pieceValues[aiAnimal.type]! / dist;
-          score -= threat;
+    // 地形优势
+    for (int i = 0; i < snap.gridList.length; i++) {
+      final g = snap.gridList[i];
+      if (!g.hasAnimal || g.animal!.isHidden) continue;
+      final a = g.animal!;
+      if (a.owner != faction) continue;
+      double terrainBonus = 0;
+      if (g.type == GridType.tree) {
+        if (a.type == AnimalType.leopard) {
+          terrainBonus = 3;
+        } else if (a.type == AnimalType.cat) {
+          terrainBonus = 2;
+        } else if (a.type == AnimalType.mouse) {
+          terrainBonus = 1;
+        }
+        if (terrainBonus > 0 && !_isThreatenedOnTerrain(snap, i, faction)) {
+          terrainBonus += 3;
+        }
+      } else if (g.type == GridType.river) {
+        if (a.type == AnimalType.mouse) {
+          terrainBonus = 2;
+        } else if (a.type == AnimalType.elephant || a.type == AnimalType.dog) {
+          terrainBonus = 1;
+        }
+        if (terrainBonus > 0 && !_isThreatenedOnTerrain(snap, i, faction)) {
+          terrainBonus += 2;
         }
       }
+      score += terrainBonus;
     }
 
-    // 己方棋子威胁敌方 → 加分
-    for (final aiIdx in aiPieces) {
-      final aiAnimal = snap.cells[aiIdx]!;
-      final aiRow = aiIdx ~/ snap.size;
-      final aiCol = aiIdx % snap.size;
-
-      for (final opIdx in opPieces) {
-        final opAnimal = snap.cells[opIdx]!;
-        final opRow = opIdx ~/ snap.size;
-        final opCol = opIdx % snap.size;
-        final dist = (aiRow - opRow).abs() + (aiCol - opCol).abs();
-
-        if (dist <= 2 && aiAnimal.canEat(opAnimal)) {
-          final threat = pieceValues[opAnimal.type]! / dist;
-          score += threat;
-        }
-      }
-    }
+    // 重复局面惩罚
+    int repeatCount = _historyHashes.where((h) => h == snap.hash).length;
+    if (repeatCount >= 3) score -= 20;
 
     return score;
   }
 
-  /// 地形控制评估
-  double _terrainScore(BoardSnapshot snap, TurnGamerType aiSide) {
-    double score = 0;
+  bool _isThreatenedOnTerrain(
+    BoardSnapshot snap,
+    int idx,
+    TurnGamerType faction,
+  ) {
+    final myAnimal = snap.gridList[idx].animal!;
+    final myGridType = snap.gridList[idx].type;
+    final op = faction.opponent;
 
-    for (int i = 0; i < snap.cells.length; i++) {
-      final animal = snap.cells[i];
-      if (animal == null || animal.isHidden) continue;
+    for (int i = 0; i < snap.gridList.length; i++) {
+      final g = snap.gridList[i];
+      if (!g.hasAnimal || g.animal!.isHidden) continue;
+      if (g.animal!.owner != op) continue;
 
-      final gridType = snap.gridTypes[i];
-      final isAi = animal.owner == aiSide;
-      final sign = isAi ? 1.0 : -1.0;
+      final fromR = i ~/ snap.size;
+      final fromC = i % snap.size;
+      final toR = idx ~/ snap.size;
+      final toC = idx % snap.size;
+      if ((fromR - toR).abs() + (fromC - toC).abs() != 1) continue;
 
-      // 在河流/树上的棋子有灵活性加分
-      if (gridType == GridType.river && animal.canMoveTo(GridType.land, GridType.river)) {
-        score += sign * 1.5;
-      }
-      if (gridType == GridType.tree && animal.canMoveTo(GridType.land, GridType.tree)) {
-        score += sign * 1.0;
-      }
-      // 在桥上的棋子
-      if (gridType == GridType.bridge) {
-        score += sign * 0.5;
-      }
+      if (!g.animal!.canMoveTo(g.type, myGridType)) continue;
+      if (g.animal!.canEat(myAnimal)) return true;
     }
+    return false;
+  }
+}
 
-    return score;
+/// AI 控制器
+class AiController {
+  late final AiEngine _engine;
+  final List<Grid> board;
+  final int boardSize;
+  final TurnGamerType faction;
+  final AiDifficulty difficulty;
+  BoardSnapshot? _snap;
+
+  AiController({
+    required this.board,
+    required this.boardSize,
+    required this.faction,
+    this.difficulty = AiDifficulty.hard,
+  }) {
+    Zobrist.init(boardSize);
+    _engine = AiEngine(difficulty: difficulty);
+    _updateSnapshot();
   }
 
-  @override
-  void leavePage() {
-    final redCount = displayMap.value
-        .where((g) => g.value.hasAnimal && g.value.animal!.owner == TurnGamerType.front)
-        .length;
-    showChessResult(redCount > 0);
+  void updateState(GameAction action) {
+    _applyAction(action);
+    _updateSnapshot();
   }
+
+  void _applyAction(GameAction action) {
+    // 复用核心逻辑，直接修改当前 board
+    final currentRed = _snap?.redCount ?? 0;
+    final currentBlue = _snap?.blueCount ?? 0;
+
+    switch (action) {
+      case FlipAction _:
+        final (newBoard, _, _) = _applyFlipToGrids(
+          board,
+          action,
+          currentRed,
+          currentBlue,
+        );
+        board.clear();
+        board.addAll(newBoard);
+        break;
+      case MoveAction _:
+        final (newBoard, _, _) = _applyMoveToGrids(
+          board,
+          action,
+          currentRed,
+          currentBlue,
+        );
+        board.clear();
+        board.addAll(newBoard);
+        break;
+    }
+  }
+
+  void _updateSnapshot() {
+    _snap = BoardSnapshot.fromBoard(
+      board: board,
+      size: boardSize,
+      currentTurn: faction,
+    );
+    _engine.recordHash(_snap!.hash);
+  }
+
+  GameAction? getAction() {
+    if (_snap == null) return null;
+    return _engine.getBestMove(_snap!);
+  }
+
+  void dispose() => _engine.clear();
 }

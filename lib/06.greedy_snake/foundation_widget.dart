@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/widget/joystick.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/input/joystick.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/widget/button/circle_button.dart';
 import 'draw_paint.dart';
 import 'foundation_manager.dart';

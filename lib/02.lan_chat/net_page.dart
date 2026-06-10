@@ -11,11 +11,10 @@ import '../00.common/network/network_room.dart';
 import '../00.common/style/chat_theme.dart';
 import '../00.common/tool/blur_hash.dart';
 import '../00.common/widget/component/chat_component.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
-import 'widget/emoji_panel.dart';
-import 'widget/attachment_menu.dart';
+import 'attachment_menu.dart';
 
 class NetChatPage extends StatefulWidget {
   final String userName;
@@ -34,8 +33,6 @@ class NetChatPage extends StatefulWidget {
 class _NetChatPageState extends State<NetChatPage> {
   late final NetManager _manager;
   final ChatTheme _theme = ChatTheme.light;
-  bool _showEmojiPanel = false;
-
   @override
   void initState() {
     super.initState();
@@ -54,11 +51,7 @@ class _NetChatPageState extends State<NetChatPage> {
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) return;
-        if (_showEmojiPanel) {
-          setState(() => _showEmojiPanel = false);
-        } else {
-          _manager.leavePage();
-        }
+        _manager.leavePage();
       },
       child: Scaffold(
         backgroundColor: _theme.backgroundColor,
@@ -174,41 +167,18 @@ class _NetChatPageState extends State<NetChatPage> {
       children: [
         NotifierNavigator(navigatorHandler: _manager.pageNavigator),
         Expanded(
-          child: GestureDetector(
-            onTap: () {
-              if (_showEmojiPanel) setState(() => _showEmojiPanel = false);
-            },
-            child: MessageList(
-              networkEngine: _manager.networkEngine,
-              theme: _theme,
-              topPadding:
-                  MediaQuery.of(context).padding.top + kToolbarHeight + 4,
-            ),
+          child: MessageList(
+            networkEngine: _manager.networkEngine,
+            theme: _theme,
+            topPadding:
+                MediaQuery.of(context).padding.top + kToolbarHeight + 4,
           ),
         ),
         MessageInput(
           networkEngine: _manager.networkEngine,
           theme: _theme,
-          onEmojiTap: () => setState(() => _showEmojiPanel = !_showEmojiPanel),
           onAttachmentTap: _showAttachmentMenu,
         ),
-        if (_showEmojiPanel)
-          EmojiPanel(
-            onEmojiSelected: (emoji) {
-              final tc = _manager.networkEngine.textController;
-              final sel = tc.selection;
-              final old = tc.text;
-              final start = sel.isValid ? sel.start : old.length;
-              final end = sel.isValid ? sel.end : old.length;
-              tc.value = TextEditingValue(
-                text: old.replaceRange(start, end, emoji),
-                selection: TextSelection.collapsed(
-                  offset: start + emoji.length,
-                ),
-              );
-            },
-            backgroundColor: _theme.surfaceColor,
-          ),
       ],
     );
   }

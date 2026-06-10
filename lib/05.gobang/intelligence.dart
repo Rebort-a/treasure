@@ -5,15 +5,15 @@ import 'base.dart';
 import 'foundation_manager.dart';
 
 class AiManager extends FoundationalManager {
-  final TurnGamerType aiSide;
+  final TurnGamerType faction;
   bool _aiThinking = false;
 
-  AiManager({this.aiSide = TurnGamerType.rear});
+  AiManager({this.faction = TurnGamerType.rear});
 
   @override
   void placePiece(int index) {
     if (board.gameOver || _aiThinking) return;
-    if (board.currentGamer.value == aiSide) return;
+    if (board.currentGamer.value == faction) return;
 
     board.placePiece(index);
     if (!board.gameOver) {
@@ -22,7 +22,7 @@ class AiManager extends FoundationalManager {
   }
 
   void _triggerAiMove() {
-    if (board.currentGamer.value != aiSide || board.gameOver) return;
+    if (board.currentGamer.value != faction || board.gameOver) return;
     _aiThinking = true;
 
     // 延迟执行 AI，让 UI 有时间刷新
@@ -42,7 +42,7 @@ class AiManager extends FoundationalManager {
   int? _calculateBestMove() {
     final size = board.size;
     final grids = board.grids.value;
-    final aiPiece = aiSide == TurnGamerType.front
+    final aiPiece = faction == TurnGamerType.front
         ? PieceType.black
         : PieceType.white;
     final humanPiece = aiPiece == PieceType.black
@@ -79,9 +79,7 @@ class AiManager extends FoundationalManager {
     const directions = [(0, 1), (1, 0), (1, 1), (1, -1)];
 
     for (final (dr, dc) in directions) {
-      score += _evaluateDirection(
-        row, col, dr, dc, aiPiece, humanPiece, size,
-      );
+      score += _evaluateDirection(row, col, dr, dc, aiPiece, humanPiece, size);
     }
 
     // 中心位置加分
@@ -93,8 +91,13 @@ class AiManager extends FoundationalManager {
   }
 
   int _evaluateDirection(
-    int row, int col, int dr, int dc,
-    PieceType aiPiece, PieceType humanPiece, int size,
+    int row,
+    int col,
+    int dr,
+    int dc,
+    PieceType aiPiece,
+    PieceType humanPiece,
+    int size,
   ) {
     int aiCount = 0, humanCount = 0;
     int aiOpen = 0, humanOpen = 0;

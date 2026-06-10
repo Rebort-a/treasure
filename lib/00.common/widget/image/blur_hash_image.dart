@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../tool/blur_hash.dart';
+import '../../tool/blur_hash.dart';
 
 /// BlurHash 模糊占位 + 高斯模糊溶解加载动画
 ///
@@ -55,11 +55,9 @@ class _BlurHashImageState extends State<BlurHashImage>
         widget.decodeWidth,
         widget.decodeHeight,
       );
-      _placeholderProvider = Image.memory(_encodeBmp(
-        pixels,
-        widget.decodeWidth,
-        widget.decodeHeight,
-      )).image;
+      _placeholderProvider = Image.memory(
+        _encodeBmp(pixels, widget.decodeWidth, widget.decodeHeight),
+      ).image;
     } catch (_) {
       // hash 无效时跳过占位图
     }
@@ -94,10 +92,7 @@ class _BlurHashImageState extends State<BlurHashImage>
       children: [
         // 底层：BlurHash 低分辨率占位（天然模糊）
         if (_placeholderProvider != null)
-          Image(
-            image: _placeholderProvider!,
-            fit: widget.fit,
-          ),
+          Image(image: _placeholderProvider!, fit: widget.fit),
         // 顶层：实际图片，溶解淡入
         FadeTransition(
           opacity: _controller.drive(CurveTween(curve: Curves.easeOut)),
@@ -121,7 +116,8 @@ class _BlurHashImageState extends State<BlurHashImage>
     final bd = ByteData.view(buf.buffer);
 
     // BMP 文件头 (14 bytes)
-    buf[0] = 0x42; buf[1] = 0x4D; // 'BM'
+    buf[0] = 0x42;
+    buf[1] = 0x4D; // 'BM'
     bd.setUint32(2, fileSize, Endian.little);
     bd.setUint32(10, 54, Endian.little); // 像素数据偏移
 
@@ -140,7 +136,7 @@ class _BlurHashImageState extends State<BlurHashImage>
         final si = (y * w + x) * 4;
         buf[offset++] = rgba[si + 2]; // B
         buf[offset++] = rgba[si + 1]; // G
-        buf[offset++] = rgba[si];     // R
+        buf[offset++] = rgba[si]; // R
       }
       offset += padding;
     }

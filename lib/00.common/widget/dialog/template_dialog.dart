@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/strings.dart';
-import '../int_slider.dart';
+import '../input/int_slider.dart';
 
 class SliderData {
   double start;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/widget/magic_celebration.dart';
+import '../00.common/widget/effect/magic_celebration.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/tool/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';

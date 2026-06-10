@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/game/step.dart';
 import '../00.common/network/network_room.dart';
-import '../00.common/widget/notifier_navigator.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
 import 'foundation_widget.dart';

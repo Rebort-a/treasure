@@ -10,9 +10,10 @@ import 'package:flutter/material.dart';
 import '../../model/chat_message.dart';
 import '../../style/chat_theme.dart';
 import '../../l10n/strings.dart';
-import '../blur_hash_image.dart';
 import '../../engine/network_engine.dart';
 import '../../network/network_message.dart';
+
+import '../image/blur_hash_image.dart';
 
 /// 现代化消息列表
 class MessageList extends StatefulWidget {
@@ -601,14 +602,12 @@ class _MessageListState extends State<MessageList> {
 class MessageInput extends StatefulWidget {
   final NetworkEngine networkEngine;
   final ChatTheme theme;
-  final VoidCallback? onEmojiTap;
   final VoidCallback? onAttachmentTap;
 
   const MessageInput({
     super.key,
     required this.networkEngine,
     this.theme = ChatTheme.light,
-    this.onEmojiTap,
     this.onAttachmentTap,
   });
 
@@ -643,18 +642,12 @@ class _MessageInputState extends State<MessageInput> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // 表情按钮
-                _iconBtn(
-                  icon: Icons.emoji_emotions_outlined,
-                  onTap: widget.onEmojiTap,
-                ),
-                // 附件按钮
-                _iconBtn(
-                  icon: Icons.add_circle_outline_rounded,
-                  onTap: widget.onAttachmentTap,
-                ),
+                if (widget.onAttachmentTap != null)
+                  _iconBtn(
+                    icon: Icons.add_circle_outline_rounded,
+                    onTap: widget.onAttachmentTap,
+                  ),
                 const SizedBox(width: 4),
-                // 输入框
                 Expanded(
                   child: Container(
                     constraints: const BoxConstraints(
@@ -680,13 +673,7 @@ class _MessageInputState extends State<MessageInput> {
                   ),
                 ),
                 const SizedBox(width: 4),
-                // 发送按钮
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: _hasText
-                      ? _sendBtn()
-                      : _iconBtn(icon: Icons.mic_rounded, onTap: null),
-                ),
+                _sendBtn(),
               ],
             ),
           ),
@@ -709,16 +696,23 @@ class _MessageInputState extends State<MessageInput> {
   }
 
   Widget _sendBtn() {
+    final enabled = _hasText;
     return GestureDetector(
-      onTap: widget.networkEngine.sendInputText,
+      onTap: enabled ? widget.networkEngine.sendInputText : null,
       child: Container(
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: widget.theme.sendButtonColor,
+          color: enabled
+              ? widget.theme.sendButtonColor
+              : Colors.grey.withAlpha(80),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+        child: Icon(
+          Icons.send_rounded,
+          color: Colors.white.withAlpha(enabled ? 255 : 100),
+          size: 18,
+        ),
       ),
     );
   }
