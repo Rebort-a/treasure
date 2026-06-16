@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:treasure/00.common/widget/dialog/template_dialog.dart';
+import 'package:flutter/material.dart';
 
 import '../00.common/engine/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
@@ -44,16 +44,70 @@ class NetManager extends FoundationalManager {
     if (netTurnEngine.gameStep.value == GameStep.action) {
       int index = jsonDecode(message.content)['index'] as int;
       if (index >= 0 && index < displayMap.length) {
-        if (currentGamer.value == netTurnEngine.playerType && isSelf) {
+        if (!isSelf) {
           selectGrid(index);
-        } else if (!isSelf) {
+        } else if (currentGamer.value == netTurnEngine.playerType) {
           selectGrid(index);
         }
       }
     }
   }
 
-  void _onExit() {}
+  void _onExit() {
+    if (netTurnEngine.gameStep.value != GameStep.action) return;
+    _showSurrenderDialog(S.opponentSurrendered);
+  }
+
+  void surrender() {
+    if (netTurnEngine.gameStep.value != GameStep.action) return;
+    netTurnEngine.sendNetworkMessage(MessageType.exit, 'surrender');
+    _showSurrenderDialog(S.youSurrendered);
+  }
+
+  void _showSurrenderDialog(String content) {
+    netTurnEngine.gameStep.value = GameStep.gameOver;
+    pageNavigator.value = (context) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(S.gameOver),
+            content: Text(content),
+            actions: _buildDialogActions(context),
+          );
+        },
+      );
+    };
+  }
+
+  List<Widget> _buildDialogActions(BuildContext context) {
+    return [
+      TextButton(
+        child: Text(S.exit),
+        onPressed: () {
+          Navigator.pop(context);
+          netTurnEngine.leavePage();
+        },
+      ),
+      TextButton(
+        child: Text(S.restart),
+        onPressed: () {
+          Navigator.pop(context);
+          _playAgain();
+        },
+      ),
+    ];
+  }
+
+  void _playAgain() {
+    gameWinner.value = null;
+    resetGameState();
+    netTurnEngine.resetForRematch();
+    netTurnEngine.sendNetworkMessage(
+      MessageType.search,
+      'Searching for opponent',
+    );
+  }
 
   String _mapToString() {
     List<List<int>> animalDistribution = displayMap.value
@@ -111,22 +165,6 @@ class NetManager extends FoundationalManager {
         jsonEncode({'index': index}),
       );
     }
-  }
-
-  @override
-  void showChessResult(TurnGamerType winner) {
-    netTurnEngine.gameStep.value = GameStep.gameOver;
-    pageNavigator.value = (context) {
-      DialogTemplate.promptDialog(
-        context: context,
-        title: S.gameOver,
-        content: winner == TurnGamerType.front ? S.redWin() : S.blueWin(),
-        before: () => true,
-        after: () {
-          netTurnEngine.leavePage();
-        },
-      );
-    };
   }
 
   void leavePage() => netTurnEngine.leavePage();

@@ -26,7 +26,7 @@ class LocalAnimalChessPage extends StatelessWidget {
         onSelected: (value) {
           switch (value) {
             case 'surrender':
-              _manager.showChessResult(_manager.currentGamer.value.opponent);
+              _manager.handleGameOver(_manager.currentGamer.value.opponent);
             case 'restart':
               _manager.initGame();
             case 'boardSize':

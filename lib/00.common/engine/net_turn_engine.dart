@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../l10n/strings.dart';
-import '../widget/dialog/template_dialog.dart';
 import 'network_engine.dart';
 import '../network/network_message.dart';
 import '../game/gamer.dart';
@@ -10,7 +8,7 @@ import '../game/step.dart';
 class NetTurnGameEngine extends NetworkEngine {
   final ValueNotifier<GameStep> gameStep = ValueNotifier(GameStep.disconnect);
 
-  late final TurnGamerType playerType;
+  late TurnGamerType playerType;
   int _enemyId = 0;
 
   final void Function() searchHandler;
@@ -145,24 +143,14 @@ class NetTurnGameEngine extends NetworkEngine {
   void _handleExitMessage(NetworkMessage message) {
     if (identity != 0 && _enemyId != 0) {
       bool isEnemy = message.id == _enemyId;
-
       if (isEnemy) {
-        // 只处理敌人的结束信息，因为自己结束会直接退出
         exitHandler();
-        _handleOpponentExit();
       }
     }
   }
 
-  void _handleOpponentExit() {
-    navigatorHandler.value = (context) {
-      DialogTemplate.promptDialog(
-        context: context,
-        title: S.competitorsWithdraw,
-        content: S.opponentWithdrawn,
-        before: () => true,
-        after: () {},
-      );
-    };
+  void resetForRematch() {
+    _enemyId = 0;
+    gameStep.value = GameStep.connected;
   }
 }

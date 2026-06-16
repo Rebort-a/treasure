@@ -46,6 +46,10 @@ enum NetItemType {
   towerDefense,
 }
 
+extension NetItemTypeExt on NetItemType {
+  String get name => toString().split('.').last;
+}
+
 extension LocalItemTypeExtension on LocalItemType {
   Widget get page {
     switch (this) {

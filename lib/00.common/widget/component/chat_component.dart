@@ -558,7 +558,7 @@ class _MessageListState extends State<MessageList> {
 
     // 系统保存对话框，用户选择路径和文件名
     // Android/iOS 需传入 bytes，Windows/Web/macOS 返回路径后手动写入
-    final savePath = await FilePicker.platform.saveFile(
+    final savePath = await FilePicker.saveFile(
       dialogTitle: S.downloading,
       fileName: fileName,
       bytes: Platform.isAndroid || Platform.isIOS ? bytes : null,

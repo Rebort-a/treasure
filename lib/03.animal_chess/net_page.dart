@@ -44,19 +44,21 @@ class NetAnimalChessPage extends StatelessWidget {
   }
 
   AppBar _buildAppBar(GameStep step) {
-    // 根据游戏步骤确定图标
+    // 根据游戏步骤确定图标和回调
     IconData icon;
+    VoidCallback onPressed = _manager.leavePage;
 
     if (step.index < GameStep.action.index) {
       icon = Icons.arrow_back;
     } else if (step.index == GameStep.action.index) {
       icon = Icons.flag;
+      onPressed = _manager.surrender;
     } else {
       icon = Icons.exit_to_app;
     }
 
     return AppBar(
-      leading: IconButton(icon: Icon(icon), onPressed: _manager.leavePage),
+      leading: IconButton(icon: Icon(icon), onPressed: onPressed),
       title: Text(S.netAnimalChess),
       centerTitle: true,
     );

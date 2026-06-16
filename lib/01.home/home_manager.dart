@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:treasure/01.home/route.dart';
+import 'route.dart';
 
 import '../00.common/tool/notifiers.dart';
 import '../00.common/network/broadcast_discovery.dart';

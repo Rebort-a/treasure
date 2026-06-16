@@ -17,11 +17,13 @@ abstract class FoundationalManager {
   final ValueNotifier<TurnGamerType> currentGamer = ValueNotifier(
     TurnGamerType.front,
   );
+  final ValueNotifier<TurnGamerType?> gameWinner = ValueNotifier(null);
   final ListNotifier<GridNotifier> displayMap = ListNotifier([]);
   final List<int> _markedGrid = [];
 
   int _redAnimalsCount = AnimalType.values.length;
   int _blueAnimalsCount = AnimalType.values.length;
+  int _hiddenCount = AnimalType.values.length * 2;
 
   int get boardSize => _boardSize;
 
@@ -119,6 +121,7 @@ abstract class FoundationalManager {
 
   void _revealPiece(int index) {
     displayMap.value[index].revealAnimal();
+    _hiddenCount--;
     _endTurn();
   }
 
@@ -217,16 +220,23 @@ abstract class FoundationalManager {
   }
 
   void _checkGameEnd() {
-    if (_redAnimalsCount <= 0) {
-      handleEnd(TurnGamerType.rear);
-    } else if (_blueAnimalsCount <= 0) {
-      handleEnd(TurnGamerType.front);
+    if (_hiddenCount <= 0) {
+      if (_redAnimalsCount <= 0) {
+        handleGameOver(TurnGamerType.rear);
+      } else if (_blueAnimalsCount <= 0) {
+        handleGameOver(TurnGamerType.front);
+      }
     }
   }
 
   void _endTurn() {
     _clearSelectionAndHighlight();
     currentGamer.value = currentGamer.value.opponent;
+  }
+
+  /// 无合法走法时跳过回合
+  void passTurn() {
+    _endTurn();
   }
 
   void _clearSelectionAndHighlight() {
@@ -262,11 +272,12 @@ abstract class FoundationalManager {
     initGame();
   }
 
-  void handleEnd(TurnGamerType winner) {
-    showChessResult(winner);
+  void handleGameOver(TurnGamerType winner) {
+    gameWinner.value = winner;
+    _showChessResult(winner);
   }
 
-  void showChessResult(TurnGamerType winner) {
+  void _showChessResult(TurnGamerType winner) {
     pageNavigator.value = (context) {
       showDialog(
         context: context,

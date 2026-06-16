@@ -99,10 +99,25 @@ sealed class GameAction {
 
 class FlipAction extends GameAction {
   const FlipAction(super.index);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is FlipAction && index == other.index;
+
+  @override
+  int get hashCode => index.hashCode;
 }
 
 class MoveAction extends GameAction {
   final int from;
   final int to;
   const MoveAction(this.from, this.to) : super(from);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MoveAction && from == other.from && to == other.to;
+
+  @override
+  int get hashCode => Object.hash(from, to);
 }

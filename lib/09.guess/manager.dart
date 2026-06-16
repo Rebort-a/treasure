@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:treasure/00.common/tool/notifiers.dart';
+import '../00.common/tool/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/l10n/strings.dart';

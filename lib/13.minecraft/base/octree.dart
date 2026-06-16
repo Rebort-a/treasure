@@ -1,4 +1,4 @@
-import 'package:treasure/13.minecraft/base/aabb.dart';
+import 'aabb.dart';
 
 import 'block.dart';
 import 'vector.dart';

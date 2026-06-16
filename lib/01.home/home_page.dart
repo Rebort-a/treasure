@@ -156,7 +156,7 @@ class _HomePageState extends State<HomePage> {
       child: ListTile(
         leading: const Icon(Icons.home),
         title: Text(
-          "${room.name} ${S.roomTypeString(NetItemType.values[room.type].toString())}",
+          "${room.name} ${S.roomTypeString(NetItemType.values[room.type].name)}",
         ),
         subtitle: Text('${room.address}:${room.port}'),
         trailing: Row(mainAxisSize: MainAxisSize.min, children: actions),

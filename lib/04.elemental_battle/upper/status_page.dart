@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:treasure/04.elemental_battle/base/energy.dart';
+import '../base/energy.dart';
 
 import '../../00.common/l10n/strings.dart';
 import '../base/effect.dart';

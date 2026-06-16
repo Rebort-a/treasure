@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:treasure/04.elemental_battle/middle/foundation_combat_widget.dart';
+import '../middle/foundation_combat_widget.dart';
 
 import '../../00.common/game/step.dart';
 import '../../00.common/network/network_room.dart';

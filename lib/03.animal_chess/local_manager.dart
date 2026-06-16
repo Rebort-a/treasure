@@ -29,7 +29,7 @@ class LocalManager extends FoundationalManager {
   }
 
   void _initAi() {
-    final currentBoard = displayMap.value.map((g) => g.value.clone()).toList();
+    final currentBoard = displayMap.value.map((g) => g.value).toList();
     _aiController = AiController(
       board: currentBoard,
       boardSize: boardSize,
@@ -62,11 +62,11 @@ class LocalManager extends FoundationalManager {
 
   Future<void> _performAiMove() async {
     if (_aiController == null) return;
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 400));
     if (_aiController == null) return;
 
-    final action = _aiController!.getAction();
-    if (action == null) return;
+    final currentBoard = displayMap.value.map((g) => g.value).toList();
+    final action = _aiController!.getAction(currentBoard);
 
     if (action is FlipAction) {
       selectGrid(action.index);
@@ -74,7 +74,5 @@ class LocalManager extends FoundationalManager {
       selectGrid(action.from);
       selectGrid(action.to);
     }
-
-    _syncControllerState(action);
   }
 }

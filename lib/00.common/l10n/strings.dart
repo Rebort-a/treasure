@@ -58,6 +58,9 @@ class S {
       isZh ? '对手已退出' : 'The opponent has withdrawn';
   static String get typeMessage => isZh ? '输入消息...' : 'Type a message';
   static String get wait => isZh ? '等待中' : 'Wait';
+  static String get youSurrendered => isZh ? '你认输了' : 'You Surrendered';
+  static String get opponentSurrendered =>
+      isZh ? '对方投降' : 'Opponent Surrendered';
 
   // ==================== 聊天 ====================
   static String get chatRoom => isZh ? '聊天室' : 'Chat Room';
