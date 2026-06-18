@@ -1,15 +1,17 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../00.common/game/gamer.dart';
+import '../00.common/game/map.dart';
 import 'base.dart';
 
 // ============================================================
-// Constants
+// 常量
 // ============================================================
 
 const int _kHidden = 999;
 const int _kSearchDepth = 4;
 
+/// 各动物基础分值
 const Map<AnimalType, int> _baseScores = {
   AnimalType.elephant: 3,
   AnimalType.tiger: 1,
@@ -21,15 +23,58 @@ const Map<AnimalType, int> _baseScores = {
   AnimalType.mouse: 2,
 };
 
+/// 所有基础分之和
+const double _kScoreBase = 14;
+
 /// 动物缩写：E=象 T=虎 L=狮 P=豹 W=狼 D=狗 C=猫 M=鼠
 const List<String> _kAbbr = ['E', 'T', 'L', 'P', 'W', 'D', 'C', 'M'];
 
-const List<(int, int)> _kDirs = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+// --- 评估权重 ---
+// 调整这些值可以改变 AI 棋风：
+// - 提高 material: AI 更注重吃子
+// - 提高 threat: AI 更注重威胁和防御
+// - 提高 mobility: AI 更注重走法灵活性
+
+class _EvalWeights {
+  /// 材料权重：棋子价值差的系数
+  static const double material = 1.0;
+
+  /// 威胁权重：(威胁数 - 被威胁数) 的系数
+  static const double threat = 0.5;
+
+  /// 暗棋威胁权重：附近暗棋潜在威胁的系数
+  static const double hiddenThreat = 0.3;
+
+  /// 机动性权重：(己方走法数 - 对方走法数) 的系数
+  static const double mobility = 0.1;
+
+  /// 树上加成：己方棋子在树上的额外分数（树上无法被吃）
+  static const double treeBonus = 2.0;
+
+  /// 豹子无敌加成：豹子上树且对方无豹子时的额外分数
+  static const double leopardDominant = 5.0;
+
+  /// 老虎桥上加成：老虎在桥上的额外分数（可跳河）
+  static const double tigerBridge = 2.0;
+}
+
+class _FlipLimits {
+  static const int aiMoves = 12;
+  static const int playerMoves = 8;
+}
+
+// --- 地形通行许可 ---
+
+const _kRiverAnimals = {AnimalType.elephant, AnimalType.dog, AnimalType.mouse};
+const _kTreeAnimals = {AnimalType.leopard, AnimalType.cat, AnimalType.mouse};
+const double _kWinScore = 100000;
+const double _kLoseScore = -100000;
 
 // ============================================================
-// Helpers
+// 工具函数
 // ============================================================
 
+/// 判断 attacker 能否吃 defender（含鼠吃象特殊规则）
 bool _canEatType(AnimalType attacker, AnimalType defender) {
   if (attacker == defender) return true;
   if (attacker == AnimalType.mouse && defender == AnimalType.elephant) {
@@ -41,34 +86,40 @@ bool _canEatType(AnimalType attacker, AnimalType defender) {
   return attacker.index < defender.index;
 }
 
+/// 判断动物能否从 from 地形进入 target 地形
 bool _canEnterTerrain(AnimalType type, GridType from, GridType target) {
   return switch (target) {
-    GridType.river => [
-      AnimalType.elephant,
-      AnimalType.dog,
-      AnimalType.mouse,
-    ].contains(type),
+    GridType.river => _kRiverAnimals.contains(type),
     GridType.bridge =>
       from == GridType.river
           ? type == AnimalType.mouse
           : type != AnimalType.elephant,
-    GridType.tree => [
-      AnimalType.leopard,
-      AnimalType.cat,
-      AnimalType.mouse,
-    ].contains(type),
+    GridType.tree => _kTreeAnimals.contains(type),
     _ => true,
   };
 }
 
 int _cellAnimalType(int cell) => cell.abs() - 1;
-
 bool _isAiCell(int cell) => cell > 0 && cell != _kHidden;
-
 bool _isPlayerCell(int cell) => cell < 0;
 
+/// 收集双方存活动物类型（可见 + 暗棋）
+(Set<AnimalType> ai, Set<AnimalType> player) _collectSurviving(
+  _SearchBoard board,
+) {
+  final ai = <AnimalType>{};
+  final player = <AnimalType>{};
+  for (final c in board.cells) {
+    if (_isAiCell(c)) ai.add(AnimalType.values[_cellAnimalType(c)]);
+    if (_isPlayerCell(c)) player.add(AnimalType.values[_cellAnimalType(c)]);
+  }
+  ai.addAll(board.aiHidden);
+  player.addAll(board.playerHidden);
+  return (ai, player);
+}
+
 // ============================================================
-// MoveRecord — 用于 minimax 撤销
+// _MoveRecord — minimax 撤销记录
 // ============================================================
 
 class _MoveRecord {
@@ -78,39 +129,52 @@ class _MoveRecord {
 }
 
 // ============================================================
-// SearchBoard — 可变棋盘，用于搜索
+// _SearchBoard — 搜索用可变棋盘
 // ============================================================
 
 class _SearchBoard {
   final int size;
-  final List<GridType> gridTypes;
+  final List<GridType> terrain;
   final List<int> cells;
   final TurnGamerType aiFaction;
+
+  /// AI 方明棋位置：按动物类型分组
+  final Map<AnimalType, List<int>> aiPositions;
+
+  /// 玩家方明棋位置：按动物类型分组
+  final Map<AnimalType, List<int>> playerPositions;
+
+  /// AI 方暗棋类型
   final List<AnimalType> aiHidden;
+
+  /// 玩家方暗棋类型
   final List<AnimalType> playerHidden;
 
   _SearchBoard._(
     this.size,
-    this.gridTypes,
+    this.terrain,
     this.cells,
     this.aiFaction,
+    this.aiPositions,
+    this.playerPositions,
     this.aiHidden,
     this.playerHidden,
   );
 
+  /// 从 Grid 列表构建搜索棋盘
   factory _SearchBoard.fromGrid(
     List<Grid> board,
     int size,
     TurnGamerType aiFaction,
   ) {
     final cells = List<int>.filled(size * size, 0);
-    final gridTypes = List<GridType>.filled(size * size, GridType.land);
-    final aiVisible = <AnimalType>{};
-    final playerVisible = <AnimalType>{};
+    final terrain = List<GridType>.filled(size * size, GridType.land);
+    final aiPositions = <AnimalType, List<int>>{};
+    final playerPositions = <AnimalType, List<int>>{};
 
     for (int i = 0; i < board.length; i++) {
       final grid = board[i];
-      gridTypes[i] = grid.type;
+      terrain[i] = grid.type;
 
       if (!grid.hasAnimal) {
         cells[i] = 0;
@@ -118,30 +182,33 @@ class _SearchBoard {
         cells[i] = _kHidden;
       } else if (grid.animal!.owner == aiFaction) {
         cells[i] = grid.animal!.type.index + 1;
-        aiVisible.add(grid.animal!.type);
+        (aiPositions[grid.animal!.type] ??= []).add(i);
       } else {
         cells[i] = -(grid.animal!.type.index + 1);
-        playerVisible.add(grid.animal!.type);
+        (playerPositions[grid.animal!.type] ??= []).add(i);
       }
     }
 
     final allTypes = AnimalType.values.toSet();
-    final aiHidden = (allTypes.difference(aiVisible)).toList()
+    final aiHidden = (allTypes.difference(aiPositions.keys.toSet())).toList()
       ..sort((a, b) => b.index.compareTo(a.index));
-    final playerHidden = (allTypes.difference(playerVisible)).toList()
-      ..sort((a, b) => b.index.compareTo(a.index));
+    final playerHidden = (allTypes.difference(
+      playerPositions.keys.toSet(),
+    )).toList()..sort((a, b) => b.index.compareTo(a.index));
 
     return _SearchBoard._(
       size,
-      gridTypes,
+      terrain,
       cells,
       aiFaction,
+      aiPositions,
+      playerPositions,
       aiHidden,
       playerHidden,
     );
   }
 
-  /// 执行移动，返回撤销记录
+  /// 执行走棋，返回撤销记录
   _MoveRecord doMove(int from, int to) {
     final moving = cells[from];
     final target = cells[to];
@@ -160,39 +227,34 @@ class _SearchBoard {
       } else if (aWins) {
         cells[to] = moving; // 攻方胜
       }
-      // 否则守方胜，cells[to] 不变
+      // 守方胜则 cells[to] 不变
     }
 
     return _MoveRecord(from, to, moving, target);
   }
 
-  /// 撤销移动
+  /// 撤销走棋
   void undoMove(_MoveRecord record) {
     cells[record.from] = record.movingPiece;
     cells[record.to] = record.targetPiece;
   }
 
-  /// 获取指定阵营所有可见棋子位置
+  /// 获取指定阵营所有明棋位置
   List<int> getVisiblePositions(bool isAi) {
-    final positions = <int>[];
-    for (int i = 0; i < cells.length; i++) {
-      final c = cells[i];
-      if (isAi && c > 0 && c != _kHidden) positions.add(i);
-      if (!isAi && c < 0) positions.add(i);
-    }
-    return positions;
+    final positions = isAi ? aiPositions : playerPositions;
+    return positions.values.expand((list) => list).toList();
   }
 }
 
 // ============================================================
-// ZobristTable — 哈希缓存单例（含四重对称）
+// _ZobristTable — 哈希缓存单例（含四重对称）
 // ============================================================
 
 class _ZobristTable {
   static final instance = _ZobristTable._();
 
-  static const _maxCells = 169; // 13x13
-  static const _numCodes = 18; // 0=空, 1-8=AI, 9-16=玩家, 17=暗棋
+  static const _maxCells = 169;
+  static const _numCodes = 18;
   static const _numAnimals = 8;
 
   late final List<List<int>> _pieceKeys;
@@ -214,6 +276,7 @@ class _ZobristTable {
 
   int _rand64() => _rng.nextInt(0x7FFFFFFF) ^ (_rng.nextInt(0x7FFFFFFF) << 31);
 
+  /// 将 cell 值映射到哈希编码
   int _cellToCode(int cell) {
     if (cell == 0) return 0;
     if (cell == _kHidden) return 17;
@@ -221,6 +284,7 @@ class _ZobristTable {
     return -cell + 8; // -1→9, -2→10, ..., -8→16
   }
 
+  /// 计算棋盘哈希值
   int computeHash(
     List<int> cells,
     int size,
@@ -274,12 +338,13 @@ class _ZobristTable {
 
   void clear() => _table.clear();
 
-  // --- 对称变换 ---
+  // --- 四重对称变换 ---
 
   static int _id(int i, int n) => i;
-  static int _hm(int i, int n) => (i ~/ n) * n + (n - 1 - i % n);
-  static int _vm(int i, int n) => (n - 1 - i ~/ n) * n + (i % n);
-  static int _r180(int i, int n) => (n - 1 - i ~/ n) * n + (n - 1 - i % n);
+  static int _hm(int i, int n) => (i ~/ n) * n + (n - 1 - i % n); // 水平镜像
+  static int _vm(int i, int n) => (n - 1 - i ~/ n) * n + (i % n); // 垂直镜像
+  static int _r180(int i, int n) =>
+      (n - 1 - i ~/ n) * n + (n - 1 - i % n); // 180度旋转
 
   static const _kTransforms = [_id, _hm, _vm, _r180];
 
@@ -309,80 +374,68 @@ class _ZobristTable {
 }
 
 // ============================================================
-// Evaluation — 评估函数
+// 评估函数
 // ============================================================
 
+/// 终局检测 + 材料 + 局势 + 机动性
 double _evaluate(_SearchBoard board) {
-  // 终局检测
   bool hasAi = false, hasPlayer = false;
   for (final c in board.cells) {
     if (_isAiCell(c)) hasAi = true;
     if (_isPlayerCell(c)) hasPlayer = true;
     if (hasAi && hasPlayer) break;
   }
-  if (!hasAi) return -100000;
-  if (!hasPlayer) return 100000;
+  if (!hasAi) return _kLoseScore;
+  if (!hasPlayer) return _kWinScore;
 
-  return _evalMaterial(board) + _evalSituation(board) + _evalMobility(board);
+  final (aiSurv, playerSurv) = _collectSurviving(board);
+  return _evalCombined(board, aiSurv, playerSurv) + _evalMobility(board);
 }
 
-/// 材料分 —— 动态分值（只扣分 + 14转正）
-/// 每个可见棋子: score = (14 - penalty) * coeff
-///   penalty = Σ(能吃你的敌方棋子基础分), 同归于尽扣一半
-/// 暗棋: 位置未知，使用基础分
-double _evalMaterial(_SearchBoard board) {
-  const kScoreBase = 14; // 所有基础分之和: 3+1+2+2+1+2+1+2
-  const kCoeff = 1.0;
+/// 材料 + 局势综合评估（单次格子扫描）
+double _evalCombined(
+  _SearchBoard board,
+  Set<AnimalType> aiSurviving,
+  Set<AnimalType> playerSurviving,
+) {
+  final n = board.size;
 
-  // 收集各方可见/隐藏棋子类型
   final aiVisible = <int, AnimalType>{};
   final playerVisible = <int, AnimalType>{};
   for (int i = 0; i < board.cells.length; i++) {
     final c = board.cells[i];
-    if (_isAiCell(c)) {
-      aiVisible[i] = AnimalType.values[_cellAnimalType(c)];
-    } else if (_isPlayerCell(c)) {
+    if (_isAiCell(c)) aiVisible[i] = AnimalType.values[_cellAnimalType(c)];
+    if (_isPlayerCell(c)) {
       playerVisible[i] = AnimalType.values[_cellAnimalType(c)];
     }
   }
 
-  // 收集各方所有存活棋子类型（用于威胁评估）
-  final aiSurviving = <AnimalType>{};
-  final playerSurviving = <AnimalType>{};
-  for (final c in board.cells) {
-    if (_isAiCell(c)) aiSurviving.add(AnimalType.values[_cellAnimalType(c)]);
-    if (_isPlayerCell(c)) {
-      playerSurviving.add(AnimalType.values[_cellAnimalType(c)]);
-    }
-  }
-  aiSurviving.addAll(board.aiHidden);
-  playerSurviving.addAll(board.playerHidden);
+  final aiMaterial = _calcMaterial(
+    aiVisible.values,
+    playerSurviving,
+    board.aiHidden,
+  );
+  final playerMaterial = _calcMaterial(
+    playerVisible.values,
+    aiSurviving,
+    board.playerHidden,
+  );
+  final situation = _evalSituation(board, n, aiSurviving, playerSurviving);
 
-  // --- AI 方动态分 ---
-  double aiScore = 0;
-  for (final type in aiVisible.values) {
-    int penalty = 0;
-    for (final enemy in playerSurviving) {
-      final eats = _canEatType(enemy, type);
-      final mutual = _canEatType(type, enemy);
-      if (eats && mutual) {
-        penalty += (_baseScores[enemy]! / 2).round(); // 同归于尽扣一半
-      } else if (eats) {
-        penalty += _baseScores[enemy]!;
-      }
-    }
-    aiScore += (kScoreBase - penalty) * kCoeff;
-  }
-  // 暗棋用基础分
-  for (final t in board.aiHidden) {
-    aiScore += _baseScores[t]!.toDouble();
-  }
+  return (aiMaterial - playerMaterial) + situation;
+}
 
-  // --- 玩家方动态分 ---
-  double playerScore = 0;
-  for (final type in playerVisible.values) {
+/// 计算一方的材料分
+double _calcMaterial(
+  Iterable<AnimalType> visiblePieces,
+  Set<AnimalType> enemySurviving,
+  List<AnimalType> hiddenPieces,
+) {
+  double material = 0;
+
+  for (final type in visiblePieces) {
     int penalty = 0;
-    for (final enemy in aiSurviving) {
+    for (final enemy in enemySurviving) {
       final eats = _canEatType(enemy, type);
       final mutual = _canEatType(type, enemy);
       if (eats && mutual) {
@@ -391,32 +444,24 @@ double _evalMaterial(_SearchBoard board) {
         penalty += _baseScores[enemy]!;
       }
     }
-    playerScore += (kScoreBase - penalty) * kCoeff;
-  }
-  // 暗棋用基础分
-  for (final t in board.playerHidden) {
-    playerScore += _baseScores[t]!.toDouble();
+    material += (_kScoreBase - penalty) * _EvalWeights.material;
   }
 
-  return aiScore - playerScore;
+  for (final t in hiddenPieces) {
+    material += _baseScores[t]!.toDouble();
+  }
+
+  return material;
 }
 
-/// 局势分 —— 威胁、固守、特殊地形加成
-double _evalSituation(_SearchBoard board) {
-  double score = 0;
-  final n = board.size;
-
-  // 收集存活类型
-  final aiSurviving = <AnimalType>{};
-  final playerSurviving = <AnimalType>{};
-  for (final c in board.cells) {
-    if (_isAiCell(c)) aiSurviving.add(AnimalType.values[_cellAnimalType(c)]);
-    if (_isPlayerCell(c)) {
-      playerSurviving.add(AnimalType.values[_cellAnimalType(c)]);
-    }
-  }
-  aiSurviving.addAll(board.aiHidden);
-  playerSurviving.addAll(board.playerHidden);
+/// 评估局势分：威胁/防御 + 地形加成
+double _evalSituation(
+  _SearchBoard board,
+  int n,
+  Set<AnimalType> aiSurviving,
+  Set<AnimalType> playerSurviving,
+) {
+  double situation = 0;
 
   for (int i = 0; i < board.cells.length; i++) {
     final c = board.cells[i];
@@ -424,24 +469,22 @@ double _evalSituation(_SearchBoard board) {
 
     final isAi = _isAiCell(c);
     final type = AnimalType.values[_cellAnimalType(c)];
-    final terrain = board.gridTypes[i];
+    final terrain = board.terrain[i];
     final r = i ~/ n;
     final col = i % n;
 
     int threats = 0;
     int threatens = 0;
-    double hiddenThreat = 0; // 暗棋潜在威胁（暗棋一定在陆地，可为任意动物）
-
+    double hiddenThreat = 0;
     final enemyHidden = isAi ? board.playerHidden : board.aiHidden;
 
-    for (final (dr, dc) in _kDirs) {
+    for (final (dr, dc) in planeAround) {
       final nr = r + dr;
       final nc = col + dc;
       if (nr < 0 || nr >= n || nc < 0 || nc >= n) continue;
       final adj = board.cells[nr * n + nc];
       if (adj == 0) continue;
 
-      // 暗棋：陆地上可为任意剩余类型，评估潜在威胁
       if (adj == _kHidden) {
         if (enemyHidden.isNotEmpty) {
           int canEatCount = 0;
@@ -461,43 +504,58 @@ double _evalSituation(_SearchBoard board) {
       if (_canEatType(adjType, type)) threats++;
     }
 
-    double pieceScore = (threatens - threats) * 0.5 - hiddenThreat * 0.3;
+    double pieceScore =
+        (threatens - threats) * _EvalWeights.threat -
+        hiddenThreat * _EvalWeights.hiddenThreat;
 
-    // 固守加分
-    if (terrain == GridType.tree &&
-        [AnimalType.leopard, AnimalType.cat, AnimalType.mouse].contains(type)) {
-      pieceScore += 2.0;
-      // 豹子上树且对方豹子已死 → 无敌
-      if (type == AnimalType.leopard) {
-        final enemyTypes = isAi ? playerSurviving : aiSurviving;
-        if (!enemyTypes.contains(AnimalType.leopard)) {
-          pieceScore += 5.0;
-        }
-      }
-    }
-
-    // 老虎上桥
-    if (type == AnimalType.tiger && terrain == GridType.bridge) {
-      pieceScore += 2.0;
-    }
-
-    score += isAi ? pieceScore : -pieceScore;
+    pieceScore += _calcTerrainBonus(
+      type,
+      terrain,
+      isAi,
+      isAi ? playerSurviving : aiSurviving,
+    );
+    situation += isAi ? pieceScore : -pieceScore;
   }
 
-  return score;
+  return situation;
 }
 
-/// 机动性 —— 可选移动数量差
+/// 计算地形加成
+double _calcTerrainBonus(
+  AnimalType type,
+  GridType terrain,
+  bool isAi,
+  Set<AnimalType> enemyTypes,
+) {
+  double bonus = 0;
+
+  if (terrain == GridType.tree && _kTreeAnimals.contains(type)) {
+    bonus += _EvalWeights.treeBonus;
+    if (type == AnimalType.leopard &&
+        !enemyTypes.contains(AnimalType.leopard)) {
+      bonus += _EvalWeights.leopardDominant;
+    }
+  }
+
+  if (type == AnimalType.tiger && terrain == GridType.bridge) {
+    bonus += _EvalWeights.tigerBridge;
+  }
+
+  return bonus;
+}
+
+/// 机动性评估：双方合法走法数量差
 double _evalMobility(_SearchBoard board) {
   final aiMoves = _generateMoves(board, true);
   final playerMoves = _generateMoves(board, false);
-  return (aiMoves.length - playerMoves.length) * 0.1;
+  return (aiMoves.length - playerMoves.length) * _EvalWeights.mobility;
 }
 
 // ============================================================
-// Move Generation — 走法生成
+// 走法生成
 // ============================================================
 
+/// 生成指定阵营的所有合法走法，按吃子价值降序排列
 List<MoveAction> _generateMoves(_SearchBoard board, bool isAi) {
   final moves = <MoveAction>[];
   final n = board.size;
@@ -511,7 +569,7 @@ List<MoveAction> _generateMoves(_SearchBoard board, bool isAi) {
     final r = i ~/ n;
     final c = i % n;
 
-    for (final (dr, dc) in _kDirs) {
+    for (final (dr, dc) in planeAround) {
       final nr = r + dr;
       final nc = c + dc;
       if (nr < 0 || nr >= n || nc < 0 || nc >= n) continue;
@@ -519,12 +577,9 @@ List<MoveAction> _generateMoves(_SearchBoard board, bool isAi) {
       final ni = nr * n + nc;
       final target = board.cells[ni];
 
-      // 暗棋是障碍物
       if (target == _kHidden) continue;
-      // 不能走向己方棋子
       if (target != 0 && _isAiCell(target) == isAi) continue;
-      // 地形检测
-      if (!_canEnterTerrain(type, board.gridTypes[i], board.gridTypes[ni])) {
+      if (!_canEnterTerrain(type, board.terrain[i], board.terrain[ni])) {
         continue;
       }
 
@@ -532,110 +587,103 @@ List<MoveAction> _generateMoves(_SearchBoard board, bool isAi) {
     }
   }
 
-  // 走法排序：吃子优先（吃高价值子在前）
   moves.sort((a, b) {
-    final aVal = board.cells[a.to] != 0 && board.cells[a.to] != _kHidden
-        ? _baseScores[AnimalType.values[_cellAnimalType(board.cells[a.to])]]!
-        : 0;
-    final bVal = board.cells[b.to] != 0 && board.cells[b.to] != _kHidden
-        ? _baseScores[AnimalType.values[_cellAnimalType(board.cells[b.to])]]!
-        : 0;
+    final aVal = _getMoveCaptureValue(board, a);
+    final bVal = _getMoveCaptureValue(board, b);
     return bVal.compareTo(aVal);
   });
 
   return moves;
 }
 
+/// 获取走法的吃子价值
+int _getMoveCaptureValue(_SearchBoard board, MoveAction move) {
+  final target = board.cells[move.to];
+  if (target == 0 || target == _kHidden) return 0;
+  return _baseScores[AnimalType.values[_cellAnimalType(target)]] ?? 0;
+}
+
 // ============================================================
-// Search Engine — Minimax + Alpha-Beta
+// 搜索引擎 — Minimax + Alpha-Beta
 // ============================================================
 
+/// 验证缓存走法在当前棋盘上是否合法
+bool _isActionValid(_SearchBoard board, GameAction action) {
+  if (action is FlipAction) {
+    return action.index >= 0 &&
+        action.index < board.cells.length &&
+        board.cells[action.index] == _kHidden;
+  }
+  if (action is MoveAction) {
+    final from = board.cells[action.from];
+    final to = board.cells[action.to];
+    if (from == 0 || from == _kHidden) return false;
+    if (!_isAiCell(from)) return false;
+    if (to != 0 && to != _kHidden && _isAiCell(to)) return false;
+    final type = AnimalType.values[_cellAnimalType(from)];
+    return _canEnterTerrain(
+      type,
+      board.terrain[action.from],
+      board.terrain[action.to],
+    );
+  }
+  return false;
+}
+
+/// 搜索最佳走法：Zobrist 缓存 → 静态筛选 → minimax 深度搜索
 GameAction? _searchBestMove(_SearchBoard board, _ZobristTable zobrist) {
-  // 1. 查 Zobrist 缓存
   final cached = zobrist.lookup(
     board.cells,
     board.size,
     board.aiHidden,
     board.playerHidden,
   );
-  if (cached != null) {
-    _log('Zobrist 缓存命中');
-    return cached;
-  }
+  if (cached != null && _isActionValid(board, cached)) return cached;
 
-  // 2. 生成所有 AI 走法
   final moves = _generateMoves(board, true);
-  _log('可移动走法数: ${moves.length}');
+  if (moves.isEmpty) return _evaluateFlip(board);
 
-  if (moves.isEmpty) {
-    // 无可移动棋子 → 翻牌
-    return _evaluateFlip(board);
+  final currentEval = _evaluate(board);
+  final improvingMoves = _filterImprovingMoves(board, moves, currentEval);
+
+  if (improvingMoves.isEmpty) {
+    final flip = _evaluateFlip(board);
+    if (flip != null) return flip;
   }
 
-  // 3. 快速静态评估筛选：找出能改善局势的移动
-  final currentEval = _evaluate(board);
-  final improvingMoves = <(MoveAction, double)>[];
+  final candidates = improvingMoves.isNotEmpty
+      ? (improvingMoves..sort((a, b) => b.$2.compareTo(a.$2)))
+            .map((e) => e.$1)
+            .toList()
+      : moves;
 
+  return _minimaxSearch(board, candidates);
+}
+
+/// 筛选能改善局势的走法
+List<(MoveAction, double)> _filterImprovingMoves(
+  _SearchBoard board,
+  List<MoveAction> moves,
+  double currentEval,
+) {
+  final improving = <(MoveAction, double)>[];
   for (final move in moves) {
     final undo = board.doMove(move.from, move.to);
     final staticEval = _evaluate(board);
     board.undoMove(undo);
-
-    _log(
-      '  Move ${_posStr(move.from, board.size)}→${_posStr(move.to, board.size)} '
-      'static=${staticEval.toStringAsFixed(1)}',
-    );
-
     if (staticEval > currentEval) {
-      improvingMoves.add((move, staticEval));
+      improving.add((move, staticEval));
     }
   }
+  return improving;
+}
 
-  // 4. 没有改善局势的移动 → 翻牌
-  if (improvingMoves.isEmpty) {
-    _log('无改善移动(当前${currentEval.toStringAsFixed(1)}), 尝试翻牌');
-    final flip = _evaluateFlip(board);
-    if (flip != null) return flip;
-    // 无牌可翻，走 minimax 最佳（必走）
-  }
-
-  // 5. 有改善移动 → 用 minimax 深度搜索选最优
-  if (improvingMoves.isNotEmpty) {
-    // 按静态评估排序，优先搜索收益大的
-    improvingMoves.sort((a, b) => b.$2.compareTo(a.$2));
-
-    double bestScore = double.negativeInfinity;
-    MoveAction? bestMove;
-
-    for (final (move, _) in improvingMoves) {
-      final undo = board.doMove(move.from, move.to);
-      final score = _minimax(
-        board,
-        _kSearchDepth - 1,
-        double.negativeInfinity,
-        double.infinity,
-        false,
-      );
-      board.undoMove(undo);
-
-      _log(
-        '  Minimax ${_posStr(move.from, board.size)}→${_posStr(move.to, board.size)} '
-        'score=${score.toStringAsFixed(1)}',
-      );
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = move;
-      }
-    }
-
-    return bestMove;
-  }
-
-  // 6. 兜底：无改善移动且无牌可翻，minimax 选最不差的
+/// minimax 深度搜索
+MoveAction? _minimaxSearch(_SearchBoard board, List<MoveAction> candidates) {
   double bestScore = double.negativeInfinity;
   MoveAction? bestMove;
-  for (final move in moves) {
+
+  for (final move in candidates) {
     final undo = board.doMove(move.from, move.to);
     final score = _minimax(
       board,
@@ -650,9 +698,11 @@ GameAction? _searchBestMove(_SearchBoard board, _ZobristTable zobrist) {
       bestMove = move;
     }
   }
+
   return bestMove;
 }
 
+/// minimax + alpha-beta 剪枝
 double _minimax(
   _SearchBoard board,
   int depth,
@@ -663,10 +713,7 @@ double _minimax(
   if (depth == 0) return _evaluate(board);
 
   final moves = _generateMoves(board, isMax);
-
-  if (moves.isEmpty) {
-    return _evaluate(board);
-  }
+  if (moves.isEmpty) return _evaluate(board);
 
   if (isMax) {
     double value = double.negativeInfinity;
@@ -692,114 +739,118 @@ double _minimax(
 }
 
 // ============================================================
-// Flip Evaluation — 翻牌决策
+// 翻牌评估
 // ============================================================
 
+/// 评估翻牌收益：遍历暗棋位置，按概率加权选最优
 GameAction? _evaluateFlip(_SearchBoard board) {
   if (board.cells.every((c) => c != _kHidden)) return null;
 
-  // 收集所有暗棋位置
   final hiddenPositions = <int>[];
-  // 需要原始 board 来判断暗棋归属
-  // 由于 SearchBoard 不区分暗棋阵营，这里做简化处理：
-  // AI 的暗棋列表和玩家的暗棋列表长度已知
   for (int i = 0; i < board.cells.length; i++) {
     if (board.cells[i] == _kHidden) hiddenPositions.add(i);
   }
-
   if (hiddenPositions.isEmpty) return null;
 
-  // 无可见棋子 → 随机翻
   if (board.getVisiblePositions(true).isEmpty) {
     return FlipAction(
       hiddenPositions[Random().nextInt(hiddenPositions.length)],
     );
   }
 
-  // 评估每个暗棋位置的翻牌收益
+  return _findBestFlipPosition(board, hiddenPositions);
+}
+
+/// 找到最佳翻牌位置
+FlipAction _findBestFlipPosition(
+  _SearchBoard board,
+  List<int> hiddenPositions,
+) {
   double bestScore = double.negativeInfinity;
   int bestPos = hiddenPositions.first;
-
-  // 假设每个暗棋位置等概率属于 AI 或玩家
-  // 根据剩余暗棋数量估算概率
   final totalHidden = hiddenPositions.length;
   final aiHiddenCount = board.aiHidden.length;
   final playerHiddenCount = board.playerHidden.length;
 
   for (final pos in hiddenPositions) {
-    double totalScore = 0;
-    int count = 0;
-
-    // 尝试作为 AI 暗棋
-    if (aiHiddenCount > 0) {
-      final prob = aiHiddenCount / totalHidden;
-      for (final type in board.aiHidden) {
-        board.cells[pos] = type.index + 1; // AI 棋子
-        final score = _evalFlipPosition(board, pos, true);
-        totalScore += score * prob;
-        count++;
-      }
-      board.cells[pos] = _kHidden;
-    }
-
-    // 尝试作为玩家暗棋
-    if (playerHiddenCount > 0) {
-      final prob = playerHiddenCount / totalHidden;
-      for (final type in board.playerHidden) {
-        board.cells[pos] = -(type.index + 1); // 玩家棋子
-        final score = _evalFlipPosition(board, pos, false);
-        totalScore += score * prob;
-        count++;
-      }
-      board.cells[pos] = _kHidden;
-    }
-
-    if (count > 0) {
-      final avgScore = totalScore / count;
-      if (avgScore > bestScore) {
-        bestScore = avgScore;
-        bestPos = pos;
-      }
+    final avgScore = _evalFlipPositionAvg(
+      board,
+      pos,
+      totalHidden,
+      aiHiddenCount,
+      playerHiddenCount,
+    );
+    if (avgScore > bestScore) {
+      bestScore = avgScore;
+      bestPos = pos;
     }
   }
 
   return FlipAction(bestPos);
 }
 
-/// 评估翻出某棋子后的一步最佳走法价值
-double _evalFlipPosition(_SearchBoard board, int pos, bool isAiPiece) {
-  // 基础评估
-  double baseEval = _evaluate(board);
+/// 评估单个翻牌位置的平均收益
+double _evalFlipPositionAvg(
+  _SearchBoard board,
+  int pos,
+  int totalHidden,
+  int aiHiddenCount,
+  int playerHiddenCount,
+) {
+  double totalScore = 0;
+  int count = 0;
 
-  // 模拟翻牌后走一步
-  final moves = _generateMoves(board, true);
-  double bestMoveScore = double.negativeInfinity;
-
-  // 限制评估数量以保证性能
-  final limited = moves.length > 12 ? moves.sublist(0, 12) : moves;
-  for (final move in limited) {
-    final undo = board.doMove(move.from, move.to);
-    final score = _evaluate(board);
-    board.undoMove(undo);
-    bestMoveScore = max(bestMoveScore, score);
+  if (aiHiddenCount > 0) {
+    final prob = aiHiddenCount / totalHidden;
+    for (final type in board.aiHidden) {
+      board.cells[pos] = type.index + 1;
+      totalScore += _evalFlipPosition(board, pos, true) * prob;
+      count++;
+    }
+    board.cells[pos] = _kHidden;
   }
 
-  if (limited.isEmpty) bestMoveScore = baseEval;
+  if (playerHiddenCount > 0) {
+    final prob = playerHiddenCount / totalHidden;
+    for (final type in board.playerHidden) {
+      board.cells[pos] = -(type.index + 1);
+      totalScore += _evalFlipPosition(board, pos, false) * prob;
+      count++;
+    }
+    board.cells[pos] = _kHidden;
+  }
 
-  // 如果翻出的是对方棋子，还需考虑对方是否会利用
+  return count > 0 ? totalScore / count : 0;
+}
+
+/// 评估翻出棋子后的价值：AI 最佳走法 + 对手最差响应
+double _evalFlipPosition(_SearchBoard board, int pos, bool isAiPiece) {
+  final aiMoves = _generateMoves(board, true);
+  double bestMoveScore = double.negativeInfinity;
+
+  final limited = aiMoves.length > _FlipLimits.aiMoves
+      ? aiMoves.sublist(0, _FlipLimits.aiMoves)
+      : aiMoves;
+
+  for (final move in limited) {
+    final undo = board.doMove(move.from, move.to);
+    bestMoveScore = max(bestMoveScore, _evaluate(board));
+    board.undoMove(undo);
+  }
+  if (limited.isEmpty) bestMoveScore = 0;
+
   if (!isAiPiece) {
     final playerMoves = _generateMoves(board, false);
     double worstCase = double.infinity;
-    final pLimited = playerMoves.length > 8
-        ? playerMoves.sublist(0, 8)
+    final pLimited = playerMoves.length > _FlipLimits.playerMoves
+        ? playerMoves.sublist(0, _FlipLimits.playerMoves)
         : playerMoves;
     for (final move in pLimited) {
       final undo = board.doMove(move.from, move.to);
-      final score = _evaluate(board);
+      worstCase = min(worstCase, _evaluate(board));
       board.undoMove(undo);
-      worstCase = min(worstCase, score);
     }
-    if (pLimited.isEmpty) worstCase = baseEval;
+    if (pLimited.isEmpty) worstCase = 0;
     return (bestMoveScore + worstCase) / 2;
   }
 
@@ -807,65 +858,49 @@ double _evalFlipPosition(_SearchBoard board, int pos, bool isAiPiece) {
 }
 
 // ============================================================
-// Logger — 日志系统
+// 日志
 // ============================================================
 
-void _log(String msg) {
-  debugPrint('[AI] $msg');
+void _log(String msg) => debugPrint('[AI] $msg');
+
+String _posStr(int index, int size) => '(${index ~/ size},${index % size})';
+
+String _actionStr(GameAction action) {
+  if (action is FlipAction) return 'Flip(${action.index})';
+  if (action is MoveAction) {
+    return 'Move(${_posStr(action.from, 9)}->${_posStr(action.to, 9)})';
+  }
+  return action.toString();
 }
 
-String _posStr(int index, int size) {
-  final r = index ~/ size;
-  final c = index % size;
-  return '($r,$c)';
-}
-
-/// 打印棋盘文字版
-/// AI 大写 / 玩家小写 / 暗棋 ? / 空 *
+/// 紧凑棋盘打印：AI 大写 / 玩家小写 / 暗棋 ? / 空 *
 void _logBoard(
   String label,
   List<Grid> board,
   int size,
   TurnGamerType aiFaction,
 ) {
-  final sb = StringBuffer();
-  sb.writeln('┌${'───┬' * (size - 1)}───┐');
+  final header = List.generate(size, (i) => i.toString().padLeft(2)).join();
+  final sb = StringBuffer('  $header\n');
 
   for (int r = 0; r < size; r++) {
-    sb.write('│');
+    sb.write('${r.toString().padLeft(2)} ');
     for (int c = 0; c < size; c++) {
       final grid = board[r * size + c];
-      String ch;
       if (!grid.hasAnimal) {
-        ch = ' * ';
+        sb.write(' *');
       } else if (grid.animal!.isHidden) {
-        ch = ' ? ';
+        sb.write(' ?');
       } else {
         final abbr = _kAbbr[grid.animal!.type.index];
-        ch = grid.animal!.owner == aiFaction
-            ? ' $abbr '
-            : ' ${abbr.toLowerCase()} ';
+        sb.write(
+          grid.animal!.owner == aiFaction ? ' $abbr' : ' ${abbr.toLowerCase()}',
+        );
       }
-      sb.write('$ch│');
     }
     sb.writeln();
-    if (r < size - 1) {
-      sb.writeln('├${'───┼' * (size - 1)}───┤');
-    }
   }
-
-  sb.writeln('└${'───┴' * (size - 1)}───┘');
   debugPrint('[AI] $label:\n$sb');
-} // ignore: unnecessary_brace_in_string_interps
-
-String _actionStr(GameAction action) {
-  if (action is FlipAction) {
-    return '翻牌(${action.index})'; // ignore: unnecessary_brace_in_string_interps
-  }
-  if (action is MoveAction) {
-    return '移动(${action.from}→${action.to})'; // ignore: unnecessary_brace_in_string_interps
-  }
-  return action.toString();
 }
 
 // ============================================================
@@ -873,35 +908,34 @@ String _actionStr(GameAction action) {
 // ============================================================
 
 class AiController {
+  final List<Grid> board;
   final int boardSize;
   final TurnGamerType faction;
 
-  /// 缓存的 AI 行动后棋盘快照（用于 Zobrist 学习）
+  /// AI 行动后棋盘快照（用于 Zobrist 学习）
   List<int>? _postAiCells;
   List<AnimalType>? _postAiAiHidden;
   List<AnimalType>? _postAiPlayerHidden;
 
   AiController({
-    required List<Grid> board,
+    required this.board,
     required this.boardSize,
     required this.faction,
   });
 
   /// AI 决策入口
-  GameAction getAction(List<Grid> board) {
-    _logBoard('决策前棋盘', board, boardSize, faction);
+  GameAction? getAction() {
+    _logBoard('Before', board, boardSize, faction);
 
     final searchBoard = _SearchBoard.fromGrid(board, boardSize, faction);
     final zobrist = _ZobristTable.instance;
 
-    // 搜索
     final action = _searchBestMove(searchBoard, zobrist);
     if (action == null) {
-      _log('无可用行动');
-      return FlipAction(_findFirstHidden(board));
+      _log('No action available');
+      return null;
     }
 
-    // 存入 Zobrist（四重对称）
     zobrist.store(
       action,
       searchBoard.cells,
@@ -910,36 +944,33 @@ class AiController {
       searchBoard.playerHidden,
     );
 
-    // 保存行动后快照（用于 Zobrist 学习）
+    _applyAction(action);
     _savePostAiState(searchBoard, action);
+    _log('Decision: ${_actionStr(action)}');
 
-    _log('最终决策: ${_actionStr(action)}');
-
-    // 构建行动后棋盘用于日志
-    final postBoard = _applyActionForLog(board, action);
-    _logBoard('决策后棋盘', postBoard, boardSize, faction);
+    _logBoard('After', board, boardSize, faction);
 
     return action;
   }
 
-  /// 玩家行动后调用，用于 Zobrist 学习
-  void updateState(GameAction action) {
-    if (_postAiCells == null) return;
+  /// 玩家行动后调用，用于更新棋盘和 Zobrist 学习
+  void applyPlayerAction(GameAction action) {
+    _applyAction(action);
+    _log('Player: ${_actionStr(action)}');
 
-    _log('玩家行为: ${_actionStr(action)}');
+    if (_postAiCells != null) {
+      _ZobristTable.instance.store(
+        action,
+        _postAiCells!,
+        boardSize,
+        _postAiAiHidden!,
+        _postAiPlayerHidden!,
+      );
 
-    // 把玩家行动作为"最优解"存入 Zobrist
-    _ZobristTable.instance.store(
-      action,
-      _postAiCells!,
-      boardSize,
-      _postAiAiHidden!,
-      _postAiPlayerHidden!,
-    );
-
-    _postAiCells = null;
-    _postAiAiHidden = null;
-    _postAiPlayerHidden = null;
+      _postAiCells = null;
+      _postAiAiHidden = null;
+      _postAiPlayerHidden = null;
+    }
   }
 
   void dispose() {
@@ -948,14 +979,45 @@ class AiController {
     _postAiPlayerHidden = null;
   }
 
-  /// 保存 AI 行动后的快照（仅 MoveAction 可完整还原）
+  /// 应用行动到内部棋盘
+  void _applyAction(GameAction action) {
+    if (action is FlipAction) {
+      final grid = board[action.index];
+      if (grid.hasAnimal) {
+        grid.animal!.isHidden = false;
+      }
+    } else if (action is MoveAction) {
+      final fromGrid = board[action.from];
+      final toGrid = board[action.to];
+      final moving = fromGrid.animal;
+
+      if (moving != null) {
+        if (toGrid.hasAnimal && toGrid.animal!.owner != moving.owner) {
+          final attackerWins = _canEatType(moving.type, toGrid.animal!.type);
+          final defenderWins = _canEatType(toGrid.animal!.type, moving.type);
+          if (attackerWins && defenderWins) {
+            toGrid.animal = null; // 同归于尽
+          } else if (attackerWins) {
+            toGrid.animal = moving; // 攻方胜
+          }
+        } else {
+          toGrid.animal = moving;
+        }
+        fromGrid.animal = null;
+      }
+    }
+  }
+
+  /// 保存 AI 行动后快照（仅 MoveAction 可完整还原）
   void _savePostAiState(_SearchBoard board, GameAction action) {
     if (action is MoveAction) {
       final postBoard = _SearchBoard._(
         board.size,
-        List<GridType>.from(board.gridTypes),
+        List<GridType>.from(board.terrain),
         List<int>.from(board.cells),
         board.aiFaction,
+        board.aiPositions.map((k, v) => MapEntry(k, List<int>.from(v))),
+        board.playerPositions.map((k, v) => MapEntry(k, List<int>.from(v))),
         List<AnimalType>.from(board.aiHidden),
         List<AnimalType>.from(board.playerHidden),
       );
@@ -964,47 +1026,7 @@ class AiController {
       _postAiAiHidden = postBoard.aiHidden;
       _postAiPlayerHidden = postBoard.playerHidden;
     } else {
-      // FlipAction 无法确定翻出的具体棋子，跳过学习
       _postAiCells = null;
     }
-  }
-
-  int _findFirstHidden(List<Grid> board) {
-    for (int i = 0; i < board.length; i++) {
-      if (board[i].hasAnimal && board[i].animal!.isHidden) return i;
-    }
-    return 0;
-  }
-
-  /// 根据行动克隆棋盘并模拟执行，用于日志显示
-  List<Grid> _applyActionForLog(List<Grid> board, GameAction action) {
-    final post = board.map((g) => g.clone()).toList();
-    if (action is FlipAction) {
-      final grid = post[action.index];
-      if (grid.hasAnimal) {
-        grid.animal!.isHidden = false;
-      }
-    } else if (action is MoveAction) {
-      final fromGrid = post[action.from];
-      final toGrid = post[action.to];
-      final moving = fromGrid.animal;
-      if (moving != null) {
-        if (toGrid.hasAnimal && toGrid.animal!.owner != moving.owner) {
-          // 战斗：同归于尽或吃子
-          final attackerWins = _canEatType(moving.type, toGrid.animal!.type);
-          final defenderWins = _canEatType(toGrid.animal!.type, moving.type);
-          if (attackerWins && defenderWins) {
-            toGrid.animal = null;
-          } else if (attackerWins) {
-            toGrid.animal = moving;
-          }
-          // 守方胜则 toGrid 不变
-        } else {
-          toGrid.animal = moving;
-        }
-        fromGrid.animal = null;
-      }
-    }
-    return post;
   }
 }

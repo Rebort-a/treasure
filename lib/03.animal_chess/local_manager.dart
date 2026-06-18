@@ -1,6 +1,7 @@
+import '../00.common/game/gamer.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
-import 'intelligence.dart';
+import 'test.dart';
 
 class LocalManager extends FoundationalManager {
   AiController? _aiController;
@@ -15,21 +16,12 @@ class LocalManager extends FoundationalManager {
     super.initGame();
     if (aiEnabled) {
       _aiController!.dispose();
-      _initAi();
+      _initAiController();
     }
   }
 
-  void enableAI(bool enable) {
-    if (enable && !aiEnabled) {
-      _initAi();
-    } else if (!enable && aiEnabled) {
-      _aiController?.dispose();
-      _aiController = null;
-    }
-  }
-
-  void _initAi() {
-    final currentBoard = displayMap.value.map((g) => g.value).toList();
+  void _initAiController() {
+    final currentBoard = displayMap.value.map((g) => g.value.clone()).toList();
     _aiController = AiController(
       board: currentBoard,
       boardSize: boardSize,
@@ -38,41 +30,54 @@ class LocalManager extends FoundationalManager {
     _performAiMove();
   }
 
-  /// 用户点击格子
-  void requestSelectGrid(int index) {
+  @override
+  void endTurn() {
+    currentGamer.value = currentGamer.value.opponent;
+    if (aiEnabled && currentGamer.value == _aiController!.faction) {
+      _performAiMove();
+    }
+  }
+
+  Future<void> _performAiMove() async {
+    if (!aiEnabled) return;
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!aiEnabled) return;
+
+    final action = _aiController!.getAction();
+
+    if (action != null) {
+      executeAction(action);
+    }
+    endTurn();
+  }
+
+  // 玩家点击格子
+  @override
+  void onGridClick(int index) {
     if (!aiEnabled) {
-      selectGrid(index);
+      autoProcess(index);
       return;
     }
 
     if (_aiController!.faction != currentGamer.value) {
-      GameAction? action = selectGrid(index);
+      GameAction? action = autoProcess(index);
 
       if (action != null) {
         _syncControllerState(action);
-        _performAiMove();
       }
     }
   }
 
   void _syncControllerState(GameAction action) {
-    if (_aiController == null) return;
-    _aiController!.updateState(action);
+    if (aiEnabled) _aiController!.applyPlayerAction(action);
   }
 
-  Future<void> _performAiMove() async {
-    if (_aiController == null) return;
-    await Future.delayed(const Duration(milliseconds: 400));
-    if (_aiController == null) return;
-
-    final currentBoard = displayMap.value.map((g) => g.value).toList();
-    final action = _aiController!.getAction(currentBoard);
-
-    if (action is FlipAction) {
-      selectGrid(action.index);
-    } else if (action is MoveAction) {
-      selectGrid(action.from);
-      selectGrid(action.to);
+  void toggleAiSwicth() {
+    if (aiEnabled) {
+      _aiController?.dispose();
+      _aiController = null;
+    } else {
+      _initAiController();
     }
   }
 }

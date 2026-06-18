@@ -17,7 +17,6 @@ abstract class FoundationalManager {
   final ValueNotifier<TurnGamerType> currentGamer = ValueNotifier(
     TurnGamerType.front,
   );
-  final ValueNotifier<TurnGamerType?> gameWinner = ValueNotifier(null);
   final ListNotifier<GridNotifier> displayMap = ListNotifier([]);
   final List<int> _markedGrid = [];
 
@@ -87,13 +86,25 @@ abstract class FoundationalManager {
     _blueAnimalsCount = AnimalType.values.length;
   }
 
+  void onGridClick(int index) {}
+
+  GameAction? autoProcess(int index) {
+    final action = _selectGrid(index);
+    if (action != null) {
+      executeAction(action);
+      endTurn();
+      return action;
+    }
+    return null;
+  }
+
   // 行为未造成回合切换，视为无效，返回null，否则返回完整行为
-  GameAction? selectGrid(int index) {
+  GameAction? _selectGrid(int index) {
     final grid = displayMap.value[index].value;
 
     // 如果没有翻面，那么翻面
     if (grid.hasAnimal && grid.animal!.isHidden) {
-      _revealPiece(index);
+      _clearSelectionAndHighlight();
       return FlipAction(index);
     }
 
@@ -105,13 +116,12 @@ abstract class FoundationalManager {
 
     // 如果是可选的移动目标，那么移动棋子
     if (_isValidMoveTarget(index)) {
-      int source = _markedGrid.first;
-      _movePiece(source, index);
-      return MoveAction(source, index);
+      return MoveAction(_markedGrid.first, index);
     }
 
     // 如果上面都不是，那么判断是否可以选中棋子
     if (_canSelect(grid)) {
+      _clearSelectionAndHighlight();
       _setSelection(index);
       return null;
     }
@@ -119,10 +129,18 @@ abstract class FoundationalManager {
     return null;
   }
 
+  void executeAction(GameAction action) {
+    _clearSelectionAndHighlight();
+    if (action is FlipAction) {
+      _revealPiece(action.index);
+    } else if (action is MoveAction) {
+      _movePiece(action.from, action.to);
+    }
+  }
+
   void _revealPiece(int index) {
     displayMap.value[index].revealAnimal();
     _hiddenCount--;
-    _endTurn();
   }
 
   bool _isValidMoveTarget(int index) {
@@ -139,11 +157,9 @@ abstract class FoundationalManager {
       _resolveCombat(movingAnimal, displayMap.value[to].value.animal!, to);
     } else {
       displayMap.value[to].placeAnimal(movingAnimal);
-      _markedGrid.first = to;
     }
 
     displayMap.value[from].clearAnimal();
-    _endTurn();
   }
 
   void _resolveCombat(Animal attacker, Animal defender, int targetPos) {
@@ -156,7 +172,6 @@ abstract class FoundationalManager {
       _blueAnimalsCount--;
     } else if (attackerWins) {
       displayMap.value[targetPos].placeAnimal(attacker);
-      _markedGrid.first = targetPos;
 
       if (defender.owner == TurnGamerType.front) {
         _redAnimalsCount--;
@@ -179,9 +194,8 @@ abstract class FoundationalManager {
   }
 
   void _setSelection(int index) {
-    _clearSelectionAndHighlight();
     _markedGrid.add(index);
-    displayMap.value[index].toggleSelection(true);
+    displayMap.value[index].toggleState(GridState.selected);
     _calculatePossibleMoves(index);
   }
 
@@ -199,7 +213,7 @@ abstract class FoundationalManager {
           newCol >= 0 &&
           newCol < _boardSize) {
         if (_isValidMove(index, newIndex)) {
-          displayMap.value[newIndex].toggleHighlight(true);
+          displayMap.value[newIndex].toggleState(GridState.highlight);
           _markedGrid.add(newIndex);
         }
       }
@@ -222,30 +236,22 @@ abstract class FoundationalManager {
   void _checkGameEnd() {
     if (_hiddenCount <= 0) {
       if (_redAnimalsCount <= 0) {
-        handleGameOver(TurnGamerType.rear);
+        _handleGameOver(TurnGamerType.rear);
       } else if (_blueAnimalsCount <= 0) {
-        handleGameOver(TurnGamerType.front);
+        _handleGameOver(TurnGamerType.front);
       }
     }
   }
 
-  void _endTurn() {
-    _clearSelectionAndHighlight();
+  void endTurn() {
     currentGamer.value = currentGamer.value.opponent;
-  }
-
-  /// 无合法走法时跳过回合
-  void passTurn() {
-    _endTurn();
   }
 
   void _clearSelectionAndHighlight() {
     if (_markedGrid.isEmpty) return;
 
-    displayMap.value[_markedGrid.first].toggleSelection(false);
-
-    for (final index in _markedGrid.skip(1)) {
-      displayMap.value[index].toggleHighlight(false);
+    for (final index in _markedGrid) {
+      displayMap.value[index].toggleState(GridState.normal);
     }
 
     _markedGrid.clear();
@@ -272,12 +278,11 @@ abstract class FoundationalManager {
     initGame();
   }
 
-  void handleGameOver(TurnGamerType winner) {
-    gameWinner.value = winner;
-    _showChessResult(winner);
+  void handleSurrender() {
+    _handleGameOver(currentGamer.value.opponent);
   }
 
-  void _showChessResult(TurnGamerType winner) {
+  void _handleGameOver(TurnGamerType winner) {
     pageNavigator.value = (context) {
       showDialog(
         context: context,

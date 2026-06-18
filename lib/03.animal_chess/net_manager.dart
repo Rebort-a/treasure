@@ -45,9 +45,9 @@ class NetManager extends FoundationalManager {
       int index = jsonDecode(message.content)['index'] as int;
       if (index >= 0 && index < displayMap.length) {
         if (!isSelf) {
-          selectGrid(index);
+          autoProcess(index);
         } else if (currentGamer.value == netTurnEngine.playerType) {
-          selectGrid(index);
+          autoProcess(index);
         }
       }
     }
@@ -100,7 +100,6 @@ class NetManager extends FoundationalManager {
   }
 
   void _playAgain() {
-    gameWinner.value = null;
     resetGameState();
     netTurnEngine.resetForRematch();
     netTurnEngine.sendNetworkMessage(
@@ -152,7 +151,8 @@ class NetManager extends FoundationalManager {
     }
   }
 
-  void requestSelectGrid(int index) {
+  @override
+  void onGridClick(int index) {
     _sendActionMessage(index);
   }
 

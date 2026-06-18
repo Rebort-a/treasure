@@ -26,13 +26,13 @@ class LocalAnimalChessPage extends StatelessWidget {
         onSelected: (value) {
           switch (value) {
             case 'surrender':
-              _manager.handleGameOver(_manager.currentGamer.value.opponent);
+              _manager.handleSurrender();
             case 'restart':
               _manager.initGame();
-            case 'boardSize':
+            case 'set':
               _manager.showBoardSizeSelector();
             case 'ai':
-              _manager.enableAI(!_manager.aiEnabled);
+              _manager.toggleAiSwicth();
           }
         },
         itemBuilder: (_) => [
@@ -53,10 +53,10 @@ class LocalAnimalChessPage extends StatelessWidget {
             ),
           ),
           PopupMenuItem(
-            value: 'boardSize',
+            value: 'set',
             child: ListTile(
               leading: const Icon(Icons.tune),
-              title: Text(S.setBoardSize),
+              title: Text(S.settings),
               dense: true,
             ),
           ),
@@ -70,7 +70,7 @@ class LocalAnimalChessPage extends StatelessWidget {
                 builder: (ctx) => Switch(
                   value: _manager.aiEnabled,
                   onChanged: (v) {
-                    _manager.enableAI(v);
+                    _manager.toggleAiSwicth();
                     Navigator.pop(ctx);
                   },
                 ),
@@ -89,7 +89,7 @@ class LocalAnimalChessPage extends StatelessWidget {
       Expanded(
         child: FoundationalWidget(
           displayMap: _manager.displayMap,
-          onGridSelected: _manager.requestSelectGrid,
+          onGridClick: _manager.onGridClick,
         ),
       ),
     ],

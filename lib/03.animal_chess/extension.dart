@@ -15,13 +15,15 @@ class GridNotifier extends ValueNotifier<Grid> {
     notifyListeners();
   }
 
-  void toggleSelection(bool selected) {
-    value.animal?.isSelected = selected;
-    notifyListeners();
-  }
-
-  void toggleHighlight(bool highlighted) {
-    value.isHighlighted = highlighted;
+  void toggleState(GridState state) {
+    switch (state) {
+      case GridState.normal:
+        value.setNormal();
+      case GridState.highlight:
+        value.setHighlight();
+      case GridState.selected:
+        value.setSelected();
+    }
     notifyListeners();
   }
 

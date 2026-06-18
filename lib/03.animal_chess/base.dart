@@ -4,6 +4,8 @@ enum AnimalType { elephant, tiger, lion, leopard, wolf, dog, cat, mouse }
 
 enum GridType { land, river, road, bridge, tree }
 
+enum GridState { normal, highlight, selected }
+
 const List<String> animalEmojis = [
   "🐘",
   "🐅",
@@ -18,15 +20,9 @@ const List<String> animalEmojis = [
 class Animal {
   final AnimalType type;
   final TurnGamerType owner;
-  bool isSelected;
   bool isHidden;
 
-  Animal({
-    required this.type,
-    required this.owner,
-    this.isSelected = false,
-    this.isHidden = true,
-  });
+  Animal({required this.type, required this.owner, this.isHidden = true});
 
   bool canEat(Animal? other) {
     if (other == null) return true;
@@ -59,36 +55,39 @@ class Animal {
     };
   }
 
-  Animal clone() => Animal(
-    type: type,
-    owner: owner,
-    isSelected: isSelected,
-    isHidden: isHidden,
-  );
+  Animal clone() => Animal(type: type, owner: owner, isHidden: isHidden);
 }
 
 class Grid {
   final int coordinate;
   final GridType type;
-  bool isHighlighted;
   Animal? animal;
+  late GridState _state;
 
-  Grid({
-    required this.coordinate,
-    required this.type,
-    this.isHighlighted = false,
-    this.animal,
-  });
+  Grid({required this.coordinate, required this.type, this.animal}) {
+    _state = GridState.normal;
+  }
 
   bool get hasAnimal => animal != null;
+  bool get isHightlight => _state == GridState.highlight;
+  bool get isSelected => _state == GridState.selected;
+
+  void setHighlight() {
+    _state = GridState.highlight;
+  }
+
+  void setNormal() {
+    _state = GridState.normal;
+  }
+
+  void setSelected() {
+    if (hasAnimal && !animal!.isHidden) {
+      _state = GridState.selected;
+    }
+  }
 
   Grid clone() {
-    return Grid(
-      coordinate: coordinate,
-      type: type,
-      isHighlighted: isHighlighted,
-      animal: animal?.clone(),
-    );
+    return Grid(coordinate: coordinate, type: type, animal: animal?.clone());
   }
 }
 

@@ -10,12 +10,12 @@ import 'extension.dart';
 
 class FoundationalWidget extends StatelessWidget {
   final ListNotifier<GridNotifier> displayMap;
-  final Function(int) onGridSelected;
+  final Function(int) onGridClick;
 
   const FoundationalWidget({
     super.key,
     required this.displayMap,
-    required this.onGridSelected,
+    required this.onGridClick,
   });
 
   @override
@@ -75,7 +75,7 @@ class FoundationalWidget extends StatelessWidget {
   ) => ValueListenableBuilder(
     valueListenable: notifier,
     builder: (_, grid, __) => GestureDetector(
-      onTap: () => onGridSelected(grid.coordinate),
+      onTap: () => onGridClick(grid.coordinate),
       child: Container(
         margin: EdgeInsets.all(2 * scaleFactor), // 缩放边距
         decoration: _gridDecoration(grid, scaleFactor),
@@ -106,14 +106,14 @@ class FoundationalWidget extends StatelessWidget {
   );
 
   Color _borderColor(Grid grid) {
-    if (grid.hasAnimal && grid.animal!.isSelected) return Colors.yellow;
-    if (grid.isHighlighted) return Colors.green;
+    if (grid.isSelected) return Colors.yellow;
+    if (grid.isHightlight) return Colors.green;
     return Colors.grey;
   }
 
   double _borderWidth(Grid grid, double scaleFactor) {
-    if (grid.isHighlighted) return 4.0 * scaleFactor; // 缩放边框宽度
-    if (grid.hasAnimal && grid.animal!.isSelected) {
+    if (grid.isHightlight) return 4.0 * scaleFactor; // 缩放边框宽度
+    if (grid.isSelected) {
       return 3.0 * scaleFactor; // 缩放边框宽度
     }
     return 1.0 * scaleFactor; // 缩放边框宽度
