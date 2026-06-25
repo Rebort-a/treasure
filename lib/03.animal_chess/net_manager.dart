@@ -152,7 +152,7 @@ class NetManager extends FoundationalManager {
   }
 
   @override
-  void onGridClick(int index) {
+  void onCellClick(int index) {
     _sendActionMessage(index);
   }
 

@@ -32,7 +32,7 @@ class LocalAnimalChessPage extends StatelessWidget {
             case 'set':
               _manager.showBoardSizeSelector();
             case 'ai':
-              _manager.toggleAiSwicth();
+              _manager.toggleAiSwitch();
           }
         },
         itemBuilder: (_) => [
@@ -70,7 +70,7 @@ class LocalAnimalChessPage extends StatelessWidget {
                 builder: (ctx) => Switch(
                   value: _manager.aiEnabled,
                   onChanged: (v) {
-                    _manager.toggleAiSwicth();
+                    _manager.toggleAiSwitch();
                     Navigator.pop(ctx);
                   },
                 ),
@@ -89,7 +89,7 @@ class LocalAnimalChessPage extends StatelessWidget {
       Expanded(
         child: FoundationalWidget(
           displayMap: _manager.displayMap,
-          onGridClick: _manager.onGridClick,
+          onCellClick: _manager.onCellClick,
         ),
       ),
     ],

@@ -17,8 +17,8 @@ abstract class FoundationalManager {
   final ValueNotifier<TurnGamerType> currentGamer = ValueNotifier(
     TurnGamerType.front,
   );
-  final ListNotifier<GridNotifier> displayMap = ListNotifier([]);
-  final List<int> _markedGrid = [];
+  final ListNotifier<CellNotifier> displayMap = ListNotifier([]);
+  final List<int> _markedCell = [];
 
   int _redAnimalsCount = AnimalType.values.length;
   int _blueAnimalsCount = AnimalType.values.length;
@@ -34,21 +34,21 @@ abstract class FoundationalManager {
 
   void setupBoard() {
     displayMap.value = List.generate(_boardSize * _boardSize, (index) {
-      return GridNotifier(Grid(coordinate: index, type: _getGridType(index)));
+      return CellNotifier(Cell(coordinate: index, type: _getCellType(index)));
     });
   }
 
-  GridType _getGridType(int index) {
+  CellType _getCellType(int index) {
     final row = index ~/ _boardSize;
     final col = index % _boardSize;
 
     if (col == boardLevel) {
-      if (row == boardLevel) return GridType.bridge;
-      if (row == 0 || row == _boardSize - 1) return GridType.tree;
-      return GridType.road;
+      if (row == boardLevel) return CellType.bridge;
+      if (row == 0 || row == _boardSize - 1) return CellType.tree;
+      return CellType.road;
     }
 
-    return row == boardLevel ? GridType.river : GridType.land;
+    return row == boardLevel ? CellType.river : CellType.land;
   }
 
   void _placeAllAnimalRandom() {
@@ -74,22 +74,22 @@ abstract class FoundationalManager {
     return displayMap.value
         .asMap()
         .entries
-        .where((entry) => entry.value.value.type == GridType.land)
+        .where((entry) => entry.value.value.type == CellType.land)
         .map((entry) => entry.key)
         .toList();
   }
 
   void resetGameState() {
-    _markedGrid.clear();
+    _markedCell.clear();
     currentGamer.value = TurnGamerType.front;
     _redAnimalsCount = AnimalType.values.length;
     _blueAnimalsCount = AnimalType.values.length;
   }
 
-  void onGridClick(int index) {}
+  void onCellClick(int index) {}
 
   GameAction? autoProcess(int index) {
-    final action = _selectGrid(index);
+    final action = _selectCell(index);
     if (action != null) {
       executeAction(action);
       endTurn();
@@ -99,11 +99,11 @@ abstract class FoundationalManager {
   }
 
   // 行为未造成回合切换，视为无效，返回null，否则返回完整行为
-  GameAction? _selectGrid(int index) {
-    final grid = displayMap.value[index].value;
+  GameAction? _selectCell(int index) {
+    final cell = displayMap.value[index].value;
 
     // 如果没有翻面，那么翻面
-    if (grid.hasAnimal && grid.animal!.isHidden) {
+    if (cell.hasAnimal && cell.animal!.isHidden) {
       _clearSelectionAndHighlight();
       return FlipAction(index);
     }
@@ -116,11 +116,11 @@ abstract class FoundationalManager {
 
     // 如果是可选的移动目标，那么移动棋子
     if (_isValidMoveTarget(index)) {
-      return MoveAction(_markedGrid.first, index);
+      return MoveAction(_markedCell.first, index);
     }
 
     // 如果上面都不是，那么判断是否可以选中棋子
-    if (_canSelect(grid)) {
+    if (_canSelect(cell)) {
       _clearSelectionAndHighlight();
       _setSelection(index);
       return null;
@@ -144,14 +144,14 @@ abstract class FoundationalManager {
   }
 
   bool _isValidMoveTarget(int index) {
-    return _markedGrid.length > 1 && _markedGrid.skip(1).contains(index);
+    return _markedCell.length > 1 && _markedCell.skip(1).contains(index);
   }
 
   void _movePiece(int from, int to) {
-    final fromGrid = displayMap.value[from].value;
-    if (!fromGrid.hasAnimal) return;
+    final fromCell = displayMap.value[from].value;
+    if (!fromCell.hasAnimal) return;
 
-    final movingAnimal = fromGrid.animal!;
+    final movingAnimal = fromCell.animal!;
 
     if (displayMap.value[to].value.hasAnimal) {
       _resolveCombat(movingAnimal, displayMap.value[to].value.animal!, to);
@@ -189,13 +189,13 @@ abstract class FoundationalManager {
     _checkGameEnd();
   }
 
-  bool _canSelect(Grid grid) {
-    return grid.hasAnimal && grid.animal!.owner == currentGamer.value;
+  bool _canSelect(Cell cell) {
+    return cell.hasAnimal && cell.animal!.owner == currentGamer.value;
   }
 
   void _setSelection(int index) {
-    _markedGrid.add(index);
-    displayMap.value[index].toggleState(GridState.selected);
+    _markedCell.add(index);
+    displayMap.value[index].toggleState(CellState.selected);
     _calculatePossibleMoves(index);
   }
 
@@ -213,24 +213,24 @@ abstract class FoundationalManager {
           newCol >= 0 &&
           newCol < _boardSize) {
         if (_isValidMove(index, newIndex)) {
-          displayMap.value[newIndex].toggleState(GridState.highlight);
-          _markedGrid.add(newIndex);
+          displayMap.value[newIndex].toggleState(CellState.highlight);
+          _markedCell.add(newIndex);
         }
       }
     }
   }
 
   bool _isValidMove(int fromIndex, int toIndex) {
-    final fromGrid = displayMap.value[fromIndex].value;
-    final toGrid = displayMap.value[toIndex].value;
+    final fromCell = displayMap.value[fromIndex].value;
+    final toCell = displayMap.value[toIndex].value;
 
-    if (!fromGrid.hasAnimal) return false;
-    if (toGrid.animal?.isHidden == true) return false;
-    if (toGrid.hasAnimal && toGrid.animal!.owner == fromGrid.animal!.owner) {
+    if (!fromCell.hasAnimal) return false;
+    if (toCell.animal?.isHidden == true) return false;
+    if (toCell.hasAnimal && toCell.animal!.owner == fromCell.animal!.owner) {
       return false;
     }
 
-    return fromGrid.animal!.canMoveTo(fromGrid.type, toGrid.type);
+    return fromCell.animal!.canMoveTo(fromCell.type, toCell.type);
   }
 
   void _checkGameEnd() {
@@ -248,17 +248,17 @@ abstract class FoundationalManager {
   }
 
   void _clearSelectionAndHighlight() {
-    if (_markedGrid.isEmpty) return;
+    if (_markedCell.isEmpty) return;
 
-    for (final index in _markedGrid) {
-      displayMap.value[index].toggleState(GridState.normal);
+    for (final index in _markedCell) {
+      displayMap.value[index].toggleState(CellState.normal);
     }
 
-    _markedGrid.clear();
+    _markedCell.clear();
   }
 
   bool _isSelected(int index) =>
-      _markedGrid.isNotEmpty && _markedGrid.first == index;
+      _markedCell.isNotEmpty && _markedCell.first == index;
 
   void showBoardSizeSelector() {
     pageNavigator.value = (context) {

@@ -9,13 +9,13 @@ import 'base.dart';
 import 'extension.dart';
 
 class FoundationalWidget extends StatelessWidget {
-  final ListNotifier<GridNotifier> displayMap;
-  final Function(int) onGridClick;
+  final ListNotifier<CellNotifier> displayMap;
+  final Function(int) onCellClick;
 
   const FoundationalWidget({
     super.key,
     required this.displayMap,
-    required this.onGridClick,
+    required this.onCellClick,
   });
 
   @override
@@ -35,7 +35,7 @@ class FoundationalWidget extends StatelessWidget {
             return SizedBox(
               width: size,
               height: size,
-              child: _buildBoardGrid(map, boardSize, scaleFactor),
+              child: _buildBoardCell(map, boardSize, scaleFactor),
             );
           },
         ),
@@ -53,8 +53,8 @@ class FoundationalWidget extends StatelessWidget {
     return (maxSize ~/ boardSize) * boardSize.toDouble();
   }
 
-  Widget _buildBoardGrid(
-    List<GridNotifier> map,
+  Widget _buildBoardCell(
+    List<CellNotifier> map,
     int boardSize,
     double scaleFactor,
   ) {
@@ -63,57 +63,53 @@ class FoundationalWidget extends StatelessWidget {
         crossAxisCount: boardSize,
       ),
       itemCount: map.length,
-      itemBuilder: (_, index) =>
-          _buildGridCell(map[index], boardSize, scaleFactor),
+      itemBuilder: (_, index) => _buildCell(map[index], boardSize, scaleFactor),
     );
   }
 
-  Widget _buildGridCell(
-    GridNotifier notifier,
-    int boardSize,
-    double scaleFactor,
-  ) => ValueListenableBuilder(
-    valueListenable: notifier,
-    builder: (_, grid, __) => GestureDetector(
-      onTap: () => onGridClick(grid.coordinate),
-      child: Container(
-        margin: EdgeInsets.all(2 * scaleFactor), // 缩放边距
-        decoration: _gridDecoration(grid, scaleFactor),
-        child: grid.hasAnimal
-            ? _buildAnimal(grid.animal!, boardSize, scaleFactor)
-            : null,
-      ),
-    ),
-  );
+  Widget _buildCell(CellNotifier notifier, int boardSize, double scaleFactor) =>
+      ValueListenableBuilder(
+        valueListenable: notifier,
+        builder: (_, cell, __) => GestureDetector(
+          onTap: () => onCellClick(cell.coordinate),
+          child: Container(
+            margin: EdgeInsets.all(2 * scaleFactor), // 缩放边距
+            decoration: _cellDecoration(cell, scaleFactor),
+            child: cell.hasAnimal
+                ? _buildAnimal(cell.animal!, boardSize, scaleFactor)
+                : null,
+          ),
+        ),
+      );
 
-  BoxDecoration _gridDecoration(Grid grid, double scaleFactor) => BoxDecoration(
-    color: _gridColor(grid),
-    border: _gridBorder(grid, scaleFactor),
+  BoxDecoration _cellDecoration(Cell cell, double scaleFactor) => BoxDecoration(
+    color: _cellColor(cell),
+    border: _cellBorder(cell, scaleFactor),
     borderRadius: BorderRadius.circular(4 * scaleFactor), // 缩放圆角
   );
 
-  Color _gridColor(Grid grid) {
-    return switch (grid.type) {
-      GridType.river => Colors.blue[200]!,
-      GridType.tree => Colors.brown[400]!,
+  Color _cellColor(Cell cell) {
+    return switch (cell.type) {
+      CellType.river => Colors.blue[200]!,
+      CellType.tree => Colors.brown[400]!,
       _ => Colors.grey[100]!,
     };
   }
 
-  Border _gridBorder(Grid grid, double scaleFactor) => Border.all(
-    color: _borderColor(grid),
-    width: _borderWidth(grid, scaleFactor),
+  Border _cellBorder(Cell cell, double scaleFactor) => Border.all(
+    color: _borderColor(cell),
+    width: _borderWidth(cell, scaleFactor),
   );
 
-  Color _borderColor(Grid grid) {
-    if (grid.isSelected) return Colors.yellow;
-    if (grid.isHightlight) return Colors.green;
+  Color _borderColor(Cell cell) {
+    if (cell.isSelected) return Colors.yellow;
+    if (cell.isHightlight) return Colors.green;
     return Colors.grey;
   }
 
-  double _borderWidth(Grid grid, double scaleFactor) {
-    if (grid.isHightlight) return 4.0 * scaleFactor; // 缩放边框宽度
-    if (grid.isSelected) {
+  double _borderWidth(Cell cell, double scaleFactor) {
+    if (cell.isHightlight) return 4.0 * scaleFactor; // 缩放边框宽度
+    if (cell.isSelected) {
       return 3.0 * scaleFactor; // 缩放边框宽度
     }
     return 1.0 * scaleFactor; // 缩放边框宽度

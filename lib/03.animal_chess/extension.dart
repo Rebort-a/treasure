@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'base.dart';
 
-class GridNotifier extends ValueNotifier<Grid> {
-  GridNotifier(super.value);
+class CellNotifier extends ValueNotifier<Cell> {
+  CellNotifier(super.value);
 
   void clearAnimal() {
     value.animal = null;
@@ -15,13 +15,13 @@ class GridNotifier extends ValueNotifier<Grid> {
     notifyListeners();
   }
 
-  void toggleState(GridState state) {
+  void toggleState(CellState state) {
     switch (state) {
-      case GridState.normal:
+      case CellState.normal:
         value.setNormal();
-      case GridState.highlight:
+      case CellState.highlight:
         value.setHighlight();
-      case GridState.selected:
+      case CellState.selected:
         value.setSelected();
     }
     notifyListeners();

@@ -76,7 +76,7 @@ class NetAnimalChessPage extends StatelessWidget {
                   flex: 3,
                   child: FoundationalWidget(
                     displayMap: _manager.displayMap,
-                    onGridClick: _manager.onGridClick,
+                    onCellClick: _manager.onCellClick,
                   ),
                 ),
               ]
