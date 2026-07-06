@@ -9,7 +9,7 @@ class LocalManager extends FoundationalManager {
   AiController? _aiController;
 
   /// AI执行延时
-  static const Duration _aiMoveDelay = Duration(milliseconds: 400);
+  static const Duration _aiMoveDelay = Duration(milliseconds: 500);
 
   /// AI动作执行锁：防止异步并发多次执行
   bool _isAiMoving = false;
@@ -64,13 +64,11 @@ class LocalManager extends FoundationalManager {
 
   /// 执行AI走棋（加锁防并发）
   Future<void> _performAiMove() async {
-    // 提前拦截：AI未开启 / 正在执行中，直接返回
     if (_isAiMoving || _aiController == null) return;
 
     _isAiMoving = true;
     try {
       await Future.delayed(_aiMoveDelay);
-      // 延时期间AI被关闭，终止执行
       final aiCtrl = _aiController;
       if (aiCtrl == null) return;
 
@@ -80,7 +78,6 @@ class LocalManager extends FoundationalManager {
       }
       _switchCurrentGamer();
     } finally {
-      // 无论成功/异常，必须解锁
       _isAiMoving = false;
     }
   }

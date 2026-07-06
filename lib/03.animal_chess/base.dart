@@ -1,10 +1,8 @@
 import '../00.common/game/gamer.dart';
 
-enum AnimalType { elephant, tiger, lion, leopard, wolf, dog, cat, mouse }
-
 enum CellType { land, river, road, bridge, tree }
 
-enum CellState { normal, highlight, selected }
+enum AnimalType { elephant, tiger, lion, leopard, wolf, dog, cat, mouse }
 
 const List<String> animalEmojis = [
   "🐘",
@@ -16,6 +14,48 @@ const List<String> animalEmojis = [
   "🐈️",
   "🐭",
 ];
+
+enum CellState { normal, highlight, selected }
+
+/// 吃子规则与地形通行
+abstract final class Rules {
+  /// attacker 能否吃 defender
+  static bool canEat(AnimalType attacker, AnimalType defender) =>
+      switch ((attacker, defender)) {
+        (final a, final d) when a == d => true, // 同级互吃
+        (AnimalType.mouse, AnimalType.elephant) => true, // 鼠吃象
+        (AnimalType.elephant, AnimalType.mouse) => false, // 象不能吃鼠
+        (final a, final d) => a.index < d.index, // 常规：序号小吃大
+      };
+
+  /// 可入河流的动物
+  static const _riverAnimals = {
+    AnimalType.elephant,
+    AnimalType.dog,
+    AnimalType.mouse,
+  };
+
+  /// 可攀树的动物
+  static const _treeAnimals = {
+    AnimalType.leopard,
+    AnimalType.cat,
+    AnimalType.mouse,
+  };
+
+  /// 能否从 from 地形进入 target 地形
+  static bool canEnter(AnimalType type, CellType from, CellType target) =>
+      switch (target) {
+        CellType.river => _riverAnimals.contains(type),
+        CellType.bridge =>
+          from == CellType.river
+              ? type == AnimalType.mouse
+              : type != AnimalType.elephant,
+        CellType.tree => _treeAnimals.contains(type),
+        _ => true,
+      };
+
+  static bool canClimbTree(AnimalType type) => _treeAnimals.contains(type);
+}
 
 /// 只读动物接口 — 隐藏 isHidden 的写入
 abstract interface class AnimalView {
@@ -39,35 +79,13 @@ class Animal implements AnimalView {
   @override
   bool canEat(Animal? other) {
     if (other == null) return true;
-    if (type == other.type) return true;
-
-    // 特殊规则：老鼠吃大象
-    if (type == AnimalType.mouse && other.type == AnimalType.elephant) {
-      return true;
-    } else if (type == AnimalType.elephant && other.type == AnimalType.mouse) {
-      return false;
-    }
-
-    return type.index < other.type.index;
+    return Rules.canEat(type, other.type);
   }
 
   @override
   bool canMoveTo(CellType from, CellType target) {
-    return switch (target) {
-      CellType.river => _canEnterRiver(),
-      CellType.bridge => _canUseBridge(from),
-      CellType.tree => _canClimbTree(),
-      _ => true,
-    };
+    return Rules.canEnter(type, from, target);
   }
-
-  bool _canEnterRiver() =>
-      [AnimalType.elephant, AnimalType.dog, AnimalType.mouse].contains(type);
-  bool _canUseBridge(CellType from) => from == CellType.river
-      ? type == AnimalType.mouse
-      : type != AnimalType.elephant;
-  bool _canClimbTree() =>
-      [AnimalType.leopard, AnimalType.cat, AnimalType.mouse].contains(type);
 
   Animal clone() => Animal(type: type, owner: owner, isHidden: isHidden);
 }
