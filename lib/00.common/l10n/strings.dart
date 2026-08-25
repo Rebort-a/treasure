@@ -141,6 +141,9 @@ class S {
       isZh ? '你的回合 $side' : 'Your Turn $side';
   static String opponentSideTurn(String side) =>
       isZh ? '对方回合 $side' : "Opponent's Turn $side";
+  static String get aiLabel => 'AI';
+  static String get aiThinking => isZh ? 'AI 思考中…' : 'AI Thinking…';
+  static String get undo => isZh ? '悔棋' : 'Undo';
 
   // ==================== 围棋 ====================
   static String get weiqi => isZh ? '围棋' : 'Go';

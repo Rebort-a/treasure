@@ -37,6 +37,7 @@ abstract final class CellCodec {
       terrain.index |
       (occupy << _occupyShift) |
       ((animal?.index ?? 0) << _animalShift);
+
   static int encodeEmpty(CellType terrain) => terrain.index;
 
   /// 只更新占据状态和动物类型（地形不变）
@@ -53,6 +54,8 @@ abstract final class CellCodec {
 abstract final class EvalParams {
   // 搜索
   static const searchDepth = 6;
+  // 将翻牌后续搜索深度设为 searchDepth - 1 = 5，与移动搜索绝对公平
+  static const flipDepth = searchDepth - 1;
 
   // 动态分值
   static const totalScore = 16.0;
@@ -60,12 +63,10 @@ abstract final class EvalParams {
   static const threatFull = 1.0; // 单向威胁扣分系数
   static const positionWeight = 0.3; // 局势分权重
   static const mobilityWeight = 0.1; // 机动性分权重
+  static const entropyWeight = 0.5; // 暗棋信息熵权重，体现未翻牌的战略价值
+
   static const winScore = 100000.0;
 
-  // 枚举上限：超过此数的暗棋用快速概率估算代替完整枚举
-  static const maxEnumerateHidden = 6;
-
-  // Zobrist
   static const maxCells = 169;
   static const cellCodeCount = 18;
   static const animalTypeCount = 8;
@@ -110,7 +111,6 @@ class BoardState {
   final Map<AnimalType, int> selfPos;
   final Map<AnimalType, int> enemyPos;
   final List<int> hiddenPositions;
-  int? hash;
 
   BoardState(
     this.size,
@@ -119,13 +119,11 @@ class BoardState {
     this.enemyHidden,
     this.selfPos,
     this.enemyPos,
-    this.hiddenPositions, {
-    this.hash,
-  });
+    this.hiddenPositions,
+  );
 
   /// 翻牌：更新局势和势力
   void applyFlip(int index, AnimalType type, bool isSelf) {
-    hash = null;
     situation[index] = CellCodec.updateOccupy(
       situation[index],
       isSelf ? CellCodec.self : CellCodec.enemy,
@@ -138,7 +136,6 @@ class BoardState {
 
   /// 移动：空移改位置，有敌方棋子根据规则判断
   void applyMove(int from, int to) {
-    hash = null;
     final fromCell = situation[from];
     final fromType = CellCodec.animal(fromCell);
     final isSelf = CellCodec.isSelf(fromCell);
@@ -209,10 +206,8 @@ class BoardState {
       }
       sb.writeln();
     }
-    Iterable<MapEntry<AnimalType, int>> sorted(Map<AnimalType, int> m) =>
-        m.entries.toList()..sort((a, b) => a.key.index.compareTo(b.key.index));
-    sb.writeln('selfPos: ${Map.fromEntries(sorted(selfPos))}');
-    sb.writeln('enemyPos: ${Map.fromEntries(sorted(enemyPos))}');
+    sb.writeln('selfPos: $selfPos');
+    sb.writeln('enemyPos: $enemyPos');
     sb.writeln('selfHidden: $selfHidden');
     sb.writeln('enemyHidden: $enemyHidden');
     return sb.toString();
@@ -363,6 +358,7 @@ class ZobristHash {
       }
     }
 
+    // 玩家行动写入 Zobrist 是有意为之，用于 AI 模仿玩家
     _table[hash] = action;
 
     // 存储三个对称变体
@@ -487,8 +483,18 @@ class SearchBoard extends BoardState {
     return result;
   }
 
-  T withFlip<T>(FlipAction a, T Function() fn, {bool? forceSelf}) {
-    final undo = _doFlip(a.index, forceSelf: forceSelf);
+  // 指定 forceAnimal
+  T withFlip<T>(
+    FlipAction a,
+    T Function() fn, {
+    required bool forceSelf,
+    required AnimalType forceAnimal,
+  }) {
+    final undo = _doFlip(
+      a.index,
+      forceSelf: forceSelf,
+      forceAnimal: forceAnimal,
+    );
     final result = fn();
     _undoFlip(a.index, undo);
     return result;
@@ -541,28 +547,18 @@ class SearchBoard extends BoardState {
     }
   }
 
-  ({int cell, bool isSelf, int hiddenIdx}) _doFlip(int index, {bool? forceSelf}) {
+  ({int cell, bool isSelf, AnimalType animal, int hiddenIdx}) _doFlip(
+    int index, {
+    required bool forceSelf,
+    required AnimalType forceAnimal,
+  }) {
     final cell = situation[index];
-    final animal = CellCodec.animal(cell);
-    final isSelf = forceSelf ?? _guessOwnership(animal);
+    final isSelf = forceSelf;
+    final animal = forceAnimal;
     final hidden = isSelf ? selfHidden : enemyHidden;
     final idx = hidden.indexOf(animal);
 
-    // 枚举场景下同类型暗棋可能已被分配，回退到另一方
-    if (idx < 0) {
-      final other = isSelf ? enemyHidden : selfHidden;
-      final otherIdx = other.indexOf(animal);
-      if (otherIdx < 0) return (cell: cell, isSelf: isSelf, hiddenIdx: -1);
-      other.removeAt(otherIdx);
-      situation[index] = CellCodec.updateOccupy(
-        cell,
-        isSelf ? CellCodec.self : CellCodec.enemy,
-        animal,
-      );
-      (isSelf ? selfPos : enemyPos)[animal] = index;
-      return (cell: cell, isSelf: !isSelf, hiddenIdx: otherIdx);
-    }
-
+    // 理论上一定能在所属方暗棋池中找到该动物
     hidden.removeAt(idx);
     situation[index] = CellCodec.updateOccupy(
       cell,
@@ -570,17 +566,8 @@ class SearchBoard extends BoardState {
       animal,
     );
     (isSelf ? selfPos : enemyPos)[animal] = index;
-    return (cell: cell, isSelf: isSelf, hiddenIdx: idx);
-  }
 
-  /// 根据双方暗棋数量推测翻出的暗棋归属
-  bool _guessOwnership(AnimalType type) {
-    final selfCount = selfHidden.where((t) => t == type).length;
-    final enemyCount = enemyHidden.where((t) => t == type).length;
-    if (selfCount > enemyCount) return true;
-    if (enemyCount > selfCount) return false;
-    // 数量相等：50/50 概率，倾向判给己方（乐观估计）
-    return selfCount > 0;
+    return (cell: cell, isSelf: isSelf, animal: animal, hiddenIdx: idx);
   }
 
   void _undoMove(({int from, int to, int fromCell, int toCell}) u) {
@@ -594,11 +581,14 @@ class SearchBoard extends BoardState {
     }
   }
 
-  void _undoFlip(int index, ({int cell, bool isSelf, int hiddenIdx}) u) {
-    if (u.hiddenIdx < 0) return; // 无效翻子（暗棋已被分配），无需撤销
-    final animal = CellCodec.animal(situation[index]);
+  void _undoFlip(
+    int index,
+    ({int cell, bool isSelf, AnimalType animal, int hiddenIdx}) u,
+  ) {
+    final animal = u.animal;
     (u.isSelf ? selfPos : enemyPos).remove(animal);
-    (u.isSelf ? selfHidden : enemyHidden).insert(u.hiddenIdx, animal);
+    final hidden = u.isSelf ? selfHidden : enemyHidden;
+    hidden.insert(u.hiddenIdx, animal);
     situation[index] = u.cell;
   }
 
@@ -628,6 +618,7 @@ class SearchBoard extends BoardState {
       final adj = situation[ni];
       if (CellCodec.isEmpty(adj) || CellCodec.isHidden(adj)) return;
       if (isSelf ? CellCodec.isSelf(adj) : !CellCodec.isSelf(adj)) return;
+
       final adjType = CellCodec.animal(adj);
       if (Rules.canEat(adjType, piece) &&
           Rules.canEnter(adjType, CellCodec.terrain(adj), terrain)) {
@@ -655,10 +646,15 @@ final class EvalResult {
     this.selfDynamic,
     this.enemyDynamic,
   );
+
+  @override
+  String toString() =>
+      'M=${material.toStringAsFixed(1)} P=${position.toStringAsFixed(1)} '
+      'Mo=${mobility.toStringAsFixed(1)} → ${total.toStringAsFixed(1)}';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 评估引擎 — 材料 + 局势 + 机动性
+// 评估引擎 — 材料 + 局势 + 机动性 + 暗棋信息熵
 // ═══════════════════════════════════════════════════════════════════════════════
 
 abstract final class Evaluator {
@@ -729,14 +725,19 @@ abstract final class Evaluator {
       }
     }
 
-    // 机动性分（仅统计位置变化的移动，不含翻牌）
+    // 机动性分
     final mobility =
         (board.generateMoves(true, includeFlips: false).length -
-         board.generateMoves(false, includeFlips: false).length) *
+            board.generateMoves(false, includeFlips: false).length) *
         EvalParams.mobilityWeight;
 
+    // 暗棋信息熵，反映未翻开棋子的战略威慑价值
+    final entropy =
+        (board.selfHidden.length - board.enemyHidden.length) *
+        EvalParams.entropyWeight;
+
     return EvalResult(
-      material + position + mobility,
+      material + position + mobility + entropy,
       material,
       position,
       mobility,
@@ -749,12 +750,13 @@ abstract final class Evaluator {
     Iterable<AnimalType> types,
     Map<AnimalType, double> scores,
   ) => types.fold(0.0, (s, t) => s + (scores[t] ?? 0));
+
   static double _sumBase(List<AnimalType> types) =>
       types.fold(0.0, (s, t) => s + EvalParams.baseScores[t]!.toDouble());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 搜索引擎 — Minimax + Alpha-Beta 剪枝 + 翻牌评估
+// 搜索引擎 — Minimax + Alpha-Beta 剪枝 + 正确的翻牌期望值计算
 // ═══════════════════════════════════════════════════════════════════════════════
 
 abstract final class SearchEngine {
@@ -788,22 +790,17 @@ abstract final class SearchEngine {
     return scored;
   }
 
-  /// 评估翻牌：枚举暗棋归属（≤6 完整枚举，>6 快速概率估算）
+  // 完整枚举目标位置可能翻出的动物及归属概率
   static (FlipAction, double)? evaluateFlips(
     SearchBoard board,
     List<int> hidden,
   ) {
     if (hidden.isEmpty) return null;
-    final flipDepth = max(EvalParams.searchDepth - 4, 1);
-    final useFullEnum = hidden.length <= EvalParams.maxEnumerateHidden;
-
     double bestScore = -double.infinity;
     int bestPos = hidden.first;
 
     for (final pos in hidden) {
-      final score = useFullEnum
-          ? _evalFlipEnum(board, pos, hidden, flipDepth)
-          : _evalFlipQuick(board, pos, flipDepth);
+      final score = _evalFlip(board, pos, EvalParams.flipDepth);
       if (score > bestScore) {
         bestScore = score;
         bestPos = pos;
@@ -812,82 +809,44 @@ abstract final class SearchEngine {
     return (FlipAction(bestPos), bestScore);
   }
 
-  /// 完整枚举：对目标翻子 + 其余暗棋遍历所有归属组合
-  static double _evalFlipEnum(
-    SearchBoard board,
-    int targetPos,
-    List<int> allHidden,
-    int depth,
-  ) {
-    final action = FlipAction(targetPos);
-    return board.withFlip(action, () {
-      // 用翻子后的 hiddenPositions（目标已移除），避免重复翻
-      final remaining = List<int>.of(board.hiddenPositions);
-      return _enumerateOwnership(board, remaining, 0, depth);
-    });
-  }
-
-  /// 递归枚举 remaining[idx..] 的所有归属可能，概率加权期望分
-  static double _enumerateOwnership(
-    SearchBoard board,
-    List<int> remaining,
-    int idx,
-    int depth,
-  ) {
-    if (idx >= remaining.length) {
-      return _minimax(board, depth, -double.infinity, double.infinity, false);
-    }
-
-    final pos = remaining[idx];
-    final selfCount = board.selfHidden.length;
-    final enemyCount = board.enemyHidden.length;
-    final total = selfCount + enemyCount;
-    if (total == 0) {
-      return _enumerateOwnership(board, remaining, idx + 1, depth);
-    }
-
-    final action = FlipAction(pos);
-    final pSelf = selfCount / total;
-
-    final selfScore = board.withFlip(
-      action,
-      () => _enumerateOwnership(board, remaining, idx + 1, depth),
-      forceSelf: true,
-    );
-    final enemyScore = board.withFlip(
-      action,
-      () => _enumerateOwnership(board, remaining, idx + 1, depth),
-      forceSelf: false,
-    );
-
-    return pSelf * selfScore + (1 - pSelf) * enemyScore;
-  }
-
-  /// 快速估算：仅评估目标翻子，忽略其余暗棋的归属组合
-  static double _evalFlipQuick(SearchBoard board, int pos, int depth) {
+  static double _evalFlip(SearchBoard board, int targetPos, int depth) {
     final selfCount = board.selfHidden.length;
     final enemyCount = board.enemyHidden.length;
     final total = selfCount + enemyCount;
     if (total == 0) return Evaluator.evaluate(board);
 
-    final action = FlipAction(pos);
-    final pSelf = selfCount / total;
+    double totalScore = 0;
+    for (final animal in AnimalType.values) {
+      final sCnt = board.selfHidden.where((t) => t == animal).length;
+      final eCnt = board.enemyHidden.where((t) => t == animal).length;
+      final pAnimal = (sCnt + eCnt) / total;
+      if (pAnimal == 0) continue;
 
-    final selfScore = board.withFlip(
-      action,
-      () => _minimax(board, depth, -double.infinity, double.infinity, false),
-      forceSelf: true,
-    );
-    final enemyScore = board.withFlip(
-      action,
-      () => _minimax(board, depth, -double.infinity, double.infinity, false),
-      forceSelf: false,
-    );
-
-    return pSelf * selfScore + (1 - pSelf) * enemyScore;
+      if (sCnt > 0) {
+        final pSelf = sCnt / (sCnt + eCnt);
+        final score = board.withFlip(
+          FlipAction(targetPos),
+          () =>
+              _minimax(board, depth, -double.infinity, double.infinity, false),
+          forceSelf: true,
+          forceAnimal: animal,
+        );
+        totalScore += pAnimal * pSelf * score;
+      }
+      if (eCnt > 0) {
+        final pEnemy = eCnt / (sCnt + eCnt);
+        final score = board.withFlip(
+          FlipAction(targetPos),
+          () =>
+              _minimax(board, depth, -double.infinity, double.infinity, false),
+          forceSelf: false,
+          forceAnimal: animal,
+        );
+        totalScore += pAnimal * pEnemy * score;
+      }
+    }
+    return totalScore;
   }
-
-  // ──── 内部 ────
 
   static double _minimax(
     SearchBoard board,
@@ -923,20 +882,25 @@ abstract final class SearchEngine {
     SearchBoard board,
     GameAction action,
     double Function() fn,
-  ) => switch (action) {
-    FlipAction f => board.withFlip(f, fn),
-    MoveAction m => board.withMove(m, fn),
-  };
+  ) {
+    return switch (action) {
+      FlipAction _ => throw StateError('Should not flip in minimax search'),
+      MoveAction m => board.withMove(m, fn),
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 日志工具 — 单次决策完整追踪
+// 日志工具
 // ═══════════════════════════════════════════════════════════════════════════════
-
 abstract final class _AiLog {
+  static bool enabled = true;
   static const _abbr = ['E', 'T', 'L', 'P', 'W', 'D', 'C', 'M'];
 
-  static void d(String msg) => debugPrint('[AI] $msg');
+  static void d(String msg) {
+    if (enabled) debugPrint('[AI] $msg');
+  }
+
   static String pos(int index, int size) =>
       '(${index ~/ size},${index % size})';
 
@@ -972,15 +936,10 @@ abstract final class _AiLog {
     }
     return sb.toString();
   }
-
-  /// 格式化评估细节
-  static String eval(EvalResult r) =>
-      'M=${r.material.toStringAsFixed(1)} P=${r.position.toStringAsFixed(1)} '
-      'Mo=${r.mobility.toStringAsFixed(1)} → ${r.total.toStringAsFixed(1)}';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AI 控制器 — 公开 API
+// AI 控制器
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class AiController {
@@ -1027,7 +986,7 @@ class AiController {
   void dispose() {}
 
   GameAction? _handleActionStrategy() {
-    // 1. 无明棋 → 随机翻牌
+    // 无明棋 → 随机翻牌
     if (aiSnapshot.selfPos.isEmpty && aiSnapshot.enemyPos.isEmpty) {
       final flip = _randomFlip(aiSnapshot);
       if (flip != null) {
@@ -1036,19 +995,20 @@ class AiController {
       }
     }
 
-    // 2. Zobrist 缓存命中
+    // Zobrist 缓存命中
     final cached = _zobrist.lookup(aiSnapshot.boardInfo);
     if (cached != null) {
-      final hash = aiSnapshot.boardInfo.hash!;
-      if (cached is MoveAction && _zobrist.detectRepetition(hash, cached)) {
-        // 重复行动，跳过缓存继续搜索
+      final hash = _zobrist.computeHash(aiSnapshot.boardInfo);
+      // 统一对 MoveAction 和 FlipAction 做重复检测
+      if (_zobrist.detectRepetition(hash, cached)) {
+        // skip
       } else {
         _logDecision(cached, reason: 'Zobrist cache hit');
         return cached;
       }
     }
 
-    // 3. 搜索移动
+    // 搜索移动
     final searchBoard = SearchBoard.fromSnapshot(aiSnapshot);
     final eval = Evaluator.evaluateDetail(searchBoard);
     final scoredMoves = SearchEngine.searchMoves(searchBoard, boardSize);
@@ -1060,7 +1020,7 @@ class AiController {
     int skipped = 0;
 
     for (final (action, score) in scoredMoves) {
-      if (action is MoveAction && _zobrist.detectRepetition(hash, action)) {
+      if (_zobrist.detectRepetition(hash, action)) {
         skipped++;
         continue;
       }
@@ -1069,23 +1029,7 @@ class AiController {
       break;
     }
 
-    // 4. 移动有改善 → 直接返回，跳过翻牌评估
-    if (bestMove != null && moveScore > eval.total) {
-      _logSearch(
-        eval: eval,
-        candidates: scoredMoves.take(5).toList(),
-        bestMove: bestMove,
-        moveScore: moveScore,
-        flipResult: null,
-        hiddenCount: aiSnapshot.hiddenPositions.length,
-        skipped: skipped,
-        flipSkipped: true,
-      );
-      _logDecision(bestMove, reason: 'move improves position');
-      return bestMove;
-    }
-
-    // 5. 移动无改善 → 评估翻牌，择优
+    // 搜索翻牌
     final hidden = aiSnapshot.hiddenPositions;
     final flipResult = SearchEngine.evaluateFlips(searchBoard, hidden);
 
@@ -1099,6 +1043,7 @@ class AiController {
       skipped: skipped,
     );
 
+    // 直接比较翻牌与移动的实际评估值
     if (flipResult != null) {
       final (bestFlip, flipScore) = flipResult;
       if (bestMove == null || flipScore > moveScore) {
@@ -1145,41 +1090,35 @@ class AiController {
     required (FlipAction, double)? flipResult,
     required int hiddenCount,
     required int skipped,
-    bool flipSkipped = false,
   }) {
+    if (!_AiLog.enabled) return;
     final sb = StringBuffer();
-    // board
     sb.writeln('Board:\n${_AiLog.board(aiSnapshot, faction)}');
-    // eval
-    sb.writeln('Eval: ${_AiLog.eval(eval)}');
-    // 候选移动
+    sb.writeln('Eval: $eval');
     for (int i = 0; i < candidates.length; i++) {
       final (action, score) = candidates[i];
       final tag = action == bestMove ? ' ←' : '';
-      final skip = (action is MoveAction &&
+      final skip =
+          (action is MoveAction &&
               _zobrist.detectRepetition(aiSnapshot.boardInfo.hash!, action))
           ? ' [repeat]'
           : '';
       sb.writeln(
-        '  ${i + 1}. ${_AiLog.action(action, boardSize).padRight(12)} '
+        ' ${i + 1}. ${_AiLog.action(action, boardSize).padRight(12)} '
         '${score.toStringAsFixed(1)}$skip$tag',
       );
     }
-    if (skipped > 0) sb.writeln('  ($skipped repeats skipped)');
-    // flip
-    if (flipSkipped) {
-      sb.writeln('  Flip: skipped (move improvement strong)');
-    } else if (flipResult != null) {
+    if (skipped > 0) sb.writeln(' ($skipped repeats skipped)');
+    if (flipResult != null) {
       final (flip, score) = flipResult;
       sb.writeln(
-        '  Flip: ${_AiLog.action(flip, boardSize)} '
+        ' Flip: ${_AiLog.action(flip, boardSize)} '
         '${score.toStringAsFixed(1)} ($hiddenCount hidden)',
       );
     }
     _AiLog.d(sb.toString().trimRight());
   }
 
-  /// 输出最终决策
   void _logDecision(GameAction action, {required String reason}) {
     _AiLog.d('Decision: ${_AiLog.action(action, boardSize)} ($reason)');
   }

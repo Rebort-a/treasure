@@ -54,6 +54,10 @@ class Board {
         : PieceType.white;
   }
 
+  /// 导出位编码快照：0=空 1=黑 2=白（PieceType.index），供 AI 只读使用
+  List<int> snapshot() =>
+      [for (final g in grids.value) g.value.type.index];
+
   void placePiece(int index) {
     GridNotifier grid = grids.value[index];
 
