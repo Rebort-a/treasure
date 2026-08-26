@@ -25,76 +25,80 @@ class GridPos {
 
 // ==================== 网格类型 ====================
 
-enum CellType { empty, path, tower }
+/// tower=塔格(空墙wallHp或堡垒Tower，阻挡+被攻击) / enter=左列入口 / exit=右列出口 / road=普通道路
+enum CellType { tower, enter, exit, road }
 
-// ==================== 防御塔 ====================
+// ==================== 堡垒（防御塔） ====================
 
-enum TowerType { arrow, cannon, ice, magic }
+/// 三分支进化：Wall→Fortress、Archer→Cannon|Spear、Ice→Magic
+enum TowerType { wall, fortress, archer, cannon, spear, ice, magic }
 
 class TowerConfig {
   final TowerType type;
   final String name;
-  final int cost;
+  final int cost;        // 建造费（0=不可直接建，仅升级得）
+  final int maxHp;
   final int damage;
-  final double range;     // 格数
-  final double fireRate;  // 次/秒
-  final double splashRadius; // 溅射范围（0=单体）
-  final double slowFactor;   // 减速系数（0=无减速）
-  final bool pierce;     // 穿透
+  final double range;    // 格数
+  final double fireRate; // 次/秒
+  final double splashRadius;
+  final double slowFactor;
+  final int upgradeCost;        // 升级费（0=不可升级）
+  final List<TowerType> upgrades; // 升级目标
 
   const TowerConfig({
     required this.type,
     required this.name,
     required this.cost,
-    required this.damage,
-    required this.range,
-    required this.fireRate,
+    required this.maxHp,
+    this.damage = 0,
+    this.range = 0,
+    this.fireRate = 0,
     this.splashRadius = 0,
     this.slowFactor = 0,
-    this.pierce = false,
+    this.upgradeCost = 0,
+    this.upgrades = const [],
   });
 }
 
 class TowerConfigs {
-  static const arrow = TowerConfig(
-    type: TowerType.arrow,
-    name: 'Arrow',
-    cost: 50,
-    damage: 15,
-    range: 3.0,
-    fireRate: 2.0,
+  static const wall = TowerConfig(
+    type: TowerType.wall, name: 'Wall', cost: 50, maxHp: 500,
+    upgradeCost: 60, upgrades: [TowerType.fortress],
+  );
+  static const fortress = TowerConfig(
+    type: TowerType.fortress, name: 'Fortress', cost: 0, maxHp: 1000,
+    upgradeCost: 60, upgrades: [TowerType.fortress],
+  );
+  static const archer = TowerConfig(
+    type: TowerType.archer, name: 'Archer', cost: 50, maxHp: 50,
+    damage: 5, range: 2.0, fireRate: 4.0,
+    upgradeCost: 50, upgrades: [TowerType.cannon, TowerType.spear],
   );
   static const cannon = TowerConfig(
-    type: TowerType.cannon,
-    name: 'Cannon',
-    cost: 100,
-    damage: 50,
-    range: 2.5,
-    fireRate: 0.8,
-    splashRadius: 1.5,
+    type: TowerType.cannon, name: 'Cannon', cost: 0, maxHp: 50,
+    damage: 20, range: 3.0, fireRate: 1.0, splashRadius: 1.5,
+  );
+  static const spear = TowerConfig(
+    type: TowerType.spear, name: 'Spear', cost: 0, maxHp: 100,
+    damage: 10, range: 1.0, fireRate: 2.0, splashRadius: 1.0,
   );
   static const ice = TowerConfig(
-    type: TowerType.ice,
-    name: 'Ice',
-    cost: 75,
-    damage: 8,
-    range: 3.0,
-    fireRate: 1.5,
-    slowFactor: 0.5,
+    type: TowerType.ice, name: 'Ice', cost: 75, maxHp: 20,
+    damage: 5, range: 2.0, fireRate: 2.0, slowFactor: 0.5,
+    upgradeCost: 60, upgrades: [TowerType.magic],
   );
   static const magic = TowerConfig(
-    type: TowerType.magic,
-    name: 'Magic',
-    cost: 125,
-    damage: 30,
-    range: 4.0,
-    fireRate: 1.2,
-    pierce: true,
+    type: TowerType.magic, name: 'Magic', cost: 0, maxHp: 50,
+    damage: 5, range: 3.0, fireRate: 2.0, splashRadius: 1.5, slowFactor: 0.5,
   );
 
   static TowerConfig getConfig(TowerType type) => switch (type) {
-    TowerType.arrow => arrow,
+    TowerType.wall => wall,
+    TowerType.fortress => fortress,
+    TowerType.archer => archer,
     TowerType.cannon => cannon,
+    TowerType.spear => spear,
     TowerType.ice => ice,
     TowerType.magic => magic,
   };
@@ -103,28 +107,20 @@ class TowerConfigs {
 class Tower {
   final TowerType type;
   final GridPos pos;
-  int level; // 1-3
   double cooldown;
+  int hp;
 
-  Tower({required this.type, required this.pos, this.level = 1, this.cooldown = 0});
+  Tower({required this.type, required this.pos, this.cooldown = 0})
+      : hp = TowerConfigs.getConfig(type).maxHp;
 
   TowerConfig get config => TowerConfigs.getConfig(type);
-  int get damage => (config.damage * (1 + (level - 1) * 0.5)).toInt();
-  double get range => config.range + (level - 1) * 0.5;
-  int get upgradeCost => (config.cost * level * 0.6).toInt();
-
-  Map<String, dynamic> toJson() => {
-    'type': type.index,
-    'x': pos.x,
-    'y': pos.y,
-    'level': level,
-  };
-
-  factory Tower.fromJson(Map<String, dynamic> json) => Tower(
-    type: TowerType.values[json['type'] as int],
-    pos: GridPos(json['x'] as int, json['y'] as int),
-    level: json['level'] as int,
-  );
+  int get maxHp => config.maxHp;
+  int get damage => config.damage;
+  double get range => config.range;
+  int get upgradeCost => config.upgradeCost;
+  bool get canUpgrade => config.upgrades.isNotEmpty;
+  List<TowerType> get upgrades => config.upgrades;
+  bool get canAttack => config.fireRate > 0;
 }
 
 // ==================== 敌人 ====================
@@ -135,7 +131,8 @@ class EnemyConfig {
   final EnemyType type;
   final String name;
   final int maxHp;
-  final double speed;   // 格/秒
+  final double speed;    // 格/秒
+  final int attackDamage; // 攻击 tower 每秒伤害
   final int reward;
 
   const EnemyConfig({
@@ -143,38 +140,27 @@ class EnemyConfig {
     required this.name,
     required this.maxHp,
     required this.speed,
+    required this.attackDamage,
     required this.reward,
   });
 }
 
 class EnemyConfigs {
   static const goblin = EnemyConfig(
-    type: EnemyType.goblin,
-    name: 'Goblin',
-    maxHp: 60,
-    speed: 2.0,
-    reward: 10,
+    type: EnemyType.goblin, name: 'Goblin',
+    maxHp: 60, speed: 0.25, attackDamage: 5, reward: 10,
   );
   static const orc = EnemyConfig(
-    type: EnemyType.orc,
-    name: 'Orc',
-    maxHp: 150,
-    speed: 1.2,
-    reward: 20,
+    type: EnemyType.orc, name: 'Orc',
+    maxHp: 150, speed: 0.175, attackDamage: 10, reward: 20,
   );
   static const troll = EnemyConfig(
-    type: EnemyType.troll,
-    name: 'Troll',
-    maxHp: 400,
-    speed: 0.8,
-    reward: 40,
+    type: EnemyType.troll, name: 'Troll',
+    maxHp: 400, speed: 0.10, attackDamage: 15, reward: 40,
   );
   static const boss = EnemyConfig(
-    type: EnemyType.boss,
-    name: 'Boss',
-    maxHp: 1500,
-    speed: 0.6,
-    reward: 100,
+    type: EnemyType.boss, name: 'Boss',
+    maxHp: 1500, speed: 0.075, attackDamage: 20, reward: 100,
   );
 
   static EnemyConfig getConfig(EnemyType type) => switch (type) {
@@ -189,63 +175,62 @@ class Enemy {
   final EnemyType type;
   int hp;
   double speedMultiplier;
-  double pathProgress; // 0.0 ~ path.length-1
+  double pathProgress;
   bool alive;
 
-  Enemy({required this.type, required this.pathProgress})
-    : hp = EnemyConfigs.getConfig(type).maxHp,
-      speedMultiplier = 1.0,
-      alive = true;
+  List<GridPos> path;
+  Tower? targetFort;
+  bool attacking;
+  double attackCooldown;
+
+  Enemy({required this.type, required this.path})
+      : hp = EnemyConfigs.getConfig(type).maxHp,
+        speedMultiplier = 1.0,
+        pathProgress = 0,
+        alive = true,
+        targetFort = null,
+        attacking = false,
+        attackCooldown = 0;
 
   EnemyConfig get config => EnemyConfigs.getConfig(type);
   double get speed => config.speed * speedMultiplier;
   int get reward => config.reward;
 
-  /// 当前所在路径索引
-  int get pathIndex => pathProgress.floor();
+  int get pathIndex {
+    if (path.isEmpty) return 0;
+    return pathProgress.floor().clamp(0, path.length - 1);
+  }
 
-  /// 在当前路径格子内的插值 (0.0~1.0)
   double get pathFraction => pathProgress - pathIndex;
 }
 
 // ==================== 波次 ====================
 
 class WaveConfig {
-  final List<(EnemyType, int)> groups; // (类型, 数量)
-  final double spawnInterval; // 生成间隔（秒）
-
+  final List<(EnemyType, int)> groups;
+  final double spawnInterval;
   const WaveConfig({required this.groups, this.spawnInterval = 0.8});
 }
 
 class WaveGenerator {
   static WaveConfig generate(int waveNumber) {
     final groups = <(EnemyType, int)>[];
-
-    // 哥布林：每波都有
     groups.add((EnemyType.goblin, 3 + waveNumber));
-
-    // 兽人：第3波起
     if (waveNumber >= 3) {
       groups.add((EnemyType.orc, 1 + (waveNumber - 3) ~/ 2));
     }
-
-    // 巨魔：第6波起
     if (waveNumber >= 6) {
       groups.add((EnemyType.troll, 1 + (waveNumber - 6) ~/ 3));
     }
-
-    // Boss：每5波
     if (waveNumber > 0 && waveNumber % 5 == 0) {
       groups.add((EnemyType.boss, 1));
     }
-
     return WaveConfig(
       groups: groups,
       spawnInterval: max(0.3, 0.8 - waveNumber * 0.02),
     );
   }
 
-  /// 应用血量倍率到敌人
   static int scaledHp(int baseHp, int waveNumber) {
     return (baseHp * (1.0 + waveNumber * 0.15)).toInt();
   }
@@ -259,74 +244,80 @@ class Projectile {
   final int damage;
   final double splashRadius;
   final double slowFactor;
-  final bool pierce;
-  double progress; // 0.0~1.0
-
+  double progress;
   Projectile({
     required this.from,
     required this.targetId,
     required this.damage,
     this.splashRadius = 0,
     this.slowFactor = 0,
-    this.pierce = false,
     this.progress = 0,
   });
 }
 
-// ==================== 地图生成 ====================
+// ==================== 地图 ====================
 
 class GameMapData {
   final int width;
   final int height;
   final List<List<CellType>> cells;
-  final List<GridPos> path; // 路径坐标序列
+  final List<List<int>> wallHp; // 空 tower 格 hp（有 Tower 时为 0）
+  final List<GridPos> leftGaps;  // enter 列表
+  final List<GridPos> rightGaps; // exit 列表
 
   GameMapData({
     required this.width,
     required this.height,
     required this.cells,
-    required this.path,
+    required this.wallHp,
+    required this.leftGaps,
+    required this.rightGaps,
   });
 
   bool inBounds(int x, int y) => x >= 0 && x < width && y >= 0 && y < height;
 
+  /// tower 格可建堡垒（空墙；已有 Tower 由 foundation 检查）
   bool canBuild(int x, int y) =>
-      inBounds(x, y) && cells[y][x] == CellType.empty;
+      inBounds(x, y) && cells[y][x] == CellType.tower;
 
+  /// 初始：最左列 enter，最右列 exit，中间全 tower（100hp）
   factory GameMapData.generate({int width = 20, int height = 12, int? seed}) {
-    final rand = Random(seed ?? DateTime.now().millisecondsSinceEpoch);
-    final cells = List.generate(height, (_) => List.filled(width, CellType.empty));
-    final path = <GridPos>[];
-
-    // 从左侧随机起点开始生成路径
-    int y = rand.nextInt(height - 4) + 2;
-    int x = 0;
-    cells[y][x] = CellType.path;
-    path.add(GridPos(x, y));
-
-    while (x < width - 1) {
-      final r = rand.nextDouble();
-      if (r < 0.55) {
-        // 向右
-        x++;
-      } else if (r < 0.78 && y > 1 && cells[y - 1][x] != CellType.path) {
-        // 向上
-        y--;
-      } else if (y < height - 2 && cells[y + 1][x] != CellType.path) {
-        // 向下
-        y++;
-      } else {
-        x++;
-      }
-
-      if (x >= width) break;
-      if (cells[y][x] == CellType.path) continue; // 避免交叉
-
-      cells[y][x] = CellType.path;
-      path.add(GridPos(x, y));
+    final cells = List.generate(height, (_) => List.filled(width, CellType.tower));
+    final wallHp = List.generate(height, (_) => List.filled(width, 100));
+    final leftGaps = <GridPos>[];
+    final rightGaps = <GridPos>[];
+    for (int y = 0; y < height; y++) {
+      cells[y][0] = CellType.enter;
+      wallHp[y][0] = 0;
+      leftGaps.add(GridPos(0, y));
+      cells[y][width - 1] = CellType.exit;
+      wallHp[y][width - 1] = 0;
+      rightGaps.add(GridPos(width - 1, y));
     }
+    return GameMapData(
+      width: width,
+      height: height,
+      cells: cells,
+      wallHp: wallHp,
+      leftGaps: leftGaps,
+      rightGaps: rightGaps,
+    );
+  }
 
-    return GameMapData(width: width, height: height, cells: cells, path: path);
+  /// tower 被打破→field：第一列→enter，最后列→exit，其他→road
+  void breakToField(int x, int y) {
+    if (x == 0) {
+      cells[y][x] = CellType.enter;
+      final g = GridPos(x, y);
+      if (!leftGaps.contains(g)) leftGaps.add(g);
+    } else if (x == width - 1) {
+      cells[y][x] = CellType.exit;
+      final g = GridPos(x, y);
+      if (!rightGaps.contains(g)) rightGaps.add(g);
+    } else {
+      cells[y][x] = CellType.road;
+    }
+    wallHp[y][x] = 0;
   }
 }
 
@@ -337,22 +328,31 @@ enum GameState { preparing, playing, won, lost }
 // ==================== 颜色 ====================
 
 class TowerColors {
-  static const arrow = Color(0xFF8D6E63);
+  static const wall = Color(0xFF607D8B);
+  static const fortress = Color(0xFF455A64);
+  static const archer = Color(0xFF6D4C41);
   static const cannon = Color(0xFFFF5722);
-  static const ice = Color(0xFF03A9F4);
+  static const spear = Color(0xFF795548);
+  static const ice = Color(0xFF01579B);
   static const magic = Color(0xFF9C27B0);
 
   static Color get(TowerType type) => switch (type) {
-    TowerType.arrow => arrow,
+    TowerType.wall => wall,
+    TowerType.fortress => fortress,
+    TowerType.archer => archer,
     TowerType.cannon => cannon,
+    TowerType.spear => spear,
     TowerType.ice => ice,
     TowerType.magic => magic,
   };
 }
 
 String towerEmoji(TowerType type) => switch (type) {
-  TowerType.arrow => '🏹',
+  TowerType.wall => '🧱',
+  TowerType.fortress => '🏰',
+  TowerType.archer => '🏹',
   TowerType.cannon => '💣',
+  TowerType.spear => '🔱',
   TowerType.ice => '❄️',
   TowerType.magic => '🔮',
 };

@@ -18,8 +18,7 @@ import '../10.three_tiles/page.dart';
 import '../11.spaceship/page.dart';
 import '../12.soft/page.dart';
 import '../13.minecraft/upper/page.dart';
-import '../14.tower_defense/local_page.dart';
-import '../14.tower_defense/net_page.dart';
+import '../14.tower_defense/page.dart';
 import '../15.memory_card/page.dart';
 import '../16.schulte/page.dart';
 
@@ -47,7 +46,6 @@ enum NetItemType {
   gobang,
   greedySnake,
   weiqi,
-  towerDefense,
 }
 
 extension NetItemTypeExt on NetItemType {
@@ -104,8 +102,6 @@ extension NetItemTypeExtension on NetItemType {
         return NetGreedySnakePage(userName: userName, roomInfo: roomInfo);
       case NetItemType.weiqi:
         return GoNetPage(userName: userName, roomInfo: roomInfo);
-      case NetItemType.towerDefense:
-        return NetTowerDefensePage(userName: userName, roomInfo: roomInfo);
     }
   }
 }
