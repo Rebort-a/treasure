@@ -20,6 +20,8 @@ import '../12.soft/page.dart';
 import '../13.minecraft/upper/page.dart';
 import '../14.tower_defense/local_page.dart';
 import '../14.tower_defense/net_page.dart';
+import '../15.memory_card/page.dart';
+import '../16.schulte/page.dart';
 
 enum LocalItemType {
   animalChess,
@@ -34,6 +36,8 @@ enum LocalItemType {
   soft,
   minecraft,
   towerDefense,
+  memoryCard,
+  schulte,
 }
 
 enum NetItemType {
@@ -77,6 +81,10 @@ extension LocalItemTypeExtension on LocalItemType {
         return MinecraftPage();
       case LocalItemType.towerDefense:
         return TowerDefensePage();
+      case LocalItemType.memoryCard:
+        return MemoryPage();
+      case LocalItemType.schulte:
+        return SchultePage();
     }
   }
 }

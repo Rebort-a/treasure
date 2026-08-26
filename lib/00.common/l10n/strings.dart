@@ -179,6 +179,15 @@ class S {
       isZh ? '用时: $s 秒' : 'Time Taken: $s seconds';
   static String correctCount(int c) => isZh ? '正确次数: $c' : 'Correct Count: $c';
 
+  // ==================== 记忆翻牌 ====================
+  static String get memoryCard => isZh ? '记忆翻牌' : 'Memory Match';
+  static String remainingPairs(int v) => isZh ? '剩余 $v 对' : 'Remaining $v pairs';
+  static String get bestTimeLabel => isZh ? '最佳用时' : 'Best Time';
+
+  // ==================== 舒尔特 ====================
+  static String get schulte => isZh ? '舒尔特' : 'Schulte';
+  static String nextNumber(int v) => isZh ? '下一个: $v' : 'Next: $v';
+
   // ==================== 3tiles ====================
   static String get threeTiles => isZh ? '羊了个羊' : '3tiles';
   static String timeSeconds(int v) => isZh ? '时间: $v 秒' : 'Time: $v s';
@@ -499,6 +508,10 @@ class S {
         return isZh ? '数独' : 'Sudoku';
       case 'guess':
         return isZh ? '猜枚' : 'Guess';
+      case 'memoryCard':
+        return isZh ? '记忆翻牌' : 'Memory Match';
+      case 'schulte':
+        return isZh ? '舒尔特' : 'Schulte';
       case 'threeTiles':
         return isZh ? '羊了个羊' : '3tiles';
       case 'spaceship':
