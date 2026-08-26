@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../00.common/widget/navigator/notifier_navigator.dart';
-import '../00.common/tool/timer_counter.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
@@ -58,26 +57,13 @@ class MemoryPage extends StatelessWidget {
   /// 显示区：左侧用时，右侧剩余对数
   Widget _buildDisplayArea() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          ValueListenableBuilder<int>(
-            valueListenable: _manager.elapsed,
-            builder: (_, t, __) => Text(
-              TimerCounter.formatDuration(t),
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          ValueListenableBuilder<int>(
-            valueListenable: _manager.matchedCount,
-            builder: (_, c, __) => Text(
-              S.remainingPairs(_manager.difficulty - c),
-              style: const TextStyle(fontSize: 16),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.all(16),
+      child: ValueListenableBuilder<int>(
+        valueListenable: _manager.matchedCount,
+        builder: (_, c, __) => Text(
+          S.remainingPairs(_manager.difficulty - c),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/widget/navigator/notifier_navigator.dart';
-import '../00.common/tool/timer_counter.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
@@ -13,14 +12,11 @@ class SchultePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (bool didPop, Object? result) =>
-            _manager.leavePage(),
-        child: Scaffold(
-          appBar: _buildAppBar(),
-          body: _buildBody(),
-        ),
-      );
+    canPop: false,
+    onPopInvokedWithResult: (bool didPop, Object? result) =>
+        _manager.leavePage(),
+    child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+  );
 
   AppBar _buildAppBar() {
     return AppBar(
@@ -56,54 +52,38 @@ class SchultePage extends StatelessWidget {
   /// 显示区：左用时，右下一个数字
   Widget _buildDisplayArea() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          ValueListenableBuilder<int>(
-            valueListenable: _manager.elapsed,
-            builder: (_, t, __) => Text(
-              TimerCounter.formatDuration(t),
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          ValueListenableBuilder<int>(
-            valueListenable: _manager.nextNumber,
-            builder: (_, n, __) => Text(
-              S.nextNumber(n),
-              style: const TextStyle(fontSize: 16),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.all(16),
+      child: ValueListenableBuilder<int>(
+        valueListenable: _manager.nextNumber,
+        builder: (_, n, __) => Text(
+          S.nextNumber(n),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 
-  /// 棋盘区：静态 Canvas（仅 board 变才重绘），点击命中
+  /// 棋盘区：铺满可用区域（矩形，非正方形），点击命中
   Widget _buildBoardArea() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final boardSize = constraints.biggest.shortestSide * 0.92;
-        return Center(
-          child: SizedBox(
-            width: boardSize,
-            height: boardSize,
-            // 棋盘样式始终不变：仅依赖 board（resetGame 才变），点击不触发重绘
-            child: ValueListenableBuilder<SchulteBoard>(
-              valueListenable: _manager.board,
-              builder: (_, board, __) => GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapDown: (d) =>
-                    _manager.handleTap(d.localPosition, boardSize),
-                child: CustomPaint(
-                  painter: SchulteBoardPainter(board: board),
-                ),
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final h = constraints.maxHeight;
+          return ValueListenableBuilder<SchulteBoard>(
+            valueListenable: _manager.board,
+            builder: (_, board, __) => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => _manager.handleTap(d.localPosition, w, h),
+              child: CustomPaint(
+                size: Size(w, h),
+                painter: SchulteBoardPainter(board: board),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

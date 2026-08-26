@@ -50,11 +50,11 @@ class SchulteManager {
   void resetGame() => _initGame();
 
   /// 点击命中：屏幕坐标 → 格子坐标 → 区域 id → 判定
-  void handleTap(Offset local, double boardSize) {
+  void handleTap(Offset local, double width, double height) {
     if (_isGameOver) return;
     final b = board.value;
-    final cellW = boardSize / b.cols;
-    final cellH = boardSize / b.rows;
+    final cellW = width / b.cols;
+    final cellH = height / b.rows;
     int col = (local.dx / cellW).floor();
     int row = (local.dy / cellH).floor();
     if (col < 0) col = 0;
@@ -156,7 +156,7 @@ class SchulteManager {
           title: S.setDifficulty,
           sliderData: IntSliderData(
             start: 4,
-            end: 25,
+            end: 40,
             value: _regionCount,
             step: 1,
           ),
