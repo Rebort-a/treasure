@@ -259,6 +259,10 @@ class S {
   static String get surrender => isZh ? '投降' : 'Surrender';
   static String get startWave => isZh ? '开始波次' : 'Start Wave';
   static String get netTowerDefense => isZh ? '联机塔防' : 'Net Tower Defense';
+  static String hp(int cur, int max) => 'HP $cur/$max';
+  static String hpMax(int v) => 'HP $v';
+  static String goldCost(int v) => '${v}g';
+  static String get wavePrefix => 'W';
 
   // ==================== 五行之战 通用 ====================
   static String get attack => isZh ? '攻击' : 'Attack';

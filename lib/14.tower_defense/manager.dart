@@ -1,61 +1,87 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../00.common/tool/notifiers.dart';
 import 'base.dart';
 
-/// 塔防游戏核心管理器
-class Manager {
+/// 塔防游戏核心管理器（飞船范式：Manager 自持 Ticker + ChangeNotifier，
+/// painter 通过 super(repaint: manager) 自动重绘，无需 page 级 setState）
+class Manager with ChangeNotifier implements TickerProvider {
   Manager() {
-    initGame();
+    _initTicker();
   }
 
   static const double cellSize = 40.0;
   static const int startGold = 200;
   static const int startLives = 20;
+  static const double _effectDuration = 0.4; // 击杀特效时长（秒）
 
   late GameMapData map;
   final ListNotifier<Tower> towers = ListNotifier([]);
   final ListNotifier<Enemy> enemies = ListNotifier([]);
   final ListNotifier<Projectile> projectiles = ListNotifier([]);
+  final ListNotifier<KillEffect> effects = ListNotifier([]);
 
   final AlwaysNotifier<int> gold = AlwaysNotifier(startGold);
   final AlwaysNotifier<int> lives = AlwaysNotifier(startLives);
   final AlwaysNotifier<int> waveNumber = AlwaysNotifier(0);
   final AlwaysNotifier<GameState> state = AlwaysNotifier(GameState.preparing);
-  final AlwaysNotifier<TowerType?> selectedTower = AlwaysNotifier(null);
+  final AlwaysNotifier<CellType?> selectedTower = AlwaysNotifier(null);
   final AlwaysNotifier<int> kills = AlwaysNotifier(0);
   final AlwaysNotifier<int> escaped = AlwaysNotifier(0);
-  final AlwaysNotifier<GridPos?> selectedWall = AlwaysNotifier(null);
   final AlwaysNotifier<GridPos?> selectedFort = AlwaysNotifier(null);
 
-  final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
-      AlwaysNotifier((_) {});
+  late Ticker _ticker;
+  double _lastElapsed = 0;
+  final AlwaysNotifier<double> speed = AlwaysNotifier(1.0); // 倍速挡位（1/2/3）
 
   final Random _rand = Random();
   int _nextEnemyId = 0;
-  final Map<int, Enemy> _enemyMap = {};
+  final Map<int, Enemy> _enemyMap = {}; // 飞弹按 id 反查目标，死亡即移除
 
   List<EnemyType> _waveQueue = [];
   double _spawnTimer = 0;
   double _spawnInterval = 0.8;
   bool _waveActive = false;
 
-  void initGame({int? width, int? height, int? seed}) {
+  /// 全局动画时钟（秒），供精灵帧动画与击杀特效计时
+  double animTime = 0;
+
+  @override
+  Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
+
+  void _initTicker() {
+    _ticker = createTicker(_update);
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void initGame({int? width, int? height}) {
     map = GameMapData.generate(
       width: width ?? 20,
       height: height ?? 12,
-      seed: seed,
+      random: _rand,
     );
-    towers.value = [];
-    enemies.value = [];
-    projectiles.value = [];
+    towers.value = [
+      for (int y = 0; y < map.height; y++)
+        for (int x = 0; x < map.width; x++)
+          if (map.cells[y][x].isTower)
+            Tower(type: CellType.barrier, pos: GridPos(x, y)),
+    ];
+    enemies.clear();
+    projectiles.clear();
+    effects.clear();
     gold.value = startGold;
     lives.value = startLives;
     waveNumber.value = 0;
     state.value = GameState.preparing;
     selectedTower.value = null;
-    selectedWall.value = null;
     selectedFort.value = null;
     kills.value = 0;
     escaped.value = 0;
@@ -63,31 +89,72 @@ class Manager {
     _waveActive = false;
     _enemyMap.clear();
     _nextEnemyId = 0;
+    speed.value = 1.0;
+    _lastElapsed = 0;
+    animTime = 0;
+    notifyListeners();
   }
 
-  // ==================== 游戏循环 ====================
+  // ==================== 游戏循环（Ticker 驱动 + 真实 deltaTime + 倍速） ====================
 
-  void update(double deltaTime) {
+  void _update(Duration elapsed) {
+    final cur = elapsed.inMilliseconds / 1000.0;
+    var dt = cur - _lastElapsed;
+    _lastElapsed = cur;
+    if (dt < 0) dt = 0;
+    // 仅 playing 推进逻辑与动画；paused/won/lost/preparing 静止
     if (state.value != GameState.playing) return;
-    _updateWaveSpawning(deltaTime);
-    _updateEnemies(deltaTime);
-    _updateTowers(deltaTime);
-    _updateProjectiles(deltaTime);
+    final scaled = dt.clamp(0.004, 0.05) * speed.value;
+    animTime += scaled;
+    _updateWaveSpawning(scaled);
+    _updateEnemies(scaled);
+    _updateTowers(scaled);
+    _updateProjectiles(scaled);
+    _updateEffects();
     _checkWaveComplete();
     _checkGameOver();
+    notifyListeners();
+  }
+
+  // ==================== 暂停 / 倍速 ====================
+
+  bool get canPause =>
+      state.value == GameState.playing || state.value == GameState.paused;
+
+  void togglePause() {
+    if (state.value == GameState.playing) {
+      state.value = GameState.paused;
+    } else if (state.value == GameState.paused) {
+      state.value = GameState.playing;
+    }
+    notifyListeners();
+  }
+
+  void setSpeed(double s) {
+    speed.value = s;
+  }
+
+  /// 倍速循环切换 1→2→3→1
+  void cycleSpeed() {
+    speed.value = speed.value >= 3.0 ? 1.0 : speed.value + 1.0;
   }
 
   // ==================== 波次管理 ====================
 
   void startNextWave() {
     if (_waveActive) return;
-    if (state.value == GameState.lost) return;
-    if (state.value == GameState.preparing) {
+    final s = state.value;
+    if (s == GameState.lost ||
+        s == GameState.won ||
+        s == GameState.paused) {
+      return;
+    }
+    if (s == GameState.preparing) {
       state.value = GameState.playing;
     }
 
     waveNumber.value++;
-    // 每波只改变敌人数量，不增加 enter（初始已全列 enter/exit）
+    _addEnter(); // 每波在最左列随机新增一个 enter
 
     final wave = WaveGenerator.generate(waveNumber.value);
     _spawnInterval = wave.spawnInterval;
@@ -109,31 +176,34 @@ class Manager {
       _spawnTimer -= _spawnInterval;
       final type = _waveQueue.removeAt(0);
       final enemy = _spawnEnemy(type);
-      final id = _nextEnemyId++;
-      _enemyMap[id] = enemy;
-      enemies.value = [...enemies.value, enemy];
+      _enemyMap[enemy.id] = enemy;
+      enemies.add(enemy);
     }
   }
 
-  /// 创建敌人：enter 起点，目标=右列格 or 堡垒，BFS 不向左穿墙
-  Enemy _spawnEnemy(EnemyType type) {
-    final leftGaps = map.leftGaps;
-    final start = leftGaps.isEmpty
-        ? GridPos(0, 0)
-        : leftGaps[_rand.nextInt(leftGaps.length)];
-
-    Tower? targetFort;
-    GridPos goal;
-    if (towers.value.isNotEmpty && _rand.nextDouble() < 0.3) {
-      targetFort = towers.value[_rand.nextInt(towers.value.length)];
-      goal = targetFort.pos;
-    } else {
-      goal = GridPos(map.width - 1, _rand.nextInt(map.height));
+  /// 最左列随机一个 road 格转为 enter（全部已是 enter 时不再增加）
+  void _addEnter() {
+    final roads = <int>[];
+    for (int y = 0; y < map.height; y++) {
+      if (map.cells[y][0] == CellType.road) roads.add(y);
     }
+    if (roads.isEmpty) return;
+    map.toEnter(roads[_rand.nextInt(roads.length)]);
+  }
 
-    final pathList = _findPath(start, goal);
-    final enemy = Enemy(type: type, path: pathList);
-    enemy.targetFort = targetFort;
+  /// 创建敌人：从随机 enter 出生（战场左边界进入），终点=最右列随机 exit 格
+  Enemy _spawnEnemy(EnemyType type) {
+    final enters = <int>[];
+    for (int y = 0; y < map.height; y++) {
+      if (map.cells[y][0] == CellType.enter) enters.add(y);
+    }
+    final enter = GridPos(
+      0,
+      enters.isEmpty ? 0 : enters[_rand.nextInt(enters.length)],
+    );
+
+    final pathList = _planPath(enter);
+    final enemy = Enemy(id: _nextEnemyId++, type: type, path: pathList);
     enemy.hp = WaveGenerator.scaledHp(enemy.config.maxHp, waveNumber.value);
     return enemy;
   }
@@ -141,7 +211,7 @@ class Manager {
   void _checkWaveComplete() {
     if (!_waveActive) return;
     if (_waveQueue.isNotEmpty) return;
-    if (enemies.value.any((e) => e.alive)) return;
+    if (enemies.any((e) => e.alive)) return;
 
     _waveActive = false;
     gold.value += 20 + waveNumber.value * 5;
@@ -153,12 +223,29 @@ class Manager {
     }
   }
 
-  // ==================== 寻路（BFS 不向左，随机 dirs 增加多样性） ====================
+  // ==================== 路径规划（随机路点 + 4 方向 BFS，多样且可绕圈） ====================
 
-  List<GridPos> _findPath(GridPos start, GridPos goal) {
-    if (!map.inBounds(start.x, start.y) || !map.inBounds(goal.x, goal.y)) {
-      return [start];
+  /// enter → 随机路点（可回溯绕圈）→ 最右列随机 exit（到达即逃走）
+  List<GridPos> _planPath(GridPos enter) {
+    final target = GridPos(map.width - 1, _rand.nextInt(map.height));
+    // 0~2 个随机路点制造路径多样性（路点可在当前位置左侧 → 产生绕圈）
+    final waypoints = <GridPos>[
+      for (int i = 0, n = _rand.nextInt(3); i < n; i++)
+        GridPos(_rand.nextInt(map.width), _rand.nextInt(map.height)),
+      target,
+    ];
+
+    final path = <GridPos>[enter]; // 从战场左边界 enter 出生
+    var cur = enter;
+    for (final wp in waypoints) {
+      path.addAll(_bfsSegment(cur, wp).skip(1)); // 去重段起点
+      cur = wp;
     }
+    return path; // 终点即 target（最右列 exit），到达即逃走
+  }
+
+  /// 4 方向 BFS（规划时忽略 tower 阻挡，全格可行走；每节点随机邻居顺序增加多样性）
+  List<GridPos> _bfsSegment(GridPos start, GridPos goal) {
     if (start == goal) return [start];
 
     final visited = List.generate(
@@ -173,12 +260,10 @@ class Manager {
     visited[start.y][start.x] = true;
     bool found = false;
 
-    // 不向左：右/下/上，随机顺序
-    final dirs = <(int, int)>[(1, 0), (0, 1), (0, -1)];
-    dirs.shuffle(_rand);
-
     while (queue.isNotEmpty && !found) {
       final cur = queue.removeAt(0);
+      final dirs = <(int, int)>[(1, 0), (-1, 0), (0, 1), (0, -1)]
+        ..shuffle(_rand);
       for (final (dx, dy) in dirs) {
         final nx = cur.x + dx, ny = cur.y + dy;
         if (!map.inBounds(nx, ny) || visited[ny][nx]) continue;
@@ -194,7 +279,7 @@ class Manager {
 
     if (!found) return [start];
     final result = <GridPos>[goal];
-    GridPos cur = goal;
+    var cur = goal;
     while (cur != start) {
       final p = prev[cur.y][cur.x];
       if (p == null) break;
@@ -226,38 +311,35 @@ class Manager {
       final nextIdx = enemy.pathIndex + 1;
       if (nextIdx < enemy.path.length) {
         final next = enemy.path[nextIdx];
-        if (map.cells[next.y][next.x] == CellType.tower) {
+        // 仅图内塔格阻挡
+        final blocked = map.cells[next.y][next.x].isTower;
+        if (blocked) {
           enemy.pathProgress = enemy.pathIndex.toDouble();
           enemy.attacking = true;
           enemy.attackCooldown = 0;
         }
       } else {
-        // 到达终点（右列格）
+        // 到达终点（最右列 exit）→ 逃走
         enemy.pathProgress = (enemy.path.length - 1).toDouble();
-        final end = enemy.path.last;
-        if (map.cells[end.y][end.x] == CellType.tower) {
-          enemy.attacking = true;
-        } else {
-          enemy.alive = false;
-          lives.value--;
-          escaped.value++;
-        }
+        enemy.alive = false;
+        lives.value--;
+        escaped.value++;
       }
 
       if (enemy.speedMultiplier < 1.0) {
-        enemy.speedMultiplier = min(1.0, enemy.speedMultiplier + dt * 0.3);
+        enemy.speedMultiplier = min(1.0, enemy.speedMultiplier + dt * 0.15);
       }
     }
 
-    final alive = enemies.value.where((e) => e.alive).toList();
-    if (alive.length != enemies.value.length) {
-      enemies.value = alive;
+    // 增量清理死亡敌人（避免全量列表拷贝）
+    if (enemies.any((e) => !e.alive)) {
+      enemies.removeWhere((e) => !e.alive);
     }
   }
 
-  /// 敌人攻击 tower 格：堡垒→Tower.hp；空墙→wallHp；毁→breakToField
+  /// 敌人攻击塔格：扣 Tower.hp；毁→breakToField
   void _attackCell(Enemy enemy, GridPos target) {
-    if (map.cells[target.y][target.x] != CellType.tower) {
+    if (!map.cells[target.y][target.x].isTower) {
       enemy.attacking = false;
       return;
     }
@@ -268,24 +350,26 @@ class Manager {
         break;
       }
     }
-    if (fort != null) {
-      fort.hp -= enemy.config.attackDamage;
-      if (fort.hp <= 0) {
-        _destroyFort(fort);
-        enemy.attacking = false;
-      }
-    } else {
-      map.wallHp[target.y][target.x] -= enemy.config.attackDamage;
-      if (map.wallHp[target.y][target.x] <= 0) {
-        map.breakToField(target.x, target.y);
-        enemy.attacking = false;
-      }
+    if (fort == null) {
+      // 不应出现（tower 格必持 Tower）；防御性修复
+      map.breakToField(target.x, target.y);
+      enemy.attacking = false;
+      return;
+    }
+    fort.hp -= enemy.config.attackDamage;
+    if (fort.hp <= 0) {
+      _destroyFort(fort);
+      enemy.attacking = false;
     }
   }
 
   void _destroyFort(Tower fort) {
     map.breakToField(fort.pos.x, fort.pos.y);
-    towers.value = towers.value.where((t) => !identical(t, fort)).toList();
+    towers.remove(fort);
+    // 被毁塔恰为当前选中格时收起面板，避免悬空引用
+    if (selectedFort.value == fort.pos) {
+      selectedFort.value = null;
+    }
   }
 
   // ==================== 塔逻辑（跳过 wall/fortress 不攻击） ====================
@@ -302,19 +386,16 @@ class Manager {
     }
   }
 
+  /// 射程内 pathProgress 最大（最靠前）的敌人；用插值浮点坐标算距离，避免整数格子误差
   Enemy? _findTarget(Tower tower) {
-    final towerX = tower.pos.x.toDouble();
-    final towerY = tower.pos.y.toDouble();
-    final range = tower.range;
+    final tp = Offset(tower.pos.x.toDouble(), tower.pos.y.toDouble());
     Enemy? best;
     double bestProgress = -1;
     for (final enemy in enemies.value) {
       if (!enemy.alive) continue;
-      final idx = enemy.pathIndex;
-      if (idx >= enemy.path.length) continue;
-      final ePos = enemy.path[idx];
-      final dist = sqrt(pow(ePos.x - towerX, 2) + pow(ePos.y - towerY, 2));
-      if (dist > range) continue;
+      final ep = _enemyGridPos(enemy);
+      final dist = sqrt(pow(ep.dx - tp.dx, 2) + pow(ep.dy - tp.dy, 2));
+      if (dist > tower.range) continue;
       if (enemy.pathProgress > bestProgress) {
         bestProgress = enemy.pathProgress;
         best = enemy;
@@ -324,118 +405,98 @@ class Manager {
   }
 
   void _fire(Tower tower, Enemy target) {
-    final targetIdx = target.pathIndex;
-    if (targetIdx >= target.path.length) return;
-    projectiles.value = [
-      ...projectiles.value,
-      Projectile(
-        from: tower.pos,
-        targetId: _enemyId(target),
-        damage: tower.damage,
-        splashRadius: tower.config.splashRadius,
-        slowFactor: tower.config.slowFactor,
-      ),
-    ];
-  }
-
-  int _enemyId(Enemy enemy) {
-    for (final entry in _enemyMap.entries) {
-      if (identical(entry.value, enemy)) return entry.key;
-    }
-    return -1;
+    projectiles.add(Projectile(
+      from: tower.pos,
+      targetId: target.id,
+      damage: tower.damage,
+      splashRadius: tower.config.splashRadius,
+      slowFactor: tower.config.slowFactor,
+    ));
   }
 
   // ==================== 飞弹逻辑 ====================
 
   void _updateProjectiles(double dt) {
-    bool changed = false;
-    final active = <Projectile>[];
+    if (projectiles.isEmpty) return;
     for (final p in projectiles.value) {
-      p.progress += dt * 8.0;
-      if (p.progress >= 1.0) {
-        _applyDamage(p);
-        changed = true;
-      } else {
-        active.add(p);
-      }
+      p.progress += dt * 4.0;
     }
-    if (changed) projectiles.value = active;
+    // 结算命中的飞弹并增量移除
+    projectiles.removeWhere((p) {
+      if (p.progress < 1.0) return false;
+      _applyDamage(p);
+      return true;
+    });
   }
 
   void _applyDamage(Projectile p) {
     final target = _enemyMap[p.targetId];
-    if (target != null && target.alive) {
-      target.hp -= p.damage;
-      if (p.slowFactor > 0) target.speedMultiplier = p.slowFactor;
-      if (target.hp <= 0) {
-        target.alive = false;
-        gold.value += target.reward;
-        kills.value++;
-      }
-      if (p.splashRadius > 0) {
-        final tIdx = target.pathIndex;
-        if (tIdx < target.path.length) {
-          final tPos = target.path[tIdx];
-          for (final enemy in enemies.value) {
-            if (identical(enemy, target) || !enemy.alive) continue;
-            final eIdx = enemy.pathIndex;
-            if (eIdx >= enemy.path.length) continue;
-            final ePos = enemy.path[eIdx];
-            final dist = sqrt(
-              pow(ePos.x - tPos.x, 2) + pow(ePos.y - tPos.y, 2),
-            );
-            if (dist <= p.splashRadius) {
-              enemy.hp -= (p.damage * 0.5).toInt();
-              if (p.slowFactor > 0) enemy.speedMultiplier = p.slowFactor;
-              if (enemy.hp <= 0) {
-                enemy.alive = false;
-                gold.value += enemy.reward;
-                kills.value++;
-              }
-            }
+    if (target == null || !target.alive) return;
+    target.hp -= p.damage;
+    if (p.slowFactor > 0) target.speedMultiplier = p.slowFactor;
+    if (target.hp <= 0) {
+      _killEnemy(target);
+    }
+    if (p.splashRadius > 0) {
+      final tPos = _enemyGridPos(target);
+      for (final enemy in enemies.value) {
+        if (identical(enemy, target) || !enemy.alive) continue;
+        final ePos = _enemyGridPos(enemy);
+        final dist = sqrt(pow(ePos.dx - tPos.dx, 2) + pow(ePos.dy - tPos.dy, 2));
+        if (dist <= p.splashRadius) {
+          enemy.hp -= (p.damage * 0.5).toInt();
+          if (p.slowFactor > 0) enemy.speedMultiplier = p.slowFactor;
+          if (enemy.hp <= 0) {
+            _killEnemy(enemy);
           }
         }
       }
     }
   }
 
+  /// 敌人死亡：标记、移出反查表、触发击杀特效、给奖励
+  void _killEnemy(Enemy enemy) {
+    enemy.alive = false;
+    _enemyMap.remove(enemy.id);
+    effects.add(KillEffect(pos: getEnemyPixelPos(enemy), bornAt: animTime));
+    gold.value += enemy.reward;
+    kills.value++;
+  }
+
+  // ==================== 击杀特效 ====================
+
+  void _updateEffects() {
+    if (effects.isEmpty) return;
+    effects.removeWhere((e) => animTime - e.bornAt > _effectDuration);
+  }
+
   // ==================== 玩家操作 ====================
 
-  bool placeTower(GridPos pos, TowerType type) {
-    if (!map.canBuild(pos.x, pos.y)) return false;
-    if (towers.value.any((t) => t.pos.x == pos.x && t.pos.y == pos.y)) {
-      return false;
-    }
-    final config = TowerConfigs.getConfig(type);
-    if (config.cost == 0) return false; // 不可直接建
-    if (gold.value < config.cost) return false;
-    gold.value -= config.cost;
-    map.wallHp[pos.y][pos.x] = 0; // 有 Tower，空墙 hp 清零
-    towers.value = [...towers.value, Tower(type: type, pos: pos)];
-    return true;
-  }
-
-  /// 升级（进化）：wall→fortress / archer→cannon|spear / ice→magic（重建 Tower，满血）
-  bool upgradeTower(Tower tower, TowerType toType) {
-    if (!tower.upgrades.contains(toType)) return false;
-    if (gold.value < tower.upgradeCost) return false;
-    gold.value -= tower.upgradeCost;
+  /// 进化/重建 Tower（含 barrier→wall|archer|ice）：toType==自身即重建（回满血），
+  /// 花费目标形态自身价格
+  bool upgradeTower(Tower tower, CellType toType) {
+    // 面板打开期间塔可能已被摧毁移除——拒绝失效引用，避免在 road 上复活图标
+    if (!towers.any((t) => identical(t, tower))) return false;
+    final isRebuild = toType == tower.type;
+    if (!isRebuild && !tower.upgrades.contains(toType)) return false;
+    final cost = TowerConfigs.getConfig(toType).cost;
+    if (gold.value < cost) return false;
+    gold.value -= cost;
     final newTower = Tower(type: toType, pos: tower.pos);
-    towers.value = towers.value.where((t) => !identical(t, tower)).toList()
-      ..add(newTower);
+    towers.remove(tower);
+    towers.add(newTower);
+    notifyListeners();
     return true;
   }
 
-  void selectTowerType(TowerType? type) {
+  void selectCellType(CellType? type) {
     selectedTower.value = type;
-  }
-
-  void selectWall(GridPos? pos) {
-    selectedWall.value = pos;
+    notifyListeners();
   }
 
   void selectFort(GridPos? pos) {
     selectedFort.value = pos;
+    notifyListeners();
   }
 
   // ==================== 胜负判定 ====================
@@ -446,22 +507,42 @@ class Manager {
 
   // ==================== 辅助 ====================
 
-  Offset getEnemyPixelPos(Enemy enemy) {
+  /// 敌人当前浮点格子坐标（插值），供射程/溅射判定，消除整数格子误差
+  Offset _enemyGridPos(Enemy enemy) {
     final path = enemy.path;
     if (path.isEmpty) return Offset.zero;
     final idx = enemy.pathIndex;
     if (idx >= path.length - 1) {
-      final last = path.last;
-      return Offset(
-        last.x * cellSize + cellSize / 2,
-        last.y * cellSize + cellSize / 2,
-      );
+      return Offset(path.last.x.toDouble(), path.last.y.toDouble());
     }
-    final frac = enemy.pathFraction;
     final cur = path[idx];
     final next = path[idx + 1];
-    final x = (cur.x + (next.x - cur.x) * frac) * cellSize + cellSize / 2;
-    final y = (cur.y + (next.y - cur.y) * frac) * cellSize + cellSize / 2;
-    return Offset(x, y);
+    return Offset(
+      cur.x + (next.x - cur.x) * enemy.pathFraction,
+      cur.y + (next.y - cur.y) * enemy.pathFraction,
+    );
+  }
+
+  Offset getEnemyPixelPos(Enemy enemy) {
+    final g = _enemyGridPos(enemy);
+    return Offset(
+      g.dx * cellSize + cellSize / 2,
+      g.dy * cellSize + cellSize / 2,
+    );
+  }
+
+  /// 飞弹当前像素位置（from → 目标敌人当前位置，按 progress 插值）
+  Offset getProjectilePos(Projectile p) {
+    final from = Offset(
+      p.from.x * cellSize + cellSize / 2,
+      p.from.y * cellSize + cellSize / 2,
+    );
+    final target = _enemyMap[p.targetId];
+    if (target == null || !target.alive) return from;
+    final to = getEnemyPixelPos(target);
+    return Offset(
+      from.dx + (to.dx - from.dx) * p.progress,
+      from.dy + (to.dy - from.dy) * p.progress,
+    );
   }
 }

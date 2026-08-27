@@ -1,9 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../00.common/image/sprite_sheet.dart';
 import '../00.common/l10n/strings.dart';
-import '../00.common/widget/container/glass_container.dart';
 import '../00.common/widget/button/cool_button.dart';
+import '../00.common/widget/container/glass_container.dart';
 import 'base.dart';
 import 'manager.dart';
 
@@ -14,30 +15,45 @@ class TowerDefensePage extends StatefulWidget {
   State<TowerDefensePage> createState() => _TowerDefensePageState();
 }
 
-class _TowerDefensePageState extends State<TowerDefensePage>
-    with SingleTickerProviderStateMixin {
+class _TowerDefensePageState extends State<TowerDefensePage> {
   late final Manager _manager;
-  late final AnimationController _ticker;
   bool _mapInitialized = false;
+  final Map<EnemyType, SpriteSheet> _sheets = {};
+  SpriteSheet? _slashSheet;
 
   @override
   void initState() {
     super.initState();
-    _manager = Manager();
-    _ticker =
-        AnimationController(vsync: this, duration: const Duration(seconds: 1))
-          ..addListener(_onTick)
-          ..repeat();
+    _manager = Manager(); // Manager 自持 Ticker，构造即启动游戏循环
+    _loadSprites();
   }
 
-  void _onTick() {
-    _manager.update(1 / 60);
-    setState(() {});
+  /// 预加载四种怪物 + 击杀特效 spritesheet（加载完成前绘制回退色圆）
+  Future<void> _loadSprites() async {
+    final entries = await Future.wait(
+      EnemySprites.all.entries.map(
+        (e) => SpriteSheet.load(
+          e.value.asset,
+          e.value.columns,
+          e.value.rows,
+        ).then((sheet) => MapEntry(e.key, sheet)),
+      ),
+    );
+    final slash = await SpriteSheet.load(
+      SlashSprites.asset,
+      SlashSprites.columns,
+      SlashSprites.rows,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sheets.addEntries(entries);
+      _slashSheet = slash;
+    });
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _manager.dispose();
     super.dispose();
   }
 
@@ -47,30 +63,18 @@ class _TowerDefensePageState extends State<TowerDefensePage>
       appBar: AppBar(
         title: Text(S.towerDefense),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _ticker.stop();
-              setState(
-                () => _manager.initGame(
-                  width: _manager.map.width,
-                  height: _manager.map.height,
-                ),
-              );
-              _ticker.repeat();
-            },
-          ),
-        ],
+        actions: [_buildActions()],
       ),
       body: Column(
         children: [
           _buildHud(),
-          Expanded(child: _buildGameArea()),
+          Expanded(child: RepaintBoundary(child: _buildGameArea())),
         ],
       ),
     );
   }
+
+  // ==================== HUD ====================
 
   Widget _buildHud() {
     return Container(
@@ -87,7 +91,7 @@ class _TowerDefensePageState extends State<TowerDefensePage>
               Icons.waves,
               Colors.cyan,
               _manager.waveNumber,
-              prefix: 'W',
+              prefix: S.wavePrefix,
             ),
           ),
           Expanded(
@@ -127,6 +131,48 @@ class _TowerDefensePageState extends State<TowerDefensePage>
     );
   }
 
+  // ==================== AppBar 操作：倍速 / 暂停 / 重开 ====================
+
+  Widget _buildActions() {
+    return ValueListenableBuilder<GameState>(
+      valueListenable: _manager.state,
+      builder: (_, state, __) {
+        final inGame = state == GameState.playing || state == GameState.paused;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<double>(
+              valueListenable: _manager.speed,
+              builder: (context, speed, __) => IconButton(
+                icon: Text(
+                  '${speed.toInt()}x',
+                  style: TextStyle(
+                    // 1x 时与相邻 AppBar 图标按钮同源取色（onSurface），>1x 高亮琥珀
+                    color: speed > 1
+                        ? Colors.amber
+                        : IconTheme.of(context).color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onPressed: _manager.cycleSpeed,
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                state == GameState.paused ? Icons.play_arrow : Icons.pause,
+              ),
+              onPressed: inGame ? _manager.togglePause : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _restart,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // ==================== 战场区 ====================
 
   Widget _buildGameArea() {
@@ -156,7 +202,7 @@ class _TowerDefensePageState extends State<TowerDefensePage>
                 onTapUp: (details) => _handleTap(details),
                 child: CustomPaint(
                   size: Size(mapW, mapH),
-                  painter: _GamePainter(_manager),
+                  painter: _GamePainter(_manager, _sheets, _slashSheet),
                 ),
               ),
             ),
@@ -227,21 +273,21 @@ class _TowerDefensePageState extends State<TowerDefensePage>
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () {
-                  _ticker.stop();
-                  setState(
-                    () => _manager.initGame(
-                      width: _manager.map.width,
-                      height: _manager.map.height,
-                    ),
-                  );
-                  _ticker.repeat();
-                },
+                onPressed: _restart,
                 child: Text(S.startNewGame),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _restart() {
+    setState(
+      () => _manager.initGame(
+        width: _manager.map.width,
+        height: _manager.map.height,
       ),
     );
   }
@@ -255,188 +301,333 @@ class _TowerDefensePageState extends State<TowerDefensePage>
     if (!_manager.map.inBounds(x, y)) return;
 
     final cell = _manager.map.cells[y][x];
-    if (cell == CellType.tower) {
-      // 区分空墙 vs 堡垒
-      Tower? t;
-      for (final tw in _manager.towers.value) {
-        if (tw.pos.x == x && tw.pos.y == y) {
-          t = tw;
-          break;
-        }
-      }
-      if (t != null) {
-        // 点堡垒→升级
-        setState(() {
-          _manager.selectFort(GridPos(x, y));
-          _manager.selectWall(null);
-        });
-      } else {
-        // 点空墙→建塔（默认 Archer）
-        setState(() {
-          _manager.selectWall(GridPos(x, y));
-          _manager.selectFort(null);
-          _manager.selectTowerType(TowerType.archer);
-        });
-      }
+    if (cell.isTower) {
+      _manager.selectFort(GridPos(x, y));
     } else {
-      // enter/exit/road→收起
-      setState(() {
-        _manager.selectWall(null);
-        _manager.selectFort(null);
-      });
+      _manager.selectFort(null);
     }
+    _manager.selectCellType(null);
   }
 
   // ==================== 底部面板（建塔/升级统一） ====================
 
+  /// 确认/取消按钮统一样式（默认风格胶囊）与垂直间距
+  static final ButtonStyle _panelBtnStyle = ElevatedButton.styleFrom(
+    visualDensity: VisualDensity.compact,
+    minimumSize: Size.zero,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+  );
+  static const double _panelBtnGap = 6.0;
+
+  /// 监听 manager（而非仅 selectedFort）：游戏中塔血量、金币每帧变化，
+  /// 选中塔的底板需随之刷新（selectFort/selectCellType/upgrade 亦经 manager 通知）
   Widget _buildBuildPanel() {
-    return ValueListenableBuilder<GridPos?>(
-      valueListenable: _manager.selectedWall,
-      builder: (_, wall, __) {
-        return ValueListenableBuilder<GridPos?>(
-          valueListenable: _manager.selectedFort,
-          builder: (_, fort, __) {
-            if (wall != null) return _buildBuildTowerPanel(wall);
-            if (fort != null) return _buildUpgradePanel(fort);
-            return const SizedBox.shrink();
-          },
-        );
+    return ListenableBuilder(
+      listenable: _manager,
+      builder: (context, _) {
+        final fort = _manager.selectedFort.value;
+        if (fort == null) return const SizedBox.shrink();
+        Tower? tower;
+        for (final t in _manager.towers.value) {
+          if (t.pos.x == fort.x && t.pos.y == fort.y) {
+            tower = t;
+            break;
+          }
+        }
+        if (tower == null) return const SizedBox.shrink();
+        return _buildTowerPanel(tower);
       },
     );
   }
 
-  /// 建塔面板：3 起点（wall/archer/ice）+ 确认
-  Widget _buildBuildTowerPanel(GridPos wall) {
-    return ValueListenableBuilder<TowerType?>(
-      valueListenable: _manager.selectedTower,
-      builder: (_, selected, __) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-          color: Colors.grey[900],
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ...[
-                TowerType.wall,
-                TowerType.archer,
-                TowerType.ice,
-              ].map((t) => _buildTowerOption(t, selected)),
-              ElevatedButton(
-                onPressed: selected == null
-                    ? null
-                    : () {
-                        final ok = _manager.placeTower(wall, selected);
-                        setState(() {
-                          if (ok) _manager.selectWall(null);
-                          _manager.selectTowerType(null);
-                        });
-                      },
-                child: Text(S.confirm),
-              ),
-            ],
+  /// 统一塔面板：[当前道具卡(重建)] [进化卡片] [✓/✗]
+  ///
+  /// 外层 _buildBuildPanel 已监听 manager（游戏中每帧 notifyListeners），
+  /// selected / curHp / gold 直接读取即为最新，无需再套 selectedTower 监听。
+  Widget _buildTowerPanel(Tower fort) {
+    final curType = fort.type;
+    final curCfg = TowerConfigs.getConfig(curType);
+    final curHp = fort.hp;
+    final curMax = fort.maxHp;
+    final selected = _manager.selectedTower.value;
+    final isRebuild = selected == curType;
+    final confirmEnabled = selected != null &&
+        _manager.gold.value >= TowerConfigs.getConfig(selected).cost &&
+        (!isRebuild || curHp < curMax);
+    return _buildBottomPanel(
+      currentCard: _buildTowerCard(
+        curType,
+        hpText: S.hp(curHp, curMax),
+        cost: curCfg.cost,
+        isSelected: isRebuild,
+        isRebuildCard: true,
+        onTap: () => _manager.selectCellType(isRebuild ? null : curType),
+      ),
+      evolveCards: curCfg.upgrades.map((toType) {
+        final cfg = TowerConfigs.getConfig(toType);
+        return _buildTowerCard(
+          toType,
+          hpText: S.hpMax(cfg.maxHp),
+          cost: cfg.cost,
+          isSelected: selected == toType,
+          onTap: () => _manager.selectCellType(
+            selected == toType ? null : toType,
           ),
         );
+      }).toList(),
+      confirmEnabled: confirmEnabled,
+      onConfirm: () {
+        final ok = _manager.upgradeTower(
+          fort,
+          isRebuild ? fort.type : selected!,
+        );
+        if (ok) _manager.selectFort(null);
+        _manager.selectCellType(null);
+      },
+      onCancel: () {
+        _manager.selectFort(null);
+        _manager.selectCellType(null);
       },
     );
   }
 
-  /// 升级面板：多分支（archer→cannon|spear 两按钮，wall→fortress，ice→magic）
-  Widget _buildUpgradePanel(GridPos fortPos) {
-    Tower? tower;
-    for (final t in _manager.towers.value) {
-      if (t.pos.x == fortPos.x && t.pos.y == fortPos.y) {
-        tower = t;
-        break;
-      }
-    }
-    if (tower == null) return const SizedBox.shrink();
-    final fort = tower;
+  /// 统一底部面板：从左往右 1.当前道具卡(重建) 2.进化卡片 3.确认(上)/取消(下)
+  Widget _buildBottomPanel({
+    required Widget currentCard,
+    required List<Widget> evolveCards,
+    required bool confirmEnabled,
+    required VoidCallback onConfirm,
+    required VoidCallback onCancel,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      color: Colors.grey[900],
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Text(
-            '${towerEmoji(fort.type)} ${fort.config.name}',
-            style: const TextStyle(color: Colors.white, fontSize: 13),
+          currentCard,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: evolveCards,
+            ),
           ),
-          Text(
-            'HP ${fort.hp}/${fort.maxHp}',
-            style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-          ),
-          if (fort.canUpgrade)
-            ...fort.upgrades.map(
-              (toType) => ElevatedButton(
-                onPressed: () =>
-                    setState(() => _manager.upgradeTower(fort, toType)),
-                child: Text(
-                  '${towerEmoji(toType)} ${TowerConfigs.getConfig(toType).name}(${fort.upgradeCost}g)',
-                  style: const TextStyle(fontSize: 11),
+          const SizedBox(width: 12),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                style: _panelBtnStyle,
+                onPressed: confirmEnabled ? onConfirm : null,
+                child: Icon(
+                  Icons.check,
+                  color: confirmEnabled ? Colors.green : Colors.grey,
                 ),
               ),
-            )
-          else
-            const Text(
-              '已满级',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          TextButton(
-            onPressed: () => setState(() => _manager.selectFort(null)),
-            child: Text(S.cancel),
+              const SizedBox(height: _panelBtnGap),
+              ElevatedButton(
+                style: _panelBtnStyle,
+                onPressed: onCancel,
+                child: const Icon(Icons.close, color: Colors.red),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTowerOption(TowerType type, TowerType? selected) {
+  /// 道具卡片：图标 + 名称 + 血量 + 价格；重建卡以 Icons.refresh 代替 emoji
+  Widget _buildTowerCard(
+    CellType type, {
+    required String hpText,
+    required int cost,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isRebuildCard = false,
+  }) {
     final config = TowerConfigs.getConfig(type);
-    final isSelected = selected == type;
     return GestureDetector(
-      onTap: () =>
-          setState(() => _manager.selectTowerType(isSelected ? null : type)),
-      child: Container(
-        padding: const EdgeInsets.all(6),
+      onTap: onTap,
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: TowerColors.get(type),
-          border: Border.all(
-            color: isSelected ? TowerColors.get(type) : Colors.grey,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
+          // 金边外扩：恒定露出宽度避免跳变，透明=视觉无边，选中=外层金边
+          color: isSelected ? const Color(0xFFFFD700) : Colors.transparent,
+          borderRadius: BorderRadius.circular(11), // 内层 8 + 露边 3
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(towerEmoji(type), style: const TextStyle(fontSize: 20)),
-            Text(
-              config.name,
-              style: const TextStyle(color: Colors.white, fontSize: 10),
-            ),
-            Text(
-              '${config.cost}g',
-              style: const TextStyle(color: Colors.amber, fontSize: 10),
-            ),
-          ],
+        child: Container(
+          margin: const EdgeInsets.all(3), // 露出外层 3px 作选中金边
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: kFieldColor,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              isRebuildCard
+                  ? const Icon(Icons.refresh, size: 20, color: Colors.white)
+                  : Text(towerEmoji(type), style: const TextStyle(fontSize: 20)),
+              Text(
+                config.name,
+                style: const TextStyle(color: Colors.white, fontSize: 10),
+              ),
+              Text(
+                hpText,
+                style: const TextStyle(color: Colors.white70, fontSize: 9),
+              ),
+              Text(
+                S.goldCost(cost),
+                style: const TextStyle(color: Colors.amber, fontSize: 10),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+// ==================== 怪物精灵配置 ====================
+
+class EnemySpriteDef {
+  final String asset;
+  final int columns;
+  final int rows;
+  final int walkRow; // 行走动画所在行
+  final int walkFrames; // 行走帧数
+  final double fps;
+  final bool flipX; // 精灵默认朝左时需水平翻转（敌人向右行进）
+  final double displayScale; // 显示高度 = cellSize * displayScale
+
+  const EnemySpriteDef({
+    required this.asset,
+    required this.columns,
+    required this.rows,
+    required this.walkRow,
+    required this.walkFrames,
+    required this.fps,
+    required this.flipX,
+    required this.displayScale,
+  });
+}
+
+class EnemySprites {
+  static const String slimeAsset = 'assets/images/slime.png';
+  static const String goblinAsset = 'assets/images/goblin.png';
+  static const String trollAsset = 'assets/images/troll.png';
+  static const String cyclopsAsset = 'assets/images/cyclops.png';
+
+  static const Map<EnemyType, EnemySpriteDef> all = {
+    EnemyType.slime: EnemySpriteDef(
+      asset: slimeAsset,
+      columns: 10,
+      rows: 4,
+      walkRow: 0,
+      walkFrames: 8,
+      fps: 8,
+      flipX: false,
+      displayScale: 0.7,
+    ),
+    EnemyType.goblin: EnemySpriteDef(
+      asset: goblinAsset,
+      columns: 14,
+      rows: 6,
+      walkRow: 1,
+      walkFrames: 8,
+      fps: 8,
+      flipX: false,
+      displayScale: 0.8,
+    ),
+    EnemyType.troll: EnemySpriteDef(
+      asset: trollAsset,
+      columns: 4,
+      rows: 4,
+      walkRow: 1,
+      walkFrames: 4,
+      fps: 4,
+      flipX: true,
+      displayScale: 0.75,
+    ),
+    EnemyType.cyclops: EnemySpriteDef(
+      asset: cyclopsAsset,
+      columns: 20,
+      rows: 6,
+      walkRow: 1,
+      walkFrames: 4,
+      fps: 4,
+      flipX: false,
+      displayScale: 0.9,
+    ),
+  };
+
+  static EnemySpriteDef get(EnemyType type) => all[type]!;
+}
+
+/// 击杀飞溅特效配置（slash_blood_spritesheet.png 256×64，4 帧 64×64）
+class SlashSprites {
+  static const String asset = 'assets/images/slash_blood_spritesheet.png';
+  static const int columns = 4;
+  static const int rows = 1;
+  static const int frames = 4;
+  static const double fps = 12;
+  static const double displayScale = 1.2;
+}
+
 // ==================== 游戏画面绘制 ====================
 
 class _GamePainter extends CustomPainter {
   final Manager manager;
-  _GamePainter(this.manager);
+  final Map<EnemyType, SpriteSheet> sheets;
+  final SpriteSheet? slashSheet;
+
+  _GamePainter(this.manager, this.sheets, this.slashSheet)
+    : super(repaint: manager);
+
+  static const Color _enterColor = Color(0xFF66BB6A); // 入口绿
+  static const Color _exitColor = Color(0xFFEF5350); // 出口红
+  static const Color _rangeColor = Color(0xFF81D4FA); // 攻击范围浅蓝
+
+  /// 图标缓存（全图大量绘制，静态缓存避免每帧重复 layout）
+  static final Map<String, TextPainter> _textPainters = {};
+  static TextPainter _emojiPainter(String emoji) =>
+      _textPainters[emoji] ??= TextPainter(
+        text: TextSpan(text: emoji, style: const TextStyle(fontSize: 20)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+  static final Map<int, TextPainter> _iconPainters = {};
+  static TextPainter _iconPainter(IconData icon, Color color) {
+    final key = icon.codePoint * 17 + color.toARGB32();
+    return _iconPainters[key] ??= TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          color: color,
+          fontSize: 18,
+          fontFamily: icon.fontFamily,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final cellSize = Manager.cellSize;
     final map = manager.map;
 
-    // 网格：tower/enter/exit/road + 空墙血条 + 网格线
+    // 网格：统一底色 + enter/exit 图标 + 网格线
     for (int y = 0; y < map.height; y++) {
       for (int x = 0; x < map.width; x++) {
         final rect = Rect.fromLTWH(
@@ -445,14 +636,22 @@ class _GamePainter extends CustomPainter {
           cellSize,
           cellSize,
         );
+        canvas.drawRect(rect, Paint()..color = kFieldColor);
         final cell = map.cells[y][x];
-        final color = switch (cell) {
-          CellType.tower => const Color(0xFF3E2723),
-          CellType.enter => const Color(0xFF2E7D32),
-          CellType.exit => const Color(0xFFC62828),
-          CellType.road => const Color(0xFF8D6E63),
-        };
-        canvas.drawRect(rect, Paint()..color = color);
+        if (cell == CellType.enter || cell == CellType.exit) {
+          final isEnter = cell == CellType.enter;
+          final tp = _iconPainter(
+            isEnter ? Icons.door_sliding : Icons.exit_to_app,
+            isEnter ? _enterColor : _exitColor,
+          );
+          tp.paint(
+            canvas,
+            Offset(
+              rect.center.dx - tp.width / 2,
+              rect.center.dy - tp.height / 2,
+            ),
+          );
+        }
         canvas.drawRect(
           rect,
           Paint()
@@ -460,187 +659,227 @@ class _GamePainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.5,
         );
-        // 空墙血条（wallHp 0~100，<100 受损）
-        if (cell == CellType.tower) {
-          final hp = map.wallHp[y][x];
-          if (hp > 0 && hp < 100) {
-            final barRect = Rect.fromLTWH(
-              rect.left,
-              rect.bottom - 3,
-              rect.width,
-              3,
-            );
-            canvas.drawRect(barRect, Paint()..color = Colors.black54);
-            canvas.drawRect(
-              Rect.fromLTWH(
-                barRect.left,
-                barRect.top,
-                barRect.width * hp / 100,
-                3,
-              ),
-              Paint()
-                ..color = hp > 50
-                    ? Colors.green
-                    : (hp > 25 ? Colors.orange : Colors.red),
-            );
-          }
-        }
       }
     }
 
-    // 选中堡垒攻击范围（非 wall/fortress）
     final selFort = manager.selectedFort.value;
+    final selType = manager.selectedTower.value;
+
+    // 选中塔的攻击范围（预览目标形态优先）
     if (selFort != null) {
-      for (final tower in manager.towers.value) {
-        if (tower.pos.x == selFort.x && tower.pos.y == selFort.y) {
-          if (tower.canAttack) {
-            final center = Offset(
-              (tower.pos.x + 0.5) * cellSize,
-              (tower.pos.y + 0.5) * cellSize,
-            );
-            canvas.drawCircle(
-              center,
-              tower.range * cellSize,
-              Paint()
-                ..color = TowerColors.get(tower.type).withValues(alpha: 0.15)
-                ..style = PaintingStyle.fill,
-            );
-            canvas.drawCircle(
-              center,
-              tower.range * cellSize,
-              Paint()
-                ..color = TowerColors.get(tower.type).withValues(alpha: 0.5)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.5,
-            );
-          }
-          break;
+      final tower = _towerAt(selFort);
+      final showType =
+          (selType != null && tower != null && selType != tower.type)
+          ? selType
+          : tower?.type;
+      if (showType != null) {
+        final cfg = TowerConfigs.getConfig(showType);
+        if (cfg.fireRate > 0) {
+          _drawRange(canvas, selFort, showType, cellSize);
         }
       }
     }
 
-    // 堡垒：图标+血条
+    // 塔：选中格画阴影底；进化预览格走半透明预览态，其余正常绘制
     for (final tower in manager.towers.value) {
-      final rect = Rect.fromLTWH(
-        tower.pos.x * cellSize + 2,
-        tower.pos.y * cellSize + 2,
-        cellSize - 4,
-        cellSize - 4,
-      );
-      // 确认后：道具本身背景色
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        Paint()..color = TowerColors.get(tower.type),
-      );
-      final tp = TextPainter(
-        text: TextSpan(
-          text: towerEmoji(tower.type),
-          style: const TextStyle(fontSize: 20),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(
-        canvas,
-        Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2),
-      );
-      tp.dispose();
-      final hpRatio = (tower.hp / tower.maxHp).clamp(0.0, 1.0);
-      final barRect = Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 3);
-      canvas.drawRect(barRect, Paint()..color = Colors.black54);
-      canvas.drawRect(
-        Rect.fromLTWH(barRect.left, barRect.top, barRect.width * hpRatio, 3),
-        Paint()
-          ..color = hpRatio > 0.5
-              ? Colors.green
-              : (hpRatio > 0.25 ? Colors.orange : Colors.red),
-      );
-    }
-
-    // 预览（未确认建塔：道路色圆角矩形+图标+攻击范围）
-    final selWall = manager.selectedWall.value;
-    final selType = manager.selectedTower.value;
-    if (selWall != null && selType != null) {
-      final center = Offset(
-        (selWall.x + 0.5) * cellSize,
-        (selWall.y + 0.5) * cellSize,
-      );
-      final cfg = TowerConfigs.getConfig(selType);
-      if (cfg.fireRate > 0) {
-        canvas.drawCircle(
-          center,
-          cfg.range * cellSize,
-          Paint()
-            ..color = TowerColors.get(selType).withValues(alpha: 0.15)
-            ..style = PaintingStyle.fill,
-        );
-        canvas.drawCircle(
-          center,
-          cfg.range * cellSize,
-          Paint()
-            ..color = TowerColors.get(selType).withValues(alpha: 0.5)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5,
-        );
+      final isSelected = selFort != null &&
+          tower.pos.x == selFort.x &&
+          tower.pos.y == selFort.y;
+      final isEvolvePreview =
+          isSelected && selType != null && selType != tower.type;
+      if (isEvolvePreview) {
+        _drawPreviewTower(canvas, tower.pos, selType, cellSize);
+      } else if (isSelected) {
+        _drawShadowRect(canvas, tower.pos, cellSize);
+        _drawTower(canvas, tower, cellSize);
+      } else {
+        _drawTower(canvas, tower, cellSize);
       }
-      final rect = Rect.fromLTWH(
-        selWall.x * cellSize + 2,
-        selWall.y * cellSize + 2,
-        cellSize - 4,
-        cellSize - 4,
-      );
-      // 预览：保持 tower 背景，只画图标（不换背景）
-      final tp = TextPainter(
-        text: TextSpan(
-          text: towerEmoji(selType),
-          style: const TextStyle(fontSize: 20),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(
-        canvas,
-        Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2),
-      );
-      tp.dispose();
     }
 
-    // 敌人
+    // 敌人（spritesheet 行走动画，未加载完前回退色圆）
     for (final enemy in manager.enemies.value) {
       if (!enemy.alive) continue;
-      final pos = manager.getEnemyPixelPos(enemy);
-      final color = EnemyColors.get(enemy.type);
-      final radius = enemy.type == EnemyType.boss ? 10.0 : 7.0;
-      canvas.drawCircle(pos, radius, Paint()..color = color);
+      _drawEnemy(canvas, enemy, cellSize);
+    }
+
+    // 飞弹
+    _drawProjectiles(canvas);
+
+    // 击杀飞溅特效
+    _drawEffects(canvas, cellSize);
+  }
+
+  Tower? _towerAt(GridPos pos) {
+    for (final t in manager.towers.value) {
+      if (t.pos.x == pos.x && t.pos.y == pos.y) return t;
+    }
+    return null;
+  }
+
+  void _drawRange(Canvas canvas, GridPos pos, CellType type, double cellSize) {
+    final center = Offset(
+      (pos.x + 0.5) * cellSize,
+      (pos.y + 0.5) * cellSize,
+    );
+    final radius = TowerConfigs.getConfig(type).range * cellSize;
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = _rangeColor.withValues(alpha: 0.15)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = _rangeColor.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  /// 正常塔：仅图标 + 受损血条（不画背景色块，靠 emoji 区分形态）
+  void _drawTower(Canvas canvas, Tower tower, double cellSize) {
+    final rect = Rect.fromLTWH(
+      tower.pos.x * cellSize,
+      tower.pos.y * cellSize,
+      cellSize,
+      cellSize,
+    );
+    final tp = _emojiPainter(towerEmoji(tower.type));
+    tp.paint(
+      canvas,
+      Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2),
+    );
+    _drawHpBar(
+      canvas,
+      Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 3),
+      tower.hp / tower.maxHp,
+    );
+  }
+
+  /// 选中塔的阴影底：缩小圆角矩形，放置预览与纯选中态共用；返回阴影矩形供叠加用
+  Rect _drawShadowRect(Canvas canvas, GridPos pos, double cellSize) {
+    final rect = Rect.fromLTWH(
+      pos.x * cellSize + 3,
+      pos.y * cellSize + 3,
+      cellSize - 6,
+      cellSize - 6,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(5)),
+      Paint()..color = Colors.black.withValues(alpha: 0.25),
+    );
+    return rect;
+  }
+
+  /// 预览态：阴影底 + 半透明 emoji（模拟放置阴影/占位）
+  void _drawPreviewTower(
+    Canvas canvas,
+    GridPos pos,
+    CellType type,
+    double cellSize,
+  ) {
+    final rect = _drawShadowRect(canvas, pos, cellSize);
+    // emoji 半透明：用 saveLayer 全局不透明度叠加（emoji 为彩色字形，无法靠 color 控制）
+    final tp = _emojiPainter(towerEmoji(type));
+    canvas.saveLayer(rect, Paint()..color = const Color(0x80FFFFFF));
+    tp.paint(
+      canvas,
+      Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2),
+    );
+    canvas.restore();
+  }
+
+  void _drawEnemy(Canvas canvas, Enemy enemy, double cellSize) {
+    final pos = manager.getEnemyPixelPos(enemy);
+    final def = EnemySprites.get(enemy.type);
+    final sheet = sheets[enemy.type];
+
+    double halfW;
+    double topY;
+    if (sheet == null) {
+      final radius = enemy.type == EnemyType.cyclops ? 10.0 : 7.0;
       canvas.drawCircle(
         pos,
         radius,
-        Paint()
-          ..color = Colors.black45
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
+        Paint()..color = EnemyColors.get(enemy.type),
       );
-      final hpRatio = (enemy.hp / enemy.config.maxHp).clamp(0.0, 1.0);
-      if (hpRatio < 1.0) {
-        final barW = radius * 2;
-        canvas.drawRect(
-          Rect.fromLTWH(pos.dx - radius, pos.dy - radius - 5, barW, 3),
-          Paint()..color = Colors.black54,
-        );
-        canvas.drawRect(
-          Rect.fromLTWH(
-            pos.dx - radius,
-            pos.dy - radius - 5,
-            barW * hpRatio,
-            3,
-          ),
-          Paint()
-            ..color = hpRatio > 0.5
-                ? Colors.green
-                : (hpRatio > 0.25 ? Colors.orange : Colors.red),
-        );
-      }
+      halfW = radius;
+      topY = pos.dy - radius;
+    } else {
+      // 行走帧：按动画时钟循环，hashCode 相位错开同屏怪物
+      final frame =
+          ((manager.animTime * def.fps +
+                    (enemy.hashCode % 100) / 100 * def.walkFrames) %
+                def.walkFrames)
+              .floor();
+      final src = sheet.frameRect(def.walkRow * sheet.columns + frame);
+      final drawH = cellSize * def.displayScale;
+      final drawW = drawH * sheet.cellWidth / sheet.cellHeight;
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      if (def.flipX) canvas.scale(-1, 1);
+      canvas.drawImageRect(
+        sheet.image,
+        src,
+        Rect.fromLTWH(-drawW / 2, -drawH / 2, drawW, drawH),
+        Paint(),
+      );
+      canvas.restore();
+      halfW = drawW / 2;
+      topY = pos.dy - drawH / 2;
+    }
+
+    _drawHpBar(
+      canvas,
+      Rect.fromLTWH(pos.dx - halfW, topY - 5, halfW * 2, 3),
+      enemy.hp / enemy.config.maxHp,
+    );
+  }
+
+  void _drawProjectiles(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFFFFEB3B);
+    for (final p in manager.projectiles.value) {
+      canvas.drawCircle(manager.getProjectilePos(p), 3, paint);
     }
   }
 
+  void _drawEffects(Canvas canvas, double cellSize) {
+    final sheet = slashSheet;
+    if (sheet == null) return;
+    for (final e in manager.effects.value) {
+      final frame = ((manager.animTime - e.bornAt) * SlashSprites.fps).floor();
+      if (frame < 0 || frame >= SlashSprites.frames) continue;
+      final src = sheet.frameRect(frame);
+      final drawH = cellSize * SlashSprites.displayScale;
+      final drawW = drawH * sheet.cellWidth / sheet.cellHeight;
+      canvas.drawImageRect(
+        sheet.image,
+        src,
+        Rect.fromLTWH(e.pos.dx - drawW / 2, e.pos.dy - drawH / 2, drawW, drawH),
+        Paint(),
+      );
+    }
+  }
+
+  void _drawHpBar(Canvas canvas, Rect bar, double ratio) {
+    final r = ratio.clamp(0.0, 1.0);
+    if (r >= 1.0) return;
+    canvas.drawRect(bar, Paint()..color = Colors.black54);
+    canvas.drawRect(
+      Rect.fromLTWH(bar.left, bar.top, bar.width * r, bar.height),
+      Paint()
+        ..color = r > 0.5
+            ? Colors.green
+            : (r > 0.25 ? Colors.orange : Colors.red),
+    );
+  }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _GamePainter oldDelegate) =>
+      !identical(sheets, oldDelegate.sheets) ||
+      !identical(slashSheet, oldDelegate.slashSheet);
 }
