@@ -12,7 +12,6 @@ class SchulteRegion {
   final List<Cell> cells;
   final Offset centroid; // 质心（格子坐标，绘制时换算像素）
   final double fontSize;
-  bool completed;
 
   SchulteRegion({
     required this.id,
@@ -20,19 +19,9 @@ class SchulteRegion {
     required this.cells,
     required this.centroid,
     required this.fontSize,
-    this.completed = false,
   });
 
   int get area => cells.length;
-
-  SchulteRegion copyWith({bool? completed}) => SchulteRegion(
-        id: id,
-        number: number,
-        cells: cells,
-        centroid: centroid,
-        fontSize: fontSize,
-        completed: completed ?? this.completed,
-      );
 }
 
 /// 舒尔特棋盘：网格 + 区域列表 + 格子→区域映射（用于命中检测）
@@ -59,17 +48,6 @@ class SchulteBoard {
   int regionIdAt(int col, int row) {
     if (col < 0 || col >= cols || row < 0 || row >= rows) return -1;
     return _grid[col][row];
-  }
-
-  /// 标记某区域完成（返回新实例触发 ValueNotifier 刷新）
-  SchulteBoard markCompleted(int regionId) {
-    return SchulteBoard(
-      cols: cols,
-      rows: rows,
-      regions: regions
-          .map((r) => r.id == regionId ? r.copyWith(completed: true) : r)
-          .toList(),
-    );
   }
 }
 
@@ -422,4 +400,22 @@ class RegionGenerator {
     }
     return _buildBoard(cols, rows, cells, random);
   }
+}
+
+/// 点击反馈：记录被点击的区域 id 与对错，供 painter 绘制瞬时蒙层
+class SchulteTapFeedback {
+  final int regionId;
+  final bool isCorrect;
+
+  const SchulteTapFeedback({required this.regionId, required this.isCorrect});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SchulteTapFeedback &&
+          regionId == other.regionId &&
+          isCorrect == other.isCorrect;
+
+  @override
+  int get hashCode => Object.hash(regionId, isCorrect);
 }

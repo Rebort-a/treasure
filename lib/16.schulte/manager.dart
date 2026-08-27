@@ -22,6 +22,7 @@ class SchulteManager {
       ValueNotifier(SchulteBoard(cols: cols, rows: rows, regions: const []));
   final ValueNotifier<int> nextNumber = ValueNotifier(1);
   final ValueNotifier<int> elapsed = ValueNotifier(0);
+  final AlwaysNotifier<SchulteTapFeedback?> tapFeedback = AlwaysNotifier(null);
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
@@ -44,10 +45,24 @@ class SchulteManager {
     elapsed.value = 0;
     board.value = RegionGenerator.generate(cols, rows, _regionCount);
     nextNumber.value = 1;
+    tapFeedback.value = null;
     _isGameOver = false;
   }
 
   void resetGame() => _initGame();
+
+  /// 动画结束后由 page 回调清空反馈状态
+  void clearFeedback() => tapFeedback.value = null;
+
+  /// 释放资源（page dispose 时调用）
+  void dispose() {
+    _timer.dispose();
+    board.dispose();
+    nextNumber.dispose();
+    elapsed.dispose();
+    tapFeedback.dispose();
+    pageNavigator.dispose();
+  }
 
   /// 点击命中：屏幕坐标 → 格子坐标 → 区域 id → 判定
   void handleTap(Offset local, double width, double height) {
@@ -70,15 +85,17 @@ class SchulteManager {
     if (_isGameOver) return;
     if (id < 0 || id >= board.value.regions.length) return;
     final r = board.value.regions[id];
-    if (r.completed) return;
 
     if (r.number == nextNumber.value) {
       // 正确：首次启动计时，棋盘样式保持不变（不标记/不清理）
       if (!_timer.isRunning) _timer.start();
       nextNumber.value++;
+      tapFeedback.value = SchulteTapFeedback(regionId: id, isCorrect: true);
       if (nextNumber.value > _regionCount) _handleGameOver();
+    } else {
+      // 错误：触发红色反馈，棋盘样式不变
+      tapFeedback.value = SchulteTapFeedback(regionId: id, isCorrect: false);
     }
-    // 错误点击：棋盘样式不变，无反馈
   }
 
   Future<void> _handleGameOver() async {
@@ -149,7 +166,7 @@ class SchulteManager {
     };
   }
 
-  /// 难度设置（区域数 N：4~25）
+  /// 难度设置（区域数 N：4~40）
   void showSelector() {
     pageNavigator.value = (context) => DialogTemplate.intSliderDialog(
           context: context,
