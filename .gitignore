@@ -35,6 +35,9 @@ migrate_working_dir/
 /coverage/
 .metadata
 
+# FVM (Flutter Version Management) — 本地 SDK 符号链接，不提交；.fvmrc 需提交
+.fvm/flutter_sdk
+
 # Android
 android/.gradle/
 android/local.properties
