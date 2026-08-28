@@ -57,6 +57,7 @@ class TowerConfig {
   final int damage; // 伤害
   final double splashRadius; // 溅射范围 （格）
   final double slowFactor; // 减速效果
+  final int projectileCount; // 弹道数（每次发射的飞弹数，多弹道各寻一目标）
   final List<CellType> upgrades; // 进化目标（空=已满级，仅可重建）
 
   const TowerConfig({
@@ -69,6 +70,7 @@ class TowerConfig {
     this.damage = 0,
     this.splashRadius = 0,
     this.slowFactor = 0,
+    this.projectileCount = 1,
     this.upgrades = const [],
   });
 }
@@ -91,7 +93,7 @@ class TowerConfigs {
   static const fortress = TowerConfig(
     type: CellType.fortress,
     name: 'Fortress',
-    cost: 60,
+    cost: 100,
     maxHp: 1000,
   );
   static const archer = TowerConfig(
@@ -107,22 +109,22 @@ class TowerConfigs {
   static const cannon = TowerConfig(
     type: CellType.cannon,
     name: 'Cannon',
-    cost: 60,
-    maxHp: 50,
+    cost: 100,
+    maxHp: 75,
     range: 3,
-    fireRate: 0.5,
-    damage: 20,
-    splashRadius: 1.5,
+    fireRate: 1,
+    damage: 15,
+    splashRadius: 0.5,
   );
   static const spear = TowerConfig(
     type: CellType.spear,
     name: 'Spear',
-    cost: 50,
+    cost: 100,
     maxHp: 100,
     range: 1.5,
     fireRate: 2,
     damage: 10,
-    splashRadius: 1.0,
+    projectileCount: 3, // 三弹道：每次至多命中 3 个不同敌人
   );
   static const ice = TowerConfig(
     type: CellType.ice,
@@ -130,7 +132,7 @@ class TowerConfigs {
     cost: 75,
     maxHp: 40,
     range: 2,
-    fireRate: 1.0,
+    fireRate: 1,
     damage: 5,
     slowFactor: 0.5,
     upgrades: [CellType.magic],
@@ -138,13 +140,13 @@ class TowerConfigs {
   static const magic = TowerConfig(
     type: CellType.magic,
     name: 'Magic',
-    cost: 80,
-    maxHp: 100,
+    cost: 100,
+    maxHp: 50,
     range: 3,
     fireRate: 1,
     damage: 5,
-    splashRadius: 1.5,
-    slowFactor: 0.5,
+    splashRadius: 0.5,
+    slowFactor: 0.75,
   );
 
   static TowerConfig getConfig(CellType type) => switch (type) {
@@ -206,7 +208,7 @@ class EnemyConfigs {
   static const slime = EnemyConfig(
     type: EnemyType.slime,
     name: 'Slime',
-    maxHp: 60,
+    maxHp: 25,
     speed: 0.25,
     attackDamage: 5,
     reward: 10,
@@ -214,26 +216,26 @@ class EnemyConfigs {
   static const goblin = EnemyConfig(
     type: EnemyType.goblin,
     name: 'Goblin',
-    maxHp: 150,
-    speed: 0.175,
+    maxHp: 75,
+    speed: 0.25,
     attackDamage: 10,
     reward: 20,
   );
   static const troll = EnemyConfig(
     type: EnemyType.troll,
     name: 'Troll',
-    maxHp: 400,
+    maxHp: 150,
     speed: 0.1,
     attackDamage: 15,
-    reward: 40,
+    reward: 50,
   );
   static const cyclops = EnemyConfig(
     type: EnemyType.cyclops,
     name: 'Cyclops',
-    maxHp: 1500,
-    speed: 0.075,
+    maxHp: 500,
+    speed: 0.3,
     attackDamage: 20,
-    reward: 100,
+    reward: 150,
   );
 
   static EnemyConfig getConfig(EnemyType type) => switch (type) {
@@ -249,23 +251,29 @@ class Enemy {
   final EnemyType type;
   int hp; // 血量
   double speedMultiplier; // 移速
+  double slowTimer; // 减速剩余时间（>0 时持续减速）
   double pathProgress; // 路径进程
-  bool alive; // 存活
+  bool dying; // 死亡中（播死亡行帧后移除）
+  double deathTime; // 进入 dying 时的 animTime
 
   List<GridPos> path; // 路径
   bool attacking; // 是否正在攻击Tower
+  bool escaped; // 已逃到出口（定位到出口格并绘制一帧后再移除）
   double attackCooldown; // 攻击间隔
 
   Enemy({required this.id, required this.type, required this.path})
     : hp = EnemyConfigs.getConfig(type).maxHp,
       speedMultiplier = 1.0,
+      slowTimer = 0,
       pathProgress = 0,
-      alive = true,
+      dying = false,
+      deathTime = 0,
       attacking = false,
+      escaped = false,
       attackCooldown = 0;
 
   EnemyConfig get config => EnemyConfigs.getConfig(type);
-  double get speed => config.speed * speedMultiplier;
+  double get speed => config.speed * (slowTimer > 0 ? speedMultiplier : 1.0);
   int get reward => config.reward;
 
   int get pathIndex {
@@ -274,6 +282,113 @@ class Enemy {
   }
 
   double get pathFraction => pathProgress - pathIndex;
+}
+
+// ==================== 移动方向 ====================
+
+/// 怪物当前移动方向（按路径段 dy 判定），供动画选行
+enum MoveDir { right, up, down, none }
+
+// ==================== 精灵动画配置 ====================
+
+/// 单行动画：所在行 + 有效帧数
+class SpriteAnim {
+  final int row;
+  final int frames;
+  const SpriteAnim(this.row, this.frames);
+}
+
+/// 怪物精灵表配置：每行按动作/方向分配
+class EnemySpriteDef {
+  final String asset;
+  final int columns;
+  final int rows;
+  final SpriteAnim moveRight; // 向右行走
+  final SpriteAnim moveUp; // 向上奔跑
+  final SpriteAnim moveDown; // 向下/待机
+  final SpriteAnim attack; // 攻击
+  final SpriteAnim? death; // 死亡（空=无死亡行，回退 slash 特效）
+  final double fps;
+  final bool flipX; // 精灵默认朝左时需水平翻转（敌人向右行进）
+  final double displayScale; // 显示高度 = cellSize * displayScale
+
+  const EnemySpriteDef({
+    required this.asset,
+    required this.columns,
+    required this.rows,
+    required this.moveRight,
+    required this.moveUp,
+    required this.moveDown,
+    required this.attack,
+    this.death,
+    required this.fps,
+    required this.flipX,
+    required this.displayScale,
+  });
+}
+
+class EnemySprites {
+  static const String slimeAsset = 'assets/images/slime.png';
+  static const String goblinAsset = 'assets/images/goblin.png';
+  static const String trollAsset = 'assets/images/troll.png';
+  static const String cyclopsAsset = 'assets/images/cyclops.png';
+
+  static const Map<EnemyType, EnemySpriteDef> all = {
+    EnemyType.slime: EnemySpriteDef(
+      asset: slimeAsset,
+      columns: 10,
+      rows: 4,
+      moveRight: SpriteAnim(1, 6), // 移动（向右）
+      moveUp: SpriteAnim(0, 8), // 待机行复用作上下移动
+      moveDown: SpriteAnim(0, 8),
+      attack: SpriteAnim(2, 10), // 攻击/跳跃
+      death: SpriteAnim(3, 7), // 受击→死亡
+      fps: 8,
+      flipX: false,
+      displayScale: 0.7,
+    ),
+    EnemyType.goblin: EnemySpriteDef(
+      asset: goblinAsset,
+      columns: 14,
+      rows: 6,
+      moveRight: SpriteAnim(1, 8), // 行走（向右）
+      moveUp: SpriteAnim(4, 8), // 奔跑（向上）
+      moveDown: SpriteAnim(0, 6), // 待机（向下）
+      attack: SpriteAnim(3, 6), // 攻击・挥砍（第四行）
+      death: SpriteAnim(5, 3), // 受击
+      fps: 8,
+      flipX: false,
+      displayScale: 0.96 * 1.1, // 0.8 → 1.056，累计放大 ~32%
+    ),
+    EnemyType.troll: EnemySpriteDef(
+      asset: trollAsset,
+      columns: 4,
+      rows: 4,
+      moveRight: SpriteAnim(1, 4), // 行走（向右）
+      moveUp: SpriteAnim(2, 4), // 攻击前摇行复用作向上
+      moveDown: SpriteAnim(0, 4), // 待机（向下）
+      attack: SpriteAnim(3, 4), // 攻击・挥砍
+      death: null, // 无死亡行，回退 slash 特效
+      fps: 4,
+      flipX: false, // troll.png 默认朝右，无需镜像
+      displayScale: 0.75,
+    ),
+    EnemyType.cyclops: EnemySpriteDef(
+      asset: cyclopsAsset,
+      columns: 20,
+      rows: 6,
+      moveRight: SpriteAnim(2, 8), // 行走（向右）
+      moveUp: SpriteAnim(0, 4), // 待机（向上）
+      moveDown: SpriteAnim(1, 4), // 眨眼（向下）
+      attack: SpriteAnim(3, 20), // 攻击・能量
+      death: SpriteAnim(5, 5), // 死亡
+      fps: 4,
+      flipX: false,
+      displayScale: 0.9,
+    ),
+  };
+
+  static EnemySpriteDef get(EnemyType type) => all[type]!;
 }
 
 // ==================== 波次 ====================
@@ -316,11 +431,13 @@ class Projectile {
   final int damage;
   final double splashRadius;
   final double slowFactor;
+  final CellType type; // 弹道颜色来源（发射塔类型）
   double progress;
   Projectile({
     required this.from,
     required this.targetId,
     required this.damage,
+    required this.type,
     this.splashRadius = 0,
     this.slowFactor = 0,
     this.progress = 0,
@@ -350,7 +467,8 @@ class GameMapData {
   /// 玩家是否可交互（塔格可进化/重建）
   bool canBuild(int x, int y) => inBounds(x, y) && cells[y][x].isTower;
 
-  /// 初始：最左列 road（enter 候选），最右列 exit，中间按密度随机部署 barrier
+  /// 初始：最左/最右两列 road（enter/exit 候选），中间按密度随机部署 barrier；
+  /// 每波再由 Manager 在最左列转 enter、最右列转 exit
   factory GameMapData.generate({
     int width = 20,
     int height = 12,
@@ -359,19 +477,15 @@ class GameMapData {
   }) {
     final map = GameMapData(width: width, height: height);
     final rand = random ?? Random();
-    map.cells = List.generate(
-      height,
-      (_) => List.filled(width, CellType.road),
-    );
+    map.cells = List.generate(height, (_) => List.filled(width, CellType.road));
     for (int y = 0; y < height; y++) {
       for (int x = 1; x < width - 1; x++) {
-        map.cells[y][x] =
-            rand.nextDouble() < barrierDensity
-                ? CellType.barrier
-                : CellType.road;
+        map.cells[y][x] = rand.nextDouble() < barrierDensity
+            ? CellType.barrier
+            : CellType.road;
       }
       map.cells[y][0] = CellType.road;
-      map.cells[y][width - 1] = CellType.exit;
+      map.cells[y][width - 1] = CellType.road;
     }
     return map;
   }
@@ -379,6 +493,11 @@ class GameMapData {
   /// 最左列 road → enter
   void toEnter(int y) {
     cells[y][0] = CellType.enter;
+  }
+
+  /// 最右列 road → exit
+  void toExit(int y) {
+    cells[y][width - 1] = CellType.exit;
   }
 
   /// 塔被摧毁→road
@@ -419,5 +538,27 @@ class EnemyColors {
     EnemyType.goblin => goblin,
     EnemyType.troll => troll,
     EnemyType.cyclops => cyclops,
+  };
+}
+
+/// 道具子弹专属颜色（按发射塔类型取色）
+class TowerColors {
+  static const wall = Color(0xFF8D6E63);
+  static const fortress = Color(0xFF4E342E);
+  static const archer = Color(0xFF6D4C41);
+  static const cannon = Color(0xFFFF5722);
+  static const spear = Color(0xFFFFD700);
+  static const ice = Color(0xFF01579B);
+  static const magic = Color(0xFF9C27B0);
+
+  static Color get(CellType type) => switch (type) {
+    CellType.wall => wall,
+    CellType.fortress => fortress,
+    CellType.archer => archer,
+    CellType.cannon => cannon,
+    CellType.spear => spear,
+    CellType.ice => ice,
+    CellType.magic => magic,
+    _ => Colors.white, // barrier/field 不发射，兜底
   };
 }

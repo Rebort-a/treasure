@@ -134,9 +134,11 @@ class Manager with ChangeNotifier implements TickerProvider {
     speed.value = s;
   }
 
-  /// 倍速循环切换 1→2→3→1
+  /// 倍速循环切换 1→2→4→1
   void cycleSpeed() {
-    speed.value = speed.value >= 3.0 ? 1.0 : speed.value + 1.0;
+    speed.value = speed.value >= 4.0
+        ? 1.0
+        : (speed.value == 1.0 ? 2.0 : 4.0);
   }
 
   // ==================== 波次管理 ====================
@@ -144,9 +146,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   void startNextWave() {
     if (_waveActive) return;
     final s = state.value;
-    if (s == GameState.lost ||
-        s == GameState.won ||
-        s == GameState.paused) {
+    if (s == GameState.lost || s == GameState.won || s == GameState.paused) {
       return;
     }
     if (s == GameState.preparing) {
@@ -155,6 +155,7 @@ class Manager with ChangeNotifier implements TickerProvider {
 
     waveNumber.value++;
     _addEnter(); // 每波在最左列随机新增一个 enter
+    _addExit(); // 每波在最右列随机新增一个 exit
 
     final wave = WaveGenerator.generate(waveNumber.value);
     _spawnInterval = wave.spawnInterval;
@@ -191,6 +192,16 @@ class Manager with ChangeNotifier implements TickerProvider {
     map.toEnter(roads[_rand.nextInt(roads.length)]);
   }
 
+  /// 最右列随机一个 road 格转为 exit（全部已是 exit 时不再增加）
+  void _addExit() {
+    final roads = <int>[];
+    for (int y = 0; y < map.height; y++) {
+      if (map.cells[y][map.width - 1] == CellType.road) roads.add(y);
+    }
+    if (roads.isEmpty) return;
+    map.toExit(roads[_rand.nextInt(roads.length)]);
+  }
+
   /// 创建敌人：从随机 enter 出生（战场左边界进入），终点=最右列随机 exit 格
   Enemy _spawnEnemy(EnemyType type) {
     final enters = <int>[];
@@ -211,92 +222,99 @@ class Manager with ChangeNotifier implements TickerProvider {
   void _checkWaveComplete() {
     if (!_waveActive) return;
     if (_waveQueue.isNotEmpty) return;
-    if (enemies.any((e) => e.alive)) return;
+    if (enemies.any((e) => !e.escaped)) return;
 
     _waveActive = false;
     gold.value += 20 + waveNumber.value * 5;
-
-    if (waveNumber.value >= 20) {
-      state.value = GameState.won;
-    } else {
-      state.value = GameState.preparing;
-    }
+    // 无波次上限，玩家可一直玩（仅 lives 归零才 lost）
+    state.value = GameState.preparing;
   }
 
-  // ==================== 路径规划（随机路点 + 4 方向 BFS，多样且可绕圈） ====================
+  // ==================== 路径规划（随机出口 + 右/上/下 组合，禁止上下直接反转） ====================
 
-  /// enter → 随机路点（可回溯绕圈）→ 最右列随机 exit（到达即逃走）
+  /// 怪物从最左列 enter 出生，从最右列随机挑一个 exit 作终点，
+  /// 全程只向右/上/下移动（不向左），路径向右、向上、向下自由搭配而多样。
+  /// 约束：上↔下不可直接反转（上→下、下→上 之间必须隔一步右移），
+  /// 例如 上→上→右→下 合法，而上→下 非法。
+  /// 实现上把路线拆成"垂直游走块"与"右移块"交替：每块纵移后必紧跟一段右移，
+  /// 右移即作为上下换向的复位步，故天然不会出现直接上下反转。
   List<GridPos> _planPath(GridPos enter) {
-    final target = GridPos(map.width - 1, _rand.nextInt(map.height));
-    // 0~2 个随机路点制造路径多样性（路点可在当前位置左侧 → 产生绕圈）
-    final waypoints = <GridPos>[
-      for (int i = 0, n = _rand.nextInt(3); i < n; i++)
-        GridPos(_rand.nextInt(map.width), _rand.nextInt(map.height)),
-      target,
-    ];
-
-    final path = <GridPos>[enter]; // 从战场左边界 enter 出生
-    var cur = enter;
-    for (final wp in waypoints) {
-      path.addAll(_bfsSegment(cur, wp).skip(1)); // 去重段起点
-      cur = wp;
+    final w = map.width, h = map.height;
+    // 终点=最右列已部署的 exit 格（让怪物在出口图标处消失）；无 exit 时回退随机格
+    final exits = <int>[];
+    for (int y = 0; y < h; y++) {
+      if (map.cells[y][w - 1] == CellType.exit) exits.add(y);
     }
-    return path; // 终点即 target（最右列 exit），到达即逃走
-  }
+    final goalY = exits.isEmpty
+        ? _rand.nextInt(h)
+        : exits[_rand.nextInt(exits.length)];
+    final goal = GridPos(w - 1, goalY);
 
-  /// 4 方向 BFS（规划时忽略 tower 阻挡，全格可行走；每节点随机邻居顺序增加多样性）
-  List<GridPos> _bfsSegment(GridPos start, GridPos goal) {
-    if (start == goal) return [start];
+    final path = <GridPos>[enter];
+    int x = enter.x, y = enter.y;
 
-    final visited = List.generate(
-      map.height,
-      (_) => List<bool>.filled(map.width, false),
-    );
-    final prev = List.generate(
-      map.height,
-      (_) => List<GridPos?>.filled(map.width, null),
-    );
-    final queue = <GridPos>[start];
-    visited[start.y][start.x] = true;
-    bool found = false;
-
-    while (queue.isNotEmpty && !found) {
-      final cur = queue.removeAt(0);
-      final dirs = <(int, int)>[(1, 0), (-1, 0), (0, 1), (0, -1)]
-        ..shuffle(_rand);
-      for (final (dx, dy) in dirs) {
-        final nx = cur.x + dx, ny = cur.y + dy;
-        if (!map.inBounds(nx, ny) || visited[ny][nx]) continue;
-        visited[ny][nx] = true;
-        prev[ny][nx] = cur;
-        if (nx == goal.x && ny == goal.y) {
-          found = true;
-          break;
+    // 1) 向右推进到最右列，期间随机夹"垂直游走块"制造上/下绕路多样性；
+    //    每块纵移后立刻跟一段右移，作为上下换向的复位步。
+    while (x < goal.x) {
+      if (_rand.nextDouble() < 0.6) {
+        // 偏向出口方向的纵移为主，偶尔反向游走
+        final toward = goal.y > y ? 1 : (goal.y < y ? -1 : 0);
+        var dir =
+            toward != 0 && _rand.nextDouble() < 0.6
+            ? toward
+            : (_rand.nextBool() ? 1 : -1);
+        var room = dir > 0 ? h - 1 - y : y;
+        // 边界行 dir 朝越界时翻转为可行方向，避免出生在最上/下行的怪物
+        // 只能直走到头再末端归位（路径雷同）
+        if (room == 0) {
+          dir = -dir;
+          room = dir > 0 ? h - 1 - y : y;
         }
-        queue.add(GridPos(nx, ny));
+        final cnt = 1 + _rand.nextInt(max(1, min(3, room + 1)));
+        for (int i = 0; i < min(cnt, room); i++) {
+          y += dir;
+          path.add(GridPos(x, y));
+        }
+      }
+      // 右移一块（推向最右列），也是换向复位步
+      final stop = min(x + 1 + _rand.nextInt(max(1, goal.x - x)), goal.x);
+      while (x < stop) {
+        x += 1;
+        path.add(GridPos(x, y));
       }
     }
 
-    if (!found) return [start];
-    final result = <GridPos>[goal];
-    var cur = goal;
-    while (cur != start) {
-      final p = prev[cur.y][cur.x];
-      if (p == null) break;
-      cur = p;
-      result.add(cur);
+    // 2) 到达最右列后纵移归位到出口（刚经过右移，方向可自由选择）
+    while (y < goal.y) {
+      y += 1;
+      path.add(GridPos(x, y));
     }
-    return result.reversed.toList();
+    while (y > goal.y) {
+      y -= 1;
+      path.add(GridPos(x, y));
+    }
+
+    return path;
   }
 
   // ==================== 敌人逻辑（遇 tower 攻击，用自身 attackDamage） ====================
 
   void _updateEnemies(double dt) {
+    // 上一帧已定位于出口并被绘制过的逃跑敌人，本次率先移除（避免在出口滞留）
+    if (enemies.any((e) => e.escaped)) {
+      enemies.removeWhere((e) => e.escaped);
+    }
     for (final enemy in enemies.value) {
-      if (!enemy.alive) continue;
+      if (enemy.dying || enemy.escaped) continue;
+
+      if (enemy.slowTimer > 0) {
+        enemy.slowTimer -= dt;
+        if (enemy.slowTimer <= 0) enemy.speedMultiplier = 1.0;
+      }
 
       if (enemy.attacking) {
-        enemy.attackCooldown -= dt;
+        // 减速同时拖慢攻击：冷却衰减乘以 speedMultiplier，与移速同源
+        enemy.attackCooldown -= dt * enemy.speedMultiplier;
         if (enemy.attackCooldown <= 0) {
           enemy.attackCooldown = 1.0;
           final targetIdx = (enemy.pathIndex + 1 < enemy.path.length)
@@ -308,32 +326,46 @@ class Manager with ChangeNotifier implements TickerProvider {
       }
 
       enemy.pathProgress += enemy.speed * dt;
-      final nextIdx = enemy.pathIndex + 1;
-      if (nextIdx < enemy.path.length) {
+      final nextIdx = enemy.pathIndex + 1;      if (nextIdx < enemy.path.length) {
         final next = enemy.path[nextIdx];
         // 仅图内塔格阻挡
         final blocked = map.cells[next.y][next.x].isTower;
         if (blocked) {
-          enemy.pathProgress = enemy.pathIndex.toDouble();
-          enemy.attacking = true;
-          enemy.attackCooldown = 0;
+          // 抵近到格子边界（距道具 0.5 格）再攻击：平滑逼近 cap 再停，
+          // 不直接 snap 到 0.5（snap 会造成前进瞬移）
+          final cap = enemy.pathIndex + 0.5;
+          if (enemy.pathProgress >= cap) {
+            enemy.pathProgress = cap;
+            if (!enemy.attacking) {
+              enemy.attacking = true;
+              enemy.attackCooldown = 0;
+            }
+          }
         }
       } else {
-        // 到达终点（最右列 exit）→ 逃走
+        // 到达终点（最右列 exit）：定位于出口格，存活一帧供绘制重合，
+        // 下一帧 _updateEnemies 开头再移除
         enemy.pathProgress = (enemy.path.length - 1).toDouble();
-        enemy.alive = false;
+        _enemyMap.remove(enemy.id);
+        enemy.escaped = true;
         lives.value--;
         escaped.value++;
       }
 
-      if (enemy.speedMultiplier < 1.0) {
-        enemy.speedMultiplier = min(1.0, enemy.speedMultiplier + dt * 0.15);
+      if (enemy.slowTimer > 0) {
+        enemy.slowTimer -= dt;
+        if (enemy.slowTimer <= 0) enemy.speedMultiplier = 1.0;
       }
     }
 
-    // 增量清理死亡敌人（避免全量列表拷贝）
-    if (enemies.any((e) => !e.alive)) {
-      enemies.removeWhere((e) => !e.alive);
+    // 死亡动画播完的敌人移除（无死亡行者 death==null 立即移除）
+    if (enemies.any((e) => e.dying)) {
+      enemies.removeWhere((e) {
+        if (!e.dying) return false;
+        final d = EnemySprites.get(e.type).death;
+        return d == null ||
+            (animTime - e.deathTime) * EnemySprites.get(e.type).fps >= d.frames;
+      });
     }
   }
 
@@ -379,39 +411,45 @@ class Manager with ChangeNotifier implements TickerProvider {
       if (!tower.canAttack) continue; // wall/fortress 路障不攻击
       tower.cooldown -= dt;
       if (tower.cooldown > 0) continue;
-      final target = _findTarget(tower);
-      if (target == null) continue;
+      final targets = _findTargets(tower, tower.config.projectileCount);
+      if (targets.isEmpty) continue;
       tower.cooldown = 1.0 / tower.config.fireRate;
-      _fire(tower, target);
+      for (final target in targets) {
+        _fire(tower, target);
+      }
     }
   }
 
-  /// 射程内 pathProgress 最大（最靠前）的敌人；用插值浮点坐标算距离，避免整数格子误差
-  Enemy? _findTarget(Tower tower) {
+  /// 射程内最近的至多 [count] 个敌人：单弹道取最近一个，
+  /// 多弹道优先选不同目标（按距离升序去重取前 [count] 个）。
+  /// 用插值浮点坐标算距离，避免整数格子误差
+  List<Enemy> _findTargets(Tower tower, int count) {
     final tp = Offset(tower.pos.x.toDouble(), tower.pos.y.toDouble());
-    Enemy? best;
-    double bestProgress = -1;
+    final inRange = <MapEntry<double, Enemy>>[];
     for (final enemy in enemies.value) {
-      if (!enemy.alive) continue;
+      if (enemy.dying || enemy.escaped) continue;
       final ep = _enemyGridPos(enemy);
       final dist = sqrt(pow(ep.dx - tp.dx, 2) + pow(ep.dy - tp.dy, 2));
       if (dist > tower.range) continue;
-      if (enemy.pathProgress > bestProgress) {
-        bestProgress = enemy.pathProgress;
-        best = enemy;
-      }
+      inRange.add(MapEntry(dist, enemy));
     }
-    return best;
+    inRange.sort((a, b) => a.key.compareTo(b.key)); // 近的优先
+    final sorted = inRange.map((e) => e.value).toList();
+    if (count <= 1) return sorted.isEmpty ? [] : [sorted.first];
+    return sorted.take(count).toList();
   }
 
   void _fire(Tower tower, Enemy target) {
-    projectiles.add(Projectile(
-      from: tower.pos,
-      targetId: target.id,
-      damage: tower.damage,
-      splashRadius: tower.config.splashRadius,
-      slowFactor: tower.config.slowFactor,
-    ));
+    projectiles.add(
+      Projectile(
+        from: tower.pos,
+        targetId: target.id,
+        damage: tower.damage,
+        splashRadius: tower.config.splashRadius,
+        slowFactor: tower.config.slowFactor,
+        type: tower.type,
+      ),
+    );
   }
 
   // ==================== 飞弹逻辑 ====================
@@ -431,21 +469,31 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   void _applyDamage(Projectile p) {
     final target = _enemyMap[p.targetId];
-    if (target == null || !target.alive) return;
-    target.hp -= p.damage;
-    if (p.slowFactor > 0) target.speedMultiplier = p.slowFactor;
+    if (target == null || target.dying) return;
+      target.hp -= p.damage;
+      if (p.slowFactor > 0) {
+        target.speedMultiplier = p.slowFactor;
+        target.slowTimer = 2.0;
+      }
     if (target.hp <= 0) {
       _killEnemy(target);
     }
     if (p.splashRadius > 0) {
       final tPos = _enemyGridPos(target);
       for (final enemy in enemies.value) {
-        if (identical(enemy, target) || !enemy.alive) continue;
+        if (identical(enemy, target) || enemy.dying || enemy.escaped) {
+          continue;
+        }
         final ePos = _enemyGridPos(enemy);
-        final dist = sqrt(pow(ePos.dx - tPos.dx, 2) + pow(ePos.dy - tPos.dy, 2));
+        final dist = sqrt(
+          pow(ePos.dx - tPos.dx, 2) + pow(ePos.dy - tPos.dy, 2),
+        );
         if (dist <= p.splashRadius) {
           enemy.hp -= (p.damage * 0.5).toInt();
-          if (p.slowFactor > 0) enemy.speedMultiplier = p.slowFactor;
+          if (p.slowFactor > 0) {
+            enemy.speedMultiplier = p.slowFactor;
+            enemy.slowTimer = 2.0;
+          }
           if (enemy.hp <= 0) {
             _killEnemy(enemy);
           }
@@ -456,11 +504,15 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 敌人死亡：标记、移出反查表、触发击杀特效、给奖励
   void _killEnemy(Enemy enemy) {
-    enemy.alive = false;
-    _enemyMap.remove(enemy.id);
-    effects.add(KillEffect(pos: getEnemyPixelPos(enemy), bornAt: animTime));
+    _enemyMap.remove(enemy.id); // 飞弹不再锁定
+    enemy.dying = true;
+    enemy.deathTime = animTime;
     gold.value += enemy.reward;
     kills.value++;
+    // 有死亡行→让动画自演；无死亡行（troll）→slash 飞溅特效
+    if (EnemySprites.get(enemy.type).death == null) {
+      effects.add(KillEffect(pos: getEnemyPixelPos(enemy), bornAt: animTime));
+    }
   }
 
   // ==================== 击杀特效 ====================
@@ -507,6 +559,19 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   // ==================== 辅助 ====================
 
+  /// 怪物当前移动方向（按路径段 dy 判定），供动画选行；
+  /// dying 或已到终点返回 none
+  MoveDir enemyMoveDir(Enemy enemy) {
+    if (enemy.dying) return MoveDir.none;
+    final path = enemy.path;
+    final idx = enemy.pathIndex;
+    if (idx + 1 >= path.length) return MoveDir.none;
+    final dy = path[idx + 1].y - path[idx].y;
+    if (dy < 0) return MoveDir.up;
+    if (dy > 0) return MoveDir.down;
+    return MoveDir.right;
+  }
+
   /// 敌人当前浮点格子坐标（插值），供射程/溅射判定，消除整数格子误差
   Offset _enemyGridPos(Enemy enemy) {
     final path = enemy.path;
@@ -538,7 +603,7 @@ class Manager with ChangeNotifier implements TickerProvider {
       p.from.y * cellSize + cellSize / 2,
     );
     final target = _enemyMap[p.targetId];
-    if (target == null || !target.alive) return from;
+    if (target == null || target.dying) return from;
     final to = getEnemyPixelPos(target);
     return Offset(
       from.dx + (to.dx - from.dx) * p.progress,

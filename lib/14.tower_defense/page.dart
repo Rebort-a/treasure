@@ -87,16 +87,9 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
           ),
           Expanded(child: _hudItem(Icons.favorite, Colors.red, _manager.lives)),
           Expanded(
-            child: _hudItem(
-              Icons.waves,
-              Colors.cyan,
-              _manager.waveNumber,
-              prefix: S.wavePrefix,
-            ),
+            child: _hudItem(Icons.waves, Colors.cyan, _manager.waveNumber),
           ),
-          Expanded(
-            child: _hudItem(Icons.whatshot, Colors.orange, _manager.kills),
-          ),
+          Expanded(child: _hudItem(Icons.block, Colors.orange, _manager.kills)),
           Expanded(
             child: _hudItem(
               Icons.directions_run,
@@ -109,12 +102,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
     );
   }
 
-  Widget _hudItem(
-    IconData icon,
-    Color color,
-    ValueListenable<int> listenable, {
-    String prefix = '',
-  }) {
+  Widget _hudItem(IconData icon, Color color, ValueListenable<int> listenable) {
     return ValueListenableBuilder<int>(
       valueListenable: listenable,
       builder: (_, value, __) => Row(
@@ -123,7 +111,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 4),
           Text(
-            '$prefix$value',
+            '$value',
             style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
         ],
@@ -147,10 +135,12 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
                 icon: Text(
                   '${speed.toInt()}x',
                   style: TextStyle(
-                    // 1x 时与相邻 AppBar 图标按钮同源取色（onSurface），>1x 高亮琥珀
-                    color: speed > 1
-                        ? Colors.amber
-                        : IconTheme.of(context).color,
+                    // 1x 时与相邻 AppBar 图标按钮同源取色（onSurface），2x 琥珀，4x 红
+                    color: speed >= 4.0
+                        ? Colors.red
+                        : (speed > 1
+                              ? Colors.amber
+                              : IconTheme.of(context).color),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -163,10 +153,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
               ),
               onPressed: inGame ? _manager.togglePause : null,
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _restart,
-            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _restart),
           ],
         );
       },
@@ -182,7 +169,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
         final availW = constraints.maxWidth;
         final availH = constraints.maxHeight;
         final w = (availW / cellSize).floor().clamp(1, 60);
-        final h = ((availH - 56) / cellSize).floor().clamp(1, 60); // 预留底部面板区
+        final h = ((availH - 84) / cellSize).floor().clamp(1, 60); // 预留底部面板区
         if (!_mapInitialized) {
           _mapInitialized = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -240,7 +227,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
               ),
               const SizedBox(height: 20),
               Text(
-                '${S.startWave} #${_manager.waveNumber.value + 1}',
+                '${S.startWave} ${_manager.waveNumber.value + 1}',
                 style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 20),
@@ -272,10 +259,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
                 ),
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _restart,
-                child: Text(S.startNewGame),
-              ),
+              ElevatedButton(onPressed: _restart, child: Text(S.startNewGame)),
             ],
           ),
         ),
@@ -283,13 +267,12 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
     );
   }
 
+  /// 重开：重置 _mapInitialized 让 _buildGameArea 的 LayoutBuilder 按当前可用尺寸
+  /// 重新计算 w/h 并 initGame（支持竖屏↔横屏切换后重开重新规划战场）
   void _restart() {
-    setState(
-      () => _manager.initGame(
-        width: _manager.map.width,
-        height: _manager.map.height,
-      ),
-    );
+    setState(() {
+      _mapInitialized = false;
+    });
   }
 
   // ==================== 点击交互 ====================
@@ -351,7 +334,8 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
     final curMax = fort.maxHp;
     final selected = _manager.selectedTower.value;
     final isRebuild = selected == curType;
-    final confirmEnabled = selected != null &&
+    final confirmEnabled =
+        selected != null &&
         _manager.gold.value >= TowerConfigs.getConfig(selected).cost &&
         (!isRebuild || curHp < curMax);
     return _buildBottomPanel(
@@ -370,9 +354,8 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
           hpText: S.hpMax(cfg.maxHp),
           cost: cfg.cost,
           isSelected: selected == toType,
-          onTap: () => _manager.selectCellType(
-            selected == toType ? null : toType,
-          ),
+          onTap: () =>
+              _manager.selectCellType(selected == toType ? null : toType),
         );
       }).toList(),
       confirmEnabled: confirmEnabled,
@@ -469,19 +452,35 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
           margin: const EdgeInsets.all(3), // 露出外层 3px 作选中金边
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: kFieldColor,
+            // 背景同款 memory_card _backFace：深紫→靛蓝渐变 + 圆角 + 靛蓝描边 + 阴影
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.deepPurple, Colors.indigo],
+            ),
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.indigo.shade700),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 2,
+                offset: Offset(1, 1),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              isRebuildCard
-                  ? const Icon(Icons.refresh, size: 20, color: Colors.white)
-                  : Text(towerEmoji(type), style: const TextStyle(fontSize: 20)),
               Text(
                 config.name,
                 style: const TextStyle(color: Colors.white, fontSize: 10),
               ),
+              isRebuildCard
+                  ? const Icon(Icons.refresh, size: 20, color: Colors.white)
+                  : Text(
+                      towerEmoji(type),
+                      style: const TextStyle(fontSize: 20),
+                    ),
               Text(
                 hpText,
                 style: const TextStyle(color: Colors.white70, fontSize: 9),
@@ -496,82 +495,6 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
       ),
     );
   }
-}
-
-// ==================== 怪物精灵配置 ====================
-
-class EnemySpriteDef {
-  final String asset;
-  final int columns;
-  final int rows;
-  final int walkRow; // 行走动画所在行
-  final int walkFrames; // 行走帧数
-  final double fps;
-  final bool flipX; // 精灵默认朝左时需水平翻转（敌人向右行进）
-  final double displayScale; // 显示高度 = cellSize * displayScale
-
-  const EnemySpriteDef({
-    required this.asset,
-    required this.columns,
-    required this.rows,
-    required this.walkRow,
-    required this.walkFrames,
-    required this.fps,
-    required this.flipX,
-    required this.displayScale,
-  });
-}
-
-class EnemySprites {
-  static const String slimeAsset = 'assets/images/slime.png';
-  static const String goblinAsset = 'assets/images/goblin.png';
-  static const String trollAsset = 'assets/images/troll.png';
-  static const String cyclopsAsset = 'assets/images/cyclops.png';
-
-  static const Map<EnemyType, EnemySpriteDef> all = {
-    EnemyType.slime: EnemySpriteDef(
-      asset: slimeAsset,
-      columns: 10,
-      rows: 4,
-      walkRow: 0,
-      walkFrames: 8,
-      fps: 8,
-      flipX: false,
-      displayScale: 0.7,
-    ),
-    EnemyType.goblin: EnemySpriteDef(
-      asset: goblinAsset,
-      columns: 14,
-      rows: 6,
-      walkRow: 1,
-      walkFrames: 8,
-      fps: 8,
-      flipX: false,
-      displayScale: 0.8,
-    ),
-    EnemyType.troll: EnemySpriteDef(
-      asset: trollAsset,
-      columns: 4,
-      rows: 4,
-      walkRow: 1,
-      walkFrames: 4,
-      fps: 4,
-      flipX: true,
-      displayScale: 0.75,
-    ),
-    EnemyType.cyclops: EnemySpriteDef(
-      asset: cyclopsAsset,
-      columns: 20,
-      rows: 6,
-      walkRow: 1,
-      walkFrames: 4,
-      fps: 4,
-      flipX: false,
-      displayScale: 0.9,
-    ),
-  };
-
-  static EnemySpriteDef get(EnemyType type) => all[type]!;
 }
 
 /// 击杀飞溅特效配置（slash_blood_spritesheet.png 256×64，4 帧 64×64）
@@ -597,6 +520,7 @@ class _GamePainter extends CustomPainter {
   static const Color _enterColor = Color(0xFF66BB6A); // 入口绿
   static const Color _exitColor = Color(0xFFEF5350); // 出口红
   static const Color _rangeColor = Color(0xFF81D4FA); // 攻击范围浅蓝
+  static const bool showGridLines = false; // 方格边框可选配置（默认不画，参照 maze_page）
 
   /// 图标缓存（全图大量绘制，静态缓存避免每帧重复 layout）
   static final Map<String, TextPainter> _textPainters = {};
@@ -627,7 +551,11 @@ class _GamePainter extends CustomPainter {
     final cellSize = Manager.cellSize;
     final map = manager.map;
 
-    // 网格：统一底色 + enter/exit 图标 + 网格线
+    // 战场底色整块绘制（避免逐格浮点缝隙露出竖线）
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, map.width * cellSize, map.height * cellSize),
+      Paint()..color = kFieldColor,
+    );
     for (int y = 0; y < map.height; y++) {
       for (int x = 0; x < map.width; x++) {
         final rect = Rect.fromLTWH(
@@ -636,7 +564,6 @@ class _GamePainter extends CustomPainter {
           cellSize,
           cellSize,
         );
-        canvas.drawRect(rect, Paint()..color = kFieldColor);
         final cell = map.cells[y][x];
         if (cell == CellType.enter || cell == CellType.exit) {
           final isEnter = cell == CellType.enter;
@@ -652,13 +579,15 @@ class _GamePainter extends CustomPainter {
             ),
           );
         }
-        canvas.drawRect(
-          rect,
-          Paint()
-            ..color = Colors.black26
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.5,
-        );
+        if (showGridLines) {
+          canvas.drawRect(
+            rect,
+            Paint()
+              ..color = Colors.black26
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.5,
+          );
+        }
       }
     }
 
@@ -682,7 +611,8 @@ class _GamePainter extends CustomPainter {
 
     // 塔：选中格画阴影底；进化预览格走半透明预览态，其余正常绘制
     for (final tower in manager.towers.value) {
-      final isSelected = selFort != null &&
+      final isSelected =
+          selFort != null &&
           tower.pos.x == selFort.x &&
           tower.pos.y == selFort.y;
       final isEvolvePreview =
@@ -697,9 +627,8 @@ class _GamePainter extends CustomPainter {
       }
     }
 
-    // 敌人（spritesheet 行走动画，未加载完前回退色圆）
+    // 敌人（spritesheet 方向/攻击/死亡动画，未加载完前回退色圆）
     for (final enemy in manager.enemies.value) {
-      if (!enemy.alive) continue;
       _drawEnemy(canvas, enemy, cellSize);
     }
 
@@ -718,10 +647,7 @@ class _GamePainter extends CustomPainter {
   }
 
   void _drawRange(Canvas canvas, GridPos pos, CellType type, double cellSize) {
-    final center = Offset(
-      (pos.x + 0.5) * cellSize,
-      (pos.y + 0.5) * cellSize,
-    );
+    final center = Offset((pos.x + 0.5) * cellSize, (pos.y + 0.5) * cellSize);
     final radius = TowerConfigs.getConfig(type).range * cellSize;
     canvas.drawCircle(
       center,
@@ -740,7 +666,7 @@ class _GamePainter extends CustomPainter {
     );
   }
 
-  /// 正常塔：仅图标 + 受损血条（不画背景色块，靠 emoji 区分形态）
+  /// 正常塔：仅图标 + 受损血条（血条统一在图标正上方，与图标等宽、贴近）
   void _drawTower(Canvas canvas, Tower tower, double cellSize) {
     final rect = Rect.fromLTWH(
       tower.pos.x * cellSize,
@@ -749,14 +675,15 @@ class _GamePainter extends CustomPainter {
       cellSize,
     );
     final tp = _emojiPainter(towerEmoji(tower.type));
-    tp.paint(
-      canvas,
-      Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2),
-    );
+    final cx = rect.center.dx;
+    final iconTop = rect.center.dy - tp.height / 2;
+    tp.paint(canvas, Offset(cx - tp.width / 2, iconTop));
+    final barW = tp.width.clamp(10.0, rect.width);
     _drawHpBar(
       canvas,
-      Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 3),
+      Rect.fromLTWH(cx - barW / 2, iconTop + 1, barW, 1.5),
       tower.hp / tower.maxHp,
+      isEnemy: false,
     );
   }
 
@@ -798,8 +725,7 @@ class _GamePainter extends CustomPainter {
     final def = EnemySprites.get(enemy.type);
     final sheet = sheets[enemy.type];
 
-    double halfW;
-    double topY;
+    double halfH;
     if (sheet == null) {
       final radius = enemy.type == EnemyType.cyclops ? 10.0 : 7.0;
       canvas.drawCircle(
@@ -807,16 +733,41 @@ class _GamePainter extends CustomPainter {
         radius,
         Paint()..color = EnemyColors.get(enemy.type),
       );
-      halfW = radius;
-      topY = pos.dy - radius;
+      halfH = radius;
     } else {
-      // 行走帧：按动画时钟循环，hashCode 相位错开同屏怪物
-      final frame =
-          ((manager.animTime * def.fps +
-                    (enemy.hashCode % 100) / 100 * def.walkFrames) %
-                def.walkFrames)
-              .floor();
-      final src = sheet.frameRect(def.walkRow * sheet.columns + frame);
+      // 选行优先级：死亡(单次) > 攻击(循环) > 方向行走(循环)
+      final SpriteAnim anim;
+      final bool loop;
+      if (enemy.dying && def.death != null) {
+        anim = def.death!;
+        loop = false;
+      } else if (enemy.attacking) {
+        anim = def.attack;
+        loop = true;
+      } else {
+        anim = switch (manager.enemyMoveDir(enemy)) {
+          MoveDir.up => def.moveUp,
+          MoveDir.down => def.moveDown,
+          _ => def.moveRight, // right/none 都用向右
+        };
+        loop = true;
+      }
+      final int frame;
+      if (loop) {
+        // 循环：按动画时钟 + hashCode 相位错开同屏怪物
+        frame =
+            ((manager.animTime * def.fps +
+                        (enemy.hashCode % 100) / 100 * anim.frames) %
+                    anim.frames)
+                .floor();
+      } else {
+        // 死亡单次：从 deathTime 起播，播完停在最后一帧（removeWhere 随后移除）
+        frame = ((manager.animTime - enemy.deathTime) * def.fps)
+            .floor()
+            .clamp(0, anim.frames - 1)
+            .toInt();
+      }
+      final src = sheet.frameRect(anim.row * sheet.columns + frame);
       final drawH = cellSize * def.displayScale;
       final drawW = drawH * sheet.cellWidth / sheet.cellHeight;
       canvas.save();
@@ -829,20 +780,28 @@ class _GamePainter extends CustomPainter {
         Paint(),
       );
       canvas.restore();
-      halfW = drawW / 2;
-      topY = pos.dy - drawH / 2;
+      halfH = drawH / 2;
     }
 
-    _drawHpBar(
-      canvas,
-      Rect.fromLTWH(pos.dx - halfW, topY - 5, halfW * 2, 3),
-      enemy.hp / enemy.config.maxHp,
-    );
+    // 死亡中不画血条（hp 已归零，避免黑条）
+    if (!enemy.dying) {
+      _drawHpBar(
+        canvas,
+        Rect.fromLTWH(
+          pos.dx - cellSize * 0.35,
+          pos.dy - halfH + 2,
+          cellSize * 0.7,
+          2,
+        ),
+        enemy.hp / enemy.config.maxHp,
+        isEnemy: true,
+      );
+    }
   }
 
   void _drawProjectiles(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFFFFEB3B);
     for (final p in manager.projectiles.value) {
+      final paint = Paint()..color = TowerColors.get(p.type);
       canvas.drawCircle(manager.getProjectilePos(p), 3, paint);
     }
   }
@@ -865,16 +824,27 @@ class _GamePainter extends CustomPainter {
     }
   }
 
-  void _drawHpBar(Canvas canvas, Rect bar, double ratio) {
+  /// 血条：塔(友方)蓝灰底+绿系前景，敌(敌方)黑底+红系前景，敌我一目了然
+  void _drawHpBar(
+    Canvas canvas,
+    Rect bar,
+    double ratio, {
+    required bool isEnemy,
+  }) {
     final r = ratio.clamp(0.0, 1.0);
     if (r >= 1.0) return;
-    canvas.drawRect(bar, Paint()..color = Colors.black54);
+    canvas.drawRect(
+      bar,
+      Paint()..color = isEnemy ? Colors.black54 : Colors.blueGrey.shade900,
+    );
+    final fg = isEnemy
+        ? (r > 0.5
+              ? Colors.red
+              : (r > 0.25 ? Colors.deepOrange : Colors.red.shade800))
+        : (r > 0.5 ? Colors.green : (r > 0.25 ? Colors.orange : Colors.red));
     canvas.drawRect(
       Rect.fromLTWH(bar.left, bar.top, bar.width * r, bar.height),
-      Paint()
-        ..color = r > 0.5
-            ? Colors.green
-            : (r > 0.25 ? Colors.orange : Colors.red),
+      Paint()..color = fg,
     );
   }
 
