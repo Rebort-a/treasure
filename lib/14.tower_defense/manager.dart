@@ -15,12 +15,12 @@ class Manager with ChangeNotifier implements TickerProvider {
   static const double cellSize = 40.0;
   static const int startGold = 200;
   static const int startLives = 20;
-  static const double _effectDuration = 0.4; // 击杀特效时长（秒）
+  static const double _effectDuration = 4 / 12; // 击杀特效时长=slash 4帧@12fps≈0.33s
 
   late GameMapData map;
   final ListNotifier<Tower> towers = ListNotifier([]);
   final ListNotifier<Enemy> enemies = ListNotifier([]);
-  final ListNotifier<Projectile> projectiles = ListNotifier([]);
+  final ListNotifier<Bullet> projectiles = ListNotifier([]);
   final ListNotifier<KillEffect> effects = ListNotifier([]);
 
   final AlwaysNotifier<int> gold = AlwaysNotifier(startGold);
@@ -59,6 +59,23 @@ class Manager with ChangeNotifier implements TickerProvider {
   @override
   void dispose() {
     _ticker.dispose();
+    for (final n in [
+      towers,
+      enemies,
+      projectiles,
+      effects,
+      gold,
+      lives,
+      waveNumber,
+      state,
+      selectedTower,
+      kills,
+      escaped,
+      selectedFort,
+      speed,
+    ]) {
+      n.dispose();
+    }
     super.dispose();
   }
 
@@ -102,9 +119,9 @@ class Manager with ChangeNotifier implements TickerProvider {
     var dt = cur - _lastElapsed;
     _lastElapsed = cur;
     if (dt < 0) dt = 0;
-    // 仅 playing 推进逻辑与动画；paused/won/lost/preparing 静止
+    // 仅 playing 推进游戏逻辑与精灵动画；paused/lost/preparing 静止
     if (state.value != GameState.playing) return;
-    final scaled = dt.clamp(0.004, 0.05) * speed.value;
+    final scaled = dt.clamp(0.0, 0.05) * speed.value;
     animTime += scaled;
     _updateWaveSpawning(scaled);
     _updateEnemies(scaled);
@@ -136,9 +153,7 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 倍速循环切换 1→2→4→1
   void cycleSpeed() {
-    speed.value = speed.value >= 4.0
-        ? 1.0
-        : (speed.value == 1.0 ? 2.0 : 4.0);
+    speed.value = speed.value >= 4.0 ? 1.0 : (speed.value == 1.0 ? 2.0 : 4.0);
   }
 
   // ==================== 波次管理 ====================
@@ -146,7 +161,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   void startNextWave() {
     if (_waveActive) return;
     final s = state.value;
-    if (s == GameState.lost || s == GameState.won || s == GameState.paused) {
+    if (s == GameState.lost || s == GameState.paused) {
       return;
     }
     if (s == GameState.preparing) {
@@ -259,8 +274,7 @@ class Manager with ChangeNotifier implements TickerProvider {
       if (_rand.nextDouble() < 0.6) {
         // 偏向出口方向的纵移为主，偶尔反向游走
         final toward = goal.y > y ? 1 : (goal.y < y ? -1 : 0);
-        var dir =
-            toward != 0 && _rand.nextDouble() < 0.6
+        var dir = toward != 0 && _rand.nextDouble() < 0.6
             ? toward
             : (_rand.nextBool() ? 1 : -1);
         var room = dir > 0 ? h - 1 - y : y;
@@ -292,6 +306,16 @@ class Manager with ChangeNotifier implements TickerProvider {
     while (y > goal.y) {
       y -= 1;
       path.add(GridPos(x, y));
+    }
+
+    // 3) 从起点正向扫描，若在最右列遇到第一个 exit 即截断，
+    //    确保怪物遇到 exit 即逃离，而非继续纵移到更远的终点
+    for (int i = 0; i < path.length; i++) {
+      final p = path[i];
+      if (p.x == w - 1 && map.cells[p.y][w - 1] == CellType.exit) {
+        path.removeRange(i + 1, path.length);
+        break;
+      }
     }
 
     return path;
@@ -326,7 +350,8 @@ class Manager with ChangeNotifier implements TickerProvider {
       }
 
       enemy.pathProgress += enemy.speed * dt;
-      final nextIdx = enemy.pathIndex + 1;      if (nextIdx < enemy.path.length) {
+      final nextIdx = enemy.pathIndex + 1;
+      if (nextIdx < enemy.path.length) {
         final next = enemy.path[nextIdx];
         // 仅图内塔格阻挡
         final blocked = map.cells[next.y][next.x].isTower;
@@ -350,11 +375,6 @@ class Manager with ChangeNotifier implements TickerProvider {
         enemy.escaped = true;
         lives.value--;
         escaped.value++;
-      }
-
-      if (enemy.slowTimer > 0) {
-        enemy.slowTimer -= dt;
-        if (enemy.slowTimer <= 0) enemy.speedMultiplier = 1.0;
       }
     }
 
@@ -441,13 +461,14 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   void _fire(Tower tower, Enemy target) {
     projectiles.add(
-      Projectile(
+      Bullet(
         from: tower.pos,
         targetId: target.id,
         damage: tower.damage,
         splashRadius: tower.config.splashRadius,
         slowFactor: tower.config.slowFactor,
         type: tower.type,
+        lastTargetPixel: getEnemyPixelPos(target),
       ),
     );
   }
@@ -458,6 +479,11 @@ class Manager with ChangeNotifier implements TickerProvider {
     if (projectiles.isEmpty) return;
     for (final p in projectiles.value) {
       p.progress += dt * 4.0;
+      // 目标仍存活则刷新终点（追踪）；死亡后保留最后位置，飞弹继续飞至该处后消失
+      final target = _enemyMap[p.targetId];
+      if (target != null && !target.dying) {
+        p.lastTargetPixel = getEnemyPixelPos(target);
+      }
     }
     // 结算命中的飞弹并增量移除
     projectiles.removeWhere((p) {
@@ -467,14 +493,14 @@ class Manager with ChangeNotifier implements TickerProvider {
     });
   }
 
-  void _applyDamage(Projectile p) {
+  void _applyDamage(Bullet p) {
     final target = _enemyMap[p.targetId];
     if (target == null || target.dying) return;
-      target.hp -= p.damage;
-      if (p.slowFactor > 0) {
-        target.speedMultiplier = p.slowFactor;
-        target.slowTimer = 2.0;
-      }
+    target.hp -= p.damage;
+    if (p.slowFactor > 0) {
+      target.speedMultiplier = p.slowFactor;
+      target.slowTimer = 2.0;
+    }
     if (target.hp <= 0) {
       _killEnemy(target);
     }
@@ -596,15 +622,14 @@ class Manager with ChangeNotifier implements TickerProvider {
     );
   }
 
-  /// 飞弹当前像素位置（from → 目标敌人当前位置，按 progress 插值）
-  Offset getProjectilePos(Projectile p) {
+  /// 飞弹当前像素位置（from → 目标最后像素位置，按 progress 插值）。
+  /// 目标存活时每帧刷新终点实现追踪；死亡后终点冻结，飞弹继续飞至死亡处消失。
+  Offset getProjectilePos(Bullet p) {
     final from = Offset(
       p.from.x * cellSize + cellSize / 2,
       p.from.y * cellSize + cellSize / 2,
     );
-    final target = _enemyMap[p.targetId];
-    if (target == null || target.dying) return from;
-    final to = getEnemyPixelPos(target);
+    final to = p.lastTargetPixel;
     return Offset(
       from.dx + (to.dx - from.dx) * p.progress,
       from.dy + (to.dy - from.dy) * p.progress,

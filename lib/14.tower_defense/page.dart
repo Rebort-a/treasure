@@ -21,6 +21,9 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
   final Map<EnemyType, SpriteSheet> _sheets = {};
   SpriteSheet? _slashSheet;
 
+  /// 底部建塔面板预留高度（含阴影/圆角），供 LayoutBuilder 计算战场行数
+  static const double _bottomPanelReserved = 84;
+
   @override
   void initState() {
     super.initState();
@@ -169,7 +172,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
         final availW = constraints.maxWidth;
         final availH = constraints.maxHeight;
         final w = (availW / cellSize).floor().clamp(1, 60);
-        final h = ((availH - 84) / cellSize).floor().clamp(1, 60); // 预留底部面板区
+        final h = ((availH - _bottomPanelReserved) / cellSize).floor().clamp(1, 60);
         if (!_mapInitialized) {
           _mapInitialized = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -197,8 +200,8 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
               valueListenable: _manager.state,
               builder: (_, state, __) {
                 if (state == GameState.preparing) return _buildStartFloat();
-                if (state == GameState.won || state == GameState.lost) {
-                  return _buildResultFloat(state == GameState.won);
+                if (state == GameState.lost) {
+                  return _buildResultFloat();
                 }
                 return const SizedBox.shrink();
               },
@@ -243,7 +246,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
     );
   }
 
-  Widget _buildResultFloat(bool won) {
+  Widget _buildResultFloat() {
     return Positioned.fill(
       child: Center(
         child: GlassContainer(
@@ -251,11 +254,11 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                won ? S.victory : S.defeat,
-                style: TextStyle(
+                S.defeat,
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: won ? Colors.amber : Colors.red,
+                  color: Colors.red,
                 ),
               ),
               const SizedBox(height: 20),
@@ -521,6 +524,7 @@ class _GamePainter extends CustomPainter {
   static const Color _exitColor = Color(0xFFEF5350); // 出口红
   static const Color _rangeColor = Color(0xFF81D4FA); // 攻击范围浅蓝
   static const bool showGridLines = false; // 方格边框可选配置（默认不画，参照 maze_page）
+  static const double _iconBottomPadding = 2.0; // 格内图标距格子底边留白（统一基线）
 
   /// 图标缓存（全图大量绘制，静态缓存避免每帧重复 layout）
   static final Map<String, TextPainter> _textPainters = {};
@@ -575,7 +579,7 @@ class _GamePainter extends CustomPainter {
             canvas,
             Offset(
               rect.center.dx - tp.width / 2,
-              rect.center.dy - tp.height / 2,
+              rect.bottom - tp.height - _iconBottomPadding,
             ),
           );
         }
@@ -676,7 +680,7 @@ class _GamePainter extends CustomPainter {
     );
     final tp = _emojiPainter(towerEmoji(tower.type));
     final cx = rect.center.dx;
-    final iconTop = rect.center.dy - tp.height / 2;
+    final iconTop = rect.bottom - tp.height - _iconBottomPadding;
     tp.paint(canvas, Offset(cx - tp.width / 2, iconTop));
     final barW = tp.width.clamp(10.0, rect.width);
     _drawHpBar(
@@ -689,11 +693,12 @@ class _GamePainter extends CustomPainter {
 
   /// 选中塔的阴影底：缩小圆角矩形，放置预览与纯选中态共用；返回阴影矩形供叠加用
   Rect _drawShadowRect(Canvas canvas, GridPos pos, double cellSize) {
+    // 左右上内缩3、底部齐格子底：阴影从底托起图标，与贴底图标协调
     final rect = Rect.fromLTWH(
       pos.x * cellSize + 3,
       pos.y * cellSize + 3,
       cellSize - 6,
-      cellSize - 6,
+      cellSize - 3,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(5)),
@@ -712,10 +717,12 @@ class _GamePainter extends CustomPainter {
     final rect = _drawShadowRect(canvas, pos, cellSize);
     // emoji 半透明：用 saveLayer 全局不透明度叠加（emoji 为彩色字形，无法靠 color 控制）
     final tp = _emojiPainter(towerEmoji(type));
+    final cellCenterY = (pos.y + 0.5) * cellSize;
     canvas.saveLayer(rect, Paint()..color = const Color(0x80FFFFFF));
+    // 预览态：图标悬浮于格子中心，确认后直接落到贴底
     tp.paint(
       canvas,
-      Offset(rect.center.dx - tp.width / 2, rect.center.dy - tp.height / 2),
+      Offset(rect.center.dx - tp.width / 2, cellCenterY - tp.height / 2),
     );
     canvas.restore();
   }
@@ -801,7 +808,7 @@ class _GamePainter extends CustomPainter {
 
   void _drawProjectiles(Canvas canvas) {
     for (final p in manager.projectiles.value) {
-      final paint = Paint()..color = TowerColors.get(p.type);
+      final paint = Paint()..color = BulletColors.get(p.type);
       canvas.drawCircle(manager.getProjectilePos(p), 3, paint);
     }
   }

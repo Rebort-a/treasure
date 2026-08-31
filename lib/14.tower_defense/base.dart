@@ -182,6 +182,72 @@ class Tower {
   List<CellType> get upgrades => config.upgrades;
 }
 
+String towerEmoji(CellType type) => switch (type) {
+  CellType.barrier => '🚧',
+  CellType.wall => '🧱',
+  CellType.fortress => '🏰',
+  CellType.archer => '🏹',
+  CellType.cannon => '💣',
+  CellType.spear => '🔱',
+  CellType.ice => '❄️',
+  CellType.magic => '🔮',
+  CellType.enter || CellType.exit || CellType.road => '',
+};
+
+// ==================== 飞弹 ====================
+
+class Bullet {
+  final GridPos from;
+  final int targetId;
+  final int damage;
+  final double splashRadius;
+  final double slowFactor;
+  final CellType type; // 弹道颜色来源（发射塔类型）
+  double progress;
+  Offset lastTargetPixel; // 目标最后像素位置（目标死亡后冻结，飞弹继续飞至此）
+  Bullet({
+    required this.from,
+    required this.targetId,
+    required this.damage,
+    required this.type,
+    required this.lastTargetPixel,
+    this.splashRadius = 0,
+    this.slowFactor = 0,
+    this.progress = 0,
+  });
+}
+
+/// 道具子弹专属颜色
+class BulletColors {
+  static const wall = Color(0xFF8D6E63);
+  static const fortress = Color(0xFF4E342E);
+  static const archer = Color(0xFF6D4C41);
+  static const cannon = Color(0xFFFF5722);
+  static const spear = Color(0xFFFFD700);
+  static const ice = Color(0xFF01579B);
+  static const magic = Color(0xFF9C27B0);
+
+  static Color get(CellType type) => switch (type) {
+    CellType.wall => wall,
+    CellType.fortress => fortress,
+    CellType.archer => archer,
+    CellType.cannon => cannon,
+    CellType.spear => spear,
+    CellType.ice => ice,
+    CellType.magic => magic,
+    _ => Colors.white, // barrier/field 不发射，兜底
+  };
+}
+
+// ==================== 击杀特效 ====================
+
+/// 击杀飞溅特效（基于 animTime 播一次即逝）
+class KillEffect {
+  final Offset pos; // 像素坐标
+  final double bornAt; // 出生时的 animTime
+  KillEffect({required this.pos, required this.bornAt});
+}
+
 // ==================== 怪物 ====================
 
 enum EnemyType { slime, goblin, troll, cyclops }
@@ -284,6 +350,20 @@ class Enemy {
   double get pathFraction => pathProgress - pathIndex;
 }
 
+class EnemyColors {
+  static const slime = Color(0xFF8BC34A);
+  static const goblin = Color(0xFF689F38);
+  static const troll = Color(0xFF607D8B);
+  static const cyclops = Color(0xFFD32F2F);
+
+  static Color get(EnemyType type) => switch (type) {
+    EnemyType.slime => slime,
+    EnemyType.goblin => goblin,
+    EnemyType.troll => troll,
+    EnemyType.cyclops => cyclops,
+  };
+}
+
 // ==================== 移动方向 ====================
 
 /// 怪物当前移动方向（按路径段 dy 判定），供动画选行
@@ -345,7 +425,7 @@ class EnemySprites {
       death: SpriteAnim(3, 7), // 受击→死亡
       fps: 8,
       flipX: false,
-      displayScale: 0.7,
+      displayScale: 1.0,
     ),
     EnemyType.goblin: EnemySpriteDef(
       asset: goblinAsset,
@@ -354,11 +434,11 @@ class EnemySprites {
       moveRight: SpriteAnim(1, 8), // 行走（向右）
       moveUp: SpriteAnim(4, 8), // 奔跑（向上）
       moveDown: SpriteAnim(0, 6), // 待机（向下）
-      attack: SpriteAnim(3, 6), // 攻击・挥砍（第四行）
+      attack: SpriteAnim(3, 14), // 攻击・挥砍（第四行）
       death: SpriteAnim(5, 3), // 受击
       fps: 8,
       flipX: false,
-      displayScale: 0.96 * 1.1, // 0.8 → 1.056，累计放大 ~32%
+      displayScale: 1.0,
     ),
     EnemyType.troll: EnemySpriteDef(
       asset: trollAsset,
@@ -371,7 +451,7 @@ class EnemySprites {
       death: null, // 无死亡行，回退 slash 特效
       fps: 4,
       flipX: false, // troll.png 默认朝右，无需镜像
-      displayScale: 0.75,
+      displayScale: 1.0,
     ),
     EnemyType.cyclops: EnemySpriteDef(
       asset: cyclopsAsset,
@@ -384,7 +464,7 @@ class EnemySprites {
       death: SpriteAnim(5, 5), // 死亡
       fps: 4,
       flipX: false,
-      displayScale: 0.9,
+      displayScale: 1.0,
     ),
   };
 
@@ -421,36 +501,6 @@ class WaveGenerator {
   static int scaledHp(int baseHp, int waveNumber) {
     return (baseHp * (1.0 + waveNumber * 0.15)).toInt();
   }
-}
-
-// ==================== 飞弹 ====================
-
-class Projectile {
-  final GridPos from;
-  final int targetId;
-  final int damage;
-  final double splashRadius;
-  final double slowFactor;
-  final CellType type; // 弹道颜色来源（发射塔类型）
-  double progress;
-  Projectile({
-    required this.from,
-    required this.targetId,
-    required this.damage,
-    required this.type,
-    this.splashRadius = 0,
-    this.slowFactor = 0,
-    this.progress = 0,
-  });
-}
-
-// ==================== 击杀特效
-
-/// 击杀飞溅特效（基于 animTime 播一次即逝）
-class KillEffect {
-  final Offset pos; // 像素坐标
-  final double bornAt; // 出生时的 animTime
-  KillEffect({required this.pos, required this.bornAt});
 }
 
 // ==================== 地图 ====================
@@ -508,57 +558,9 @@ class GameMapData {
 
 // ==================== 游戏状态 ====================
 
-enum GameState { preparing, playing, paused, won, lost }
+enum GameState { preparing, playing, paused, lost }
 
 // ==================== 颜色 ====================
 
 /// 战场统一蓝灰色（网格底色与道具卡片背景）
 const Color kFieldColor = Color(0xFF607D8B);
-
-String towerEmoji(CellType type) => switch (type) {
-  CellType.barrier => '🚧',
-  CellType.wall => '🧱',
-  CellType.fortress => '🏰',
-  CellType.archer => '🏹',
-  CellType.cannon => '💣',
-  CellType.spear => '🔱',
-  CellType.ice => '❄️',
-  CellType.magic => '🔮',
-  CellType.enter || CellType.exit || CellType.road => '',
-};
-
-class EnemyColors {
-  static const slime = Color(0xFF8BC34A);
-  static const goblin = Color(0xFF689F38);
-  static const troll = Color(0xFF607D8B);
-  static const cyclops = Color(0xFFD32F2F);
-
-  static Color get(EnemyType type) => switch (type) {
-    EnemyType.slime => slime,
-    EnemyType.goblin => goblin,
-    EnemyType.troll => troll,
-    EnemyType.cyclops => cyclops,
-  };
-}
-
-/// 道具子弹专属颜色（按发射塔类型取色）
-class TowerColors {
-  static const wall = Color(0xFF8D6E63);
-  static const fortress = Color(0xFF4E342E);
-  static const archer = Color(0xFF6D4C41);
-  static const cannon = Color(0xFFFF5722);
-  static const spear = Color(0xFFFFD700);
-  static const ice = Color(0xFF01579B);
-  static const magic = Color(0xFF9C27B0);
-
-  static Color get(CellType type) => switch (type) {
-    CellType.wall => wall,
-    CellType.fortress => fortress,
-    CellType.archer => archer,
-    CellType.cannon => cannon,
-    CellType.spear => spear,
-    CellType.ice => ice,
-    CellType.magic => magic,
-    _ => Colors.white, // barrier/field 不发射，兜底
-  };
-}
