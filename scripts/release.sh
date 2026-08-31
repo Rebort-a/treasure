@@ -24,6 +24,7 @@ usage() {
   -n, --dry-run           预览模式，不实际执行
   -y, --yes               跳过确认提示
   --skip-changelog        跳过 CHANGELOG.md 自动更新
+  --skip-wait             不等待 GitHub Actions 结果（默认会等待并校验）
   -h, --help              显示帮助
 
 示例:
@@ -102,20 +103,118 @@ update_changelog() {
     return
   fi
 
+  # 取上一个版本 tag 到 HEAD 的提交（release commit 此时尚未创建，HEAD 即自上次发布以来的累积提交）
+  local prev_tag log_range
+  prev_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+  if [[ -n "$prev_tag" ]]; then
+    log_range="${prev_tag}..HEAD"
+  else
+    log_range="HEAD"
+  fi
+
+  # 按 Conventional Commits 类型分类收集提交（feat→Added, fix→Fixed, perf/refactor/ci/chore/build→Changed, 其余→Other）
+  # 兼容带 scope 的写法，如 feat(tower_defense): xxx
+  local added=() fixed=() changed=() other=()
+  local subject type desc
+  # 正则存入变量再用 =~ $var，规避 shell 对括号的解析（兼容 bash 3.2+/macOS）
+  local cc_re='^([a-z]+)(\([^)]+\))?:[[:space:]]*(.+)'
+  while IFS= read -r subject; do
+    [[ -z "$subject" ]] && continue
+    if [[ "$subject" =~ $cc_re ]]; then
+      type="${BASH_REMATCH[1]}"
+      desc="${BASH_REMATCH[3]}"
+    else
+      type="other"; desc="$subject"
+    fi
+    case "$type" in
+      feat)     added+=("- $desc") ;;
+      fix)      fixed+=("- $desc") ;;
+      perf|refactor|ci|chore|build) changed+=("- $desc") ;;
+      *)        other+=("- $subject") ;;
+    esac
+  done < <(git log --pretty=format:"%s" --no-merges "$log_range" 2>/dev/null)
+
+  # 组装条目正文：顶部放发布说明，下方按类型分段（保持最新版本在顶部）
+  local body=""
+  [[ -n "$msg" ]] && body+=$'\n'"$msg"$'\n'
+
+  local entry title varname items item
+  for entry in "Added:added" "Fixed:fixed" "Changed:changed" "Other:other"; do
+    title="${entry%%:*}"
+    varname="${entry#*:}"
+    items=()
+    eval "items=(\"\${${varname}[@]}\")"
+    if (( ${#items[@]} > 0 )); then
+      body+=$'\n'"### ${title}"$'\n'
+      for item in "${items[@]}"; do
+        body+="${item}"$'\n'
+      done
+    fi
+  done
+
   local changelog_entry
-  changelog_entry=$(cat <<EOF
+  changelog_entry=$'\n'"## [${new_ver}] - ${today}${body}"
 
-## [${new_ver}] - ${today}
-
-### Changed
-- ${msg}
-EOF
-)
-  # 将新条目插入到现有内容之前（保持最新版本在顶部）
   local original
   original=$(cat CHANGELOG.md)
-  printf "%s%s\n" "${changelog_entry}" "${original}" > CHANGELOG.md
-  info "CHANGELOG.md → 已添加 [${new_ver}] 条目"
+  printf '%s%s\n' "${changelog_entry}" "${original}" > CHANGELOG.md
+  info "CHANGELOG.md → 已添加 [${new_ver}] 条目（基于 ${log_range} 提交自动分类）"
+}
+
+# ─── 等待并校验 GitHub Actions ─────────────────────────
+wait_for_ci() {
+  local tag="$1"
+
+  if $SKIP_WAIT; then
+    warn "已跳过 CI 等待（--skip-wait）"
+    return 0
+  fi
+
+  # 从 remote URL 解析 owner/repo（兼容 https 与 ssh 两种格式），用于拼装 Actions 链接
+  local remote_url repo_slug actions_url
+  remote_url=$(git remote get-url origin 2>/dev/null || echo "")
+  # 兼容 https(https://github.com/o/r[.git]) 与 ssh(git@github.com:o/r[.git]) 两种 remote 格式
+  repo_slug=$(echo "$remote_url" | sed -E 's#(https?://|git@)github\.com[:/]##; s#\.git$##')
+  actions_url="https://github.com/${repo_slug}/actions"
+
+  if [[ -z "$repo_slug" ]]; then
+    warn "无法解析仓库地址，请手动前往 GitHub Actions 确认构建状态"
+    return 0
+  fi
+
+  # 无 gh CLI 时降级为打印链接，不强制安装、不阻塞
+  if ! command -v gh >/dev/null 2>&1; then
+    echo ""
+    warn "未安装 gh CLI，无法自动等待构建结果"
+    info "请手动确认 Release 构建状态："
+    echo -e "  ${CYAN}${actions_url}${NC}"
+    return 0
+  fi
+
+  echo ""
+  info "等待 GitHub Actions (Release) 完成构建..."
+  # tag 触发的 run 需数秒注册，轮询等待其出现
+  local run_id="" tries=0
+  while [[ -z "$run_id" && $tries -lt 20 ]]; do
+    sleep 3
+    run_id=$(gh run list --workflow release.yml --branch "$tag" --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
+    tries=$((tries + 1))
+  done
+
+  if [[ -z "$run_id" ]]; then
+    warn "未找到对应 Release run（可能尚未注册），请手动查看："
+    echo -e "  ${CYAN}${actions_url}${NC}"
+    return 0
+  fi
+
+  info "找到 Release run: $run_id，开始监听（多平台构建可能耗时 10-20 分钟，可 Ctrl+C 跳过）..."
+  if gh run watch "$run_id" --exit-status 2>/dev/null; then
+    echo ""
+    info "✅ Release 构建通过"
+  else
+    echo ""
+    error "❌ Release 构建失败，请查看：gh run view $run_id --log-failed"
+  fi
 }
 
 # ─── 参数解析 ──────────────────────────────────────────
@@ -125,6 +224,7 @@ BUMP_TYPE="patch"
 DRY_RUN=false
 AUTO_YES=false
 SKIP_CHANGELOG=false
+SKIP_WAIT=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -136,6 +236,7 @@ while [[ $# -gt 0 ]]; do
     -n|--dry-run)       DRY_RUN=true; shift ;;
     -y|--yes)           AUTO_YES=true; shift ;;
     --skip-changelog)   SKIP_CHANGELOG=true; shift ;;
+    --skip-wait)         SKIP_WAIT=true; shift ;;
     -h|--help)          usage ;;
     *)                  error "未知参数: $1" ;;
   esac
@@ -221,11 +322,14 @@ info "推送到远程..."
 git push origin HEAD
 git push origin "$TAG"
 
+# 校验 CI 结果，避免「半发布」（可用 --skip-wait 跳过）
+wait_for_ci "$TAG"
+
 echo ""
 info "✅ 发布完成！"
 info "   版本: $NEW_VERSION"
 info "   标签: $TAG"
-info "   GitHub Actions 将自动构建并发布各平台软件包"
+info "   GitHub Actions 已构建并通过，各平台产物已发布"
 
 echo ""
 info "如需回滚，执行以下命令："

@@ -117,8 +117,8 @@ jobs:
           path: |
             ${{ env.PUB_CACHE }}
             .dart_tool/
-          key: pub-windows-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: pub-windows-
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
 
       - run: flutter pub get
       - run: flutter build windows --release
@@ -148,8 +148,8 @@ jobs:
           path: |
             ${{ env.PUB_CACHE }}
             .dart_tool/
-          key: pub-macos-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: pub-macos-
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
 
       - run: flutter pub get
       - run: flutter build macos --release
@@ -179,8 +179,8 @@ jobs:
           path: |
             ${{ env.PUB_CACHE }}
             .dart_tool/
-          key: pub-ios-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: pub-ios-
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
 
       - run: flutter pub get
       # 未配置 Apple 证书，--no-codesign 仅产出未签名 Runner.app，不可直接安装到设备

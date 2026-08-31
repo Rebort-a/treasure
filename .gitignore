@@ -63,4 +63,4 @@ NIGHT_SHIFT.md
 
 # Local data
 .treasure/
-pubspec.lock
+# pubspec.lock 已纳入版本控制：锁定传递依赖，保证 CI 与本地构建一致
