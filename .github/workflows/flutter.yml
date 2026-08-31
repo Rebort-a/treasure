@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,3 +21,26 @@ jobs:
   ci:
     name: Analyze, Test & Build Web
     uses: ./.github/workflows/_ci-common.yml
+
+  deploy-web:
+    name: Deploy to GitHub Pages
+    needs: ci
+    # 仅 push 到 main 时部署（PR 不部署）；并跳过 release 类提交（release:/Release:/RELEASE:），
+    # 因其仅改版本号、web 产物无变化，避免无意义重部署。
+    if: github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'release:') && !startsWith(github.event.head_commit.message, 'Release:') && !startsWith(github.event.head_commit.message, 'RELEASE:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: web-build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web-build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

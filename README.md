@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/📱_13_Applications-FF6B6B?style=for-the-badge" alt="13 Applications">
+  <img src="https://img.shields.io/badge/📱_15_Applications-FF6B6B?style=for-the-badge" alt="15 Applications">
   <img src="https://img.shields.io/badge/🖥️_Pure_Dart_3D_Engine-9B59B6?style=for-the-badge" alt="Pure Dart 3D Engine">
   <img src="https://img.shields.io/badge/📡_Zero_Config_LAN_Play-2ECC71?style=for-the-badge" alt="Zero Config LAN">
 </p>
@@ -56,17 +56,19 @@ The codebase follows the principle of simplicity and zero dependencies. Whether 
 |---|------|------|------|-------------|------|
 | 02 | **LAN Chat** | 局域网聊天 | LAN | 文字/图片/文件聊天，表情面板 | 毛玻璃 UI、BlurHash 渐进加载、XOR 加密传输 |
 | 03 | **Animal Chess** | 斗兽棋 | Local + LAN | 经典斗兽棋，翻棋对战 | AI 对手、回合制联机引擎 |
-| 04 | **Elemental Battle** | 五行对决 | Local + LAN | 五行 RPG，25 种独特技能 | 五行相克、迷宫探索、道具商店、Boss 战 |
+| 04 | **Elemental Battle** | 五行之战 | Local + LAN | 五行 RPG，25 种独特技能 | 五行相克、迷宫探索、道具商店、Boss 战 |
 | 05 | **Gobang** | 五子棋 | Local + LAN | 五子连珠，支持悔棋 | AI 对手、联机对战 |
 | 06 | **Greedy Snake** | 贪吃蛇 | Local + LAN | 多人贪吃蛇 | 空间网格碰撞检测、实时对战 |
 | 07 | **Go** | 围棋 | Local + LAN | 完整围棋规则 | AI 对手、提子、打劫、禁入、联机对弈 |
 | 08 | **Sudoku** | 数独 | Local | 自动生成谜题 | 多难度等级 |
-| 09 | **Guess** | 猜词 | Local | Emoji 猜词 | 趣味猜词玩法 |
-| 10 | **Three Tiles** | 三消麻将 | Local | 三消玩法 | 道具系统 |
-| 11 | **Spaceship** | 太空飞船 | Local | 俯视角射击 | Boss 战、道具、成就系统 |
-| 12 | **Soft Body** | 软体模拟 | Local | 弹簧-质点物理模拟 | 欧拉/Verlet 双积分、3D 三角网格 |
+| 09 | **Guess** | 猜枚 | Local | Emoji 猜枚 | 趣味猜枚玩法 |
+| 10 | **Three Tiles** | 羊了个羊 | Local | 三消堆叠 | 道具系统、格子消除 |
+| 11 | **Spaceship** | 星际战机 | Local | 俯视角射击 | Boss 战、道具、成就系统 |
+| 12 | **Soft Body** | 软环 | Local | 弹簧-质点物理模拟 | 欧拉/Verlet 双积分、3D 三角网格 |
 | 13 | **Minecraft** | 我的世界 | Local | 纯 Dart 3D 体素引擎 | 红石系统、距离雾效、水面/矿石生成、八叉树+裁剪+面合并优化 |
-| 14 | **Tower Defense** | 塔防 | Local + LAN | 合作防守，随机地图 | 4 种防御塔、4 种敌人、20 波次、联机合作 |
+| 14 | **Tower Defense** | 塔防 | Local | 合作防守，随机地图 | 7 种防御塔、4 种敌人、20 波次、精灵动画 |
+| 15 | **Memory Match** | 记忆翻牌 | Local | 翻牌配对记忆 | 难度/网格选择、计时挑战 |
+| 16 | **Schulte** | 舒尔特 | Local | 注意力方格训练 | 规则/不规则模式、全屏棋盘、点击反馈 |
 
 > `01.home` — Home page router, not listed above.
 
@@ -99,7 +101,7 @@ Each layer is a subdirectory. Used by complex modules (`04.elemental_battle`, `1
 
 ### Pattern B: Flat Framework | 扁平框架
 
-Each layer is a single file within the module root. Used by the remaining modules (#02–#03, #05–#12):
+Each layer is a single file within the module root. Used by the remaining modules (#02–#03, #05–#12, #14–#16):
 
 各层为模块根目录下的单个文件，用于其余模块：
 
@@ -127,7 +129,9 @@ lib/
 ├── 05.gobang/       # 五子棋 (flat)
 ├── ...
 ├── 13.minecraft/    # 3D voxel engine (standard)
-└── 14.tower_defense/ # Tower defense (flat)
+├── 14.tower_defense/ # Tower defense (flat)
+├── 15.memory_card/  # Memory match (flat)
+└── 16.schulte/      # Schulte grid (flat)
 ```
 
 ---

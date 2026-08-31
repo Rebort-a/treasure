@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -220,7 +218,7 @@ jobs:
           cd artifacts
 
           # Web → zip（来自 _ci-common.yml 的 web-build artifact）
-          cd web-build && zip -r "../../web-${VERSION}.zip" . && cd ..
+          cd web-build && zip -r "../../treasure-web-${VERSION}.zip" . && cd ..
 
           # Android → rename
           mv android/app-release.apk "../treasure-android-${VERSION}.apk"
@@ -242,32 +240,12 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            web-${{ steps.version.outputs.tag }}.zip
+            treasure-web-${{ steps.version.outputs.tag }}.zip
             treasure-android-${{ steps.version.outputs.tag }}.apk
             treasure-linux-${{ steps.version.outputs.tag }}.tar.gz
             treasure-windows-${{ steps.version.outputs.tag }}.zip
             treasure-macos-${{ steps.version.outputs.tag }}.tar.gz
             treasure-ios-${{ steps.version.outputs.tag }}.zip
-
-  deploy-web:
-    name: Deploy to GitHub Pages
-    needs: ci
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Download web build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-build
-          path: web-build
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: web-build
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+  # Deploy to GitHub Pages 已迁移至 flutter.yml：
+  # release 提交仅改版本号（空提交），web 产物无变化，无需部署 Pages；
+  # Pages 由普通提交（push main）在 flutter.yml 中部署。

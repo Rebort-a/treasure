@@ -10,17 +10,21 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 # ─── 帮助 ───────────────────────────────────────────────
 usage() {
   cat <<'EOF'
-用法: release.sh [选项]
+用法: release.sh [--major|--minor|--patch] [选项]
 
-版本递增规则（默认自动递增 PATCH）:
-  --major             递增大版本   1.0.3 → 2.0.0
-  --minor             递增中版本   1.0.3 → 1.1.0
-  --patch             递增小版本   1.0.3 → 1.0.4
-  （无参数）          同 --patch，自动递增小版本
+版本类型（不指定时默认 --patch，决定版本递增与提交信息标题前缀）:
+  --patch             递增小版本   1.0.3 → 1.0.4   标题前缀 "release:"（默认）
+  --minor             递增中版本   1.0.3 → 1.1.0   标题前缀 "Release:"
+  --major             递增大版本   1.0.3 → 2.0.0   标题前缀 "RELEASE:"
+  提交信息标题（release:/Release:/RELEASE:）由脚本生成，-m 仅提供标题之后的正文，
+  故 release.sh 提交的 commit message 开头一定是生成的，不可通过 -m 篡改。
+
+  注：非以上三种前缀的普通改动（feat:/fix:/ci: 等）请直接 git commit，
+      由 flutter.yml 处理（push main → CI + 部署 GitHub Pages），不要用本脚本发布。
 
 选项:
-  -v, --version VERSION   指定版本号 (例: 2.0.0)
-  -m, --message MSG       提交信息和发布声明 (默认: "Release vX.Y.Z")
+  -m, --message MSG       提交信息正文（标题之后的内容），默认用版本号
+  -v, --version VERSION   指定版本号 (例: 2.0.0)，覆盖版本递增；标题仍由 --major/--minor/--patch（默认 patch）决定
   -n, --dry-run           预览模式，不实际执行
   -y, --yes               跳过确认提示
   --skip-changelog        跳过 CHANGELOG.md 自动更新
@@ -28,12 +32,13 @@ usage() {
   -h, --help              显示帮助
 
 示例:
-  ./scripts/release.sh                          # 自动递增小版本
-  ./scripts/release.sh -m "新增贪吃蛇游戏"       # 指定提交信息
-  ./scripts/release.sh -v 2.0.0 -m "大版本更新"  # 指定版本号
-  ./scripts/release.sh --major                  # 强制大版本递增
-  ./scripts/release.sh --skip-changelog         # 不更新 CHANGELOG
-  ./scripts/release.sh -n                       # 预览，不执行
+  ./scripts/release.sh -m "修复联机断线"            # 默认 patch: release: 修复联机断线
+  ./scripts/release.sh --minor -m "新增贪吃蛇"     # Release: 新增贪吃蛇
+  ./scripts/release.sh --major -m "重构网络层"     # RELEASE: 重构网络层
+  ./scripts/release.sh                               # 默认 patch: release: vX.Y.Z
+  ./scripts/release.sh --major -v 2.0.0 -m "2.0"   # RELEASE: 2.0（指定版本号）
+  ./scripts/release.sh --skip-changelog             # 不更新 CHANGELOG
+  ./scripts/release.sh -n                           # 预览，不执行
 EOF
   exit 0
 }
@@ -56,7 +61,7 @@ read_current_version() {
 
 # ─── 计算新版本 ────────────────────────────────────────
 calc_version() {
-  local bump_type="${1:-patch}"
+  local bump_type="$BUMP"
 
   if [[ -n "$EXPLICIT_VERSION" ]]; then
     NEW_MAJOR=$(echo "$EXPLICIT_VERSION" | cut -d. -f1)
@@ -211,6 +216,7 @@ wait_for_ci() {
   if gh run watch "$run_id" --exit-status 2>/dev/null; then
     echo ""
     info "✅ Release 构建通过"
+    CI_VERIFIED=true
   else
     echo ""
     error "❌ Release 构建失败，请查看：gh run view $run_id --log-failed"
@@ -220,19 +226,20 @@ wait_for_ci() {
 # ─── 参数解析 ──────────────────────────────────────────
 EXPLICIT_VERSION=""
 COMMIT_MSG=""
-BUMP_TYPE="patch"
+BUMP=""
 DRY_RUN=false
 AUTO_YES=false
 SKIP_CHANGELOG=false
 SKIP_WAIT=false
+CI_VERIFIED=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -v|--version)       EXPLICIT_VERSION="$2"; shift 2 ;;
     -m|--message)       COMMIT_MSG="$2"; shift 2 ;;
-    --major)            BUMP_TYPE="major"; shift ;;
-    --minor)            BUMP_TYPE="minor"; shift ;;
-    --patch)            BUMP_TYPE="patch"; shift ;;
+    --major)            BUMP="major"; shift ;;
+    --minor)            BUMP="minor"; shift ;;
+    --patch)            BUMP="patch"; shift ;;
     -n|--dry-run)       DRY_RUN=true; shift ;;
     -y|--yes)           AUTO_YES=true; shift ;;
     --skip-changelog)   SKIP_CHANGELOG=true; shift ;;
@@ -252,20 +259,34 @@ if [[ "$CURRENT_BRANCH" != "main" ]]; then
   error "当前不在 main 分支 (当前: $CURRENT_BRANCH)，请先切换到 main"
 fi
 
-# #3: 检查所有未提交修改
-if ! git diff --quiet HEAD 2>/dev/null; then
-  error "工作区有未提交的修改，请先 commit 或 stash"
-fi
-if ! git diff --quiet --cached HEAD 2>/dev/null; then
-  error "暂存区有未提交的修改，请先 commit 或 stash"
+# #3: 检查所有未提交修改（RELEASE_SKIP_CHECK=1 可跳过，便于测试/预览）
+if [[ "${RELEASE_SKIP_CHECK:-}" != "1" ]]; then
+  if ! git diff --quiet HEAD 2>/dev/null; then
+    error "工作区有未提交的修改，请先 commit 或 stash"
+  fi
+  if ! git diff --quiet --cached HEAD 2>/dev/null; then
+    error "暂存区有未提交的修改，请先 commit 或 stash"
+  fi
 fi
 
 read_current_version
-calc_version "$BUMP_TYPE"
+
+# 未指定 --major/--minor/--patch 时默认 patch
+[[ -z "$BUMP" ]] && BUMP="patch"
+
+# 提交信息标题前缀由版本类型生成（用户不可通过 -m 篡改）
+case "$BUMP" in
+  major) PREFIX="RELEASE:" ;;
+  minor) PREFIX="Release:" ;;
+  patch) PREFIX="release:" ;;
+esac
+
+calc_version
 
 TAG="v$NEW_VERSION"
-DEFAULT_MSG="Release $TAG"
-COMMIT_MSG="${COMMIT_MSG:-$DEFAULT_MSG}"
+# commit message = 自动生成标题 + 正文（-m 内容，无则默认 TAG）
+BODY="${COMMIT_MSG:-$TAG}"
+COMMIT_MSG="$PREFIX $BODY"
 
 # #4: 检查 tag 是否已存在
 if git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -329,7 +350,11 @@ echo ""
 info "✅ 发布完成！"
 info "   版本: $NEW_VERSION"
 info "   标签: $TAG"
-info "   GitHub Actions 已构建并通过，各平台产物已发布"
+if $CI_VERIFIED; then
+  info "   GitHub Actions 已构建并通过，各平台产物已发布"
+else
+  warn "   GitHub Actions 已触发但未自动校验，请手动确认构建结果"
+fi
 
 echo ""
 info "如需回滚，执行以下命令："
