@@ -1,4 +1,7 @@
 
+## [1.2.1] - 2026-09-01
+release: Simplify version display in About section
+
 ## [1.2.0] - 2026-09-01
 Release: 跨平台游戏合集 1.2 中版本更新：本地化、About 真实版本号、移除庆祝弹窗、CI 修复
 
