@@ -29,6 +29,9 @@ jobs:
     # 因其仅改版本号、web 产物无变化，避免无意义重部署。
     if: github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'release:') && !startsWith(github.event.head_commit.message, 'Release:') && !startsWith(github.event.head_commit.message, 'RELEASE:')
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download web build
         uses: actions/download-artifact@v6
