@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:treasure/00.common/tool/storage_service.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/strings.dart';
 
 void main() {
   group('LanguageProvider', () {
@@ -74,6 +75,29 @@ void main() {
         await LanguageProvider.instance.load();
 
         expect(LanguageProvider.instance.locale.value, equals(AppLocale.en));
+      });
+    });
+
+    // S 门面回归：验证委托到 ARB 生成的 AppLocalizations 正确，
+    // 含 getter、带参方法、roomTypeString 路由、damageLog 拆分路由。
+    group('S facade', () {
+      test('en: returns English strings', () {
+        LanguageProvider.instance.resetForTesting();
+        expect(S.confirm, equals('Confirm'));
+        expect(S.cancel, equals('Cancel'));
+        expect(S.score(5), equals('Score: 5'));
+        expect(S.roomTypeString('gobang'), equals('Gomoku'));
+        expect(S.damageLog('a', 10, false, 5), contains('physical'));
+      });
+
+      test('zh: returns Chinese strings', () async {
+        LanguageProvider.instance.resetForTesting();
+        await LanguageProvider.instance.setLocale(AppLocale.zh);
+        expect(S.confirm, equals('确认'));
+        expect(S.score(5), equals('分数: 5'));
+        expect(S.roomTypeString('gobang'), equals('五子棋'));
+        expect(S.damageLog('a', 10, true, 5), contains('法术'));
+        expect(S.damageLog('a', 10, false, 5), contains('物理'));
       });
     });
   });

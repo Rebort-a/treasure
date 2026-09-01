@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import '00.common/l10n/app_localizations.dart';
 
 import '00.common/style/theme.dart';
 import '00.common/tool/storage_service.dart';
@@ -32,12 +32,8 @@ class MyApp extends StatelessWidget {
           darkTheme: globalDarkTheme,
           themeMode: themeMode,
           locale: LanguageProvider.instance.flutterLocale,
-          supportedLocales: const [Locale('zh'), Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const HomePage(),
         ),
       ),

@@ -1,531 +1,455 @@
+import 'app_localizations.dart';
+
 import 'l10n.dart';
 
-/// 全局翻译服务，无需 BuildContext
+/// 全局翻译服务，无需 BuildContext。
+///
+/// 薄门面：委托给由 gen-l10n 生成的 [AppLocalizations]（翻译源为
+/// lib/l10n/app_en.arb / app_zh.arb）。实例由 [LanguageProvider] 持有并随
+/// 语言切换重载，故 base / middle / upper 各层均可无 context 访问本地化字符串。
+/// 修改文案请编辑 ARB 文件，而非本文件。
 class S {
   S._();
-  static AppLocale get _loc => LanguageProvider.instance.locale.value;
-  static bool get isZh => _loc == AppLocale.zh;
+
+  static AppLocalizations get _l => LanguageProvider.instance.current;
 
   // ==================== 通用 ====================
-  static String get confirm => isZh ? '确认' : 'Confirm';
-  static String get cancel => isZh ? '取消' : 'Cancel';
-  static String get close => isZh ? '关闭' : 'Close';
-  static String get ok => isZh ? '确定' : 'OK';
-  static String get clear => isZh ? '清除' : 'Clear';
-  static String get exit => isZh ? '退出' : 'Exit';
-  static String get restart => isZh ? '重开' : 'Restart';
-  static String get create => isZh ? '创建' : 'Create';
-  static String get join => isZh ? '加入' : 'Join';
-  static String get stop => isZh ? '停止' : 'Stop';
-  static String get stopAll => isZh ? '全部停止' : 'STOP ALL';
-  static String get gameOver => isZh ? '游戏结束' : 'Game Over';
-  static String get selectOption => isZh ? '选择选项' : 'Select Option';
-  static String currentValue(String v) => isZh ? '当前值: $v' : 'Current: $v';
+  static String get confirm => _l.confirm;
+  static String get cancel => _l.cancel;
+  static String get close => _l.close;
+  static String get ok => _l.ok;
+  static String get clear => _l.clear;
+  static String get exit => _l.exit;
+  static String get restart => _l.restart;
+  static String get create => _l.create;
+  static String get join => _l.join;
+  static String get stop => _l.stop;
+  static String get stopAll => _l.stopAll;
+  static String get gameOver => _l.gameOver;
+  static String get selectOption => _l.selectOption;
+  static String currentValue(String v) => _l.currentValue(v);
 
   // ==================== 首页 ====================
-  static String get roomList => isZh ? '房间列表' : 'Room List';
-  static String get local => isZh ? '本地' : 'Local';
-  static String get createdRooms => isZh ? '你创建的房间' : 'The rooms you created';
-  static String get otherRooms => isZh ? '其他房间' : 'The other rooms';
-  static String get createRoom => isZh ? '创建房间' : 'Create Room';
-  static String get enterRoomName => isZh ? '输入房间名' : 'Enter room name';
-  static String get joinRoom => isZh ? '加入房间' : 'Join Room';
-  static String get joinByIp => isZh ? '手动加入' : 'Join by IP';
-  static String get enterUserName => isZh ? '输入用户名' : 'Enter user name';
-  static String get userName => isZh ? '用户名' : 'User name';
-  static String get hostIp => isZh ? '主机IP' : 'Host IP';
-  static String get port => isZh ? '端口' : 'Port';
-  static String get game => isZh ? '游戏' : 'Game';
-  static String get type => isZh ? '类型' : 'Type';
-  static String get leave => isZh ? '离开' : 'Leave';
-  static String get leaveRoom => isZh ? '即将退出房间' : 'About to leave the room';
-  static String get language => isZh ? '语言' : 'Language';
-  static String get theme => isZh ? '主题' : 'Theme';
-  static String get themeLight => isZh ? '浅色' : 'Light';
-  static String get themeDark => isZh ? '深色' : 'Dark';
-  static String get chinese => '中文';
-  static String get english => 'English';
+  static String get roomList => _l.roomList;
+  static String get local => _l.local;
+  static String get createdRooms => _l.createdRooms;
+  static String get otherRooms => _l.otherRooms;
+  static String get createRoom => _l.createRoom;
+  static String get enterRoomName => _l.enterRoomName;
+  static String get joinRoom => _l.joinRoom;
+  static String get joinByIp => _l.joinByIp;
+  static String get enterUserName => _l.enterUserName;
+  static String get userName => _l.userName;
+  static String get hostIp => _l.hostIp;
+  static String get port => _l.port;
+  static String get game => _l.game;
+  static String get type => _l.type;
+  static String get leave => _l.leave;
+  static String get leaveRoom => _l.leaveRoom;
+  static String get language => _l.language;
+  static String get theme => _l.theme;
+  static String get themeLight => _l.themeLight;
+  static String get themeDark => _l.themeDark;
+  static String get chinese => _l.chinese;
+  static String get english => _l.english;
 
   // ==================== 通用网络 ====================
-  static String get disconnected => isZh ? '连接断开' : 'Disconnected';
-  static String get roomClosed => isZh ? '房间已关闭' : 'Room closed';
-  static String get cannotReconnect =>
-      isZh ? '无法重新连接到服务器' : 'Cannot reconnect to server';
-  static String reconnecting(int cur, int max) =>
-      isZh ? '正在尝试重新连接... ($cur/$max)' : 'Reconnecting... ($cur/$max)';
-  static String get competitorsWithdraw => isZh ? '对手退出' : 'Opponent Left';
-  static String get opponentWithdrawn =>
-      isZh ? '对手已退出' : 'The opponent has withdrawn';
-  static String get typeMessage => isZh ? '输入消息...' : 'Type a message';
-  static String get wait => isZh ? '等待中' : 'Wait';
-  static String get youSurrendered => isZh ? '你认输了' : 'You Surrendered';
-  static String get opponentSurrendered =>
-      isZh ? '对方投降' : 'Opponent Surrendered';
+  static String get disconnected => _l.disconnected;
+  static String get roomClosed => _l.roomClosed;
+  static String get cannotReconnect => _l.cannotReconnect;
+  static String reconnecting(int cur, int max) => _l.reconnecting(cur, max);
+  static String get competitorsWithdraw => _l.competitorsWithdraw;
+  static String get opponentWithdrawn => _l.opponentWithdrawn;
+  static String get typeMessage => _l.typeMessage;
+  static String get wait => _l.wait;
+  static String get youSurrendered => _l.youSurrendered;
+  static String get opponentSurrendered => _l.opponentSurrendered;
 
   // ==================== 聊天 ====================
-  static String get chatRoom => isZh ? '聊天室' : 'Chat Room';
-  static String get online => isZh ? '在线' : 'Online';
-  static String get connecting => isZh ? '连接中...' : 'Connecting...';
-  static String get members => isZh ? '成员列表' : 'Members';
-  static String get chatSettings => isZh ? '聊天设置' : 'Chat Settings';
-  static String get clearHistory => isZh ? '清空聊天记录' : 'Clear History';
-  static String get clearHistoryConfirm => isZh
-      ? '确定要清空所有聊天记录吗？此操作不可撤销。'
-      : 'Clear all chat history? This cannot be undone.';
-  static String get darkMode => isZh ? '深色模式' : 'Dark Mode';
-  static String get messageNotification => isZh ? '消息通知' : 'Notifications';
-  static String get attachment => isZh ? '附件' : 'Attachment';
-  static String get album => isZh ? '相册' : 'Album';
-  static String get camera => isZh ? '拍照' : 'Camera';
-  static String get file => isZh ? '文件' : 'File';
-  static String get location => isZh ? '位置' : 'Location';
-  static String get imageLoadFailed => isZh ? '图片加载失败' : 'Image load failed';
-  static String get unknownFile => isZh ? '未知文件' : 'Unknown file';
-  static String get selectImageFailed =>
-      isZh ? '选择图片失败' : 'Failed to select image';
-  static String get takePhotoFailed => isZh ? '拍照失败' : 'Failed to take photo';
-  static String get sendImageFailed => isZh ? '发送图片失败' : 'Failed to send image';
-  static String get selectFileFailed =>
-      isZh ? '选择文件失败' : 'Failed to select file';
-  static String get today => isZh ? '今天' : 'Today';
-  static String get yesterday => isZh ? '昨天' : 'Yesterday';
-  static String get saveSuccess => isZh ? '文件已保存' : 'File saved';
-  static String get saveFailed => isZh ? '保存失败' : 'Save failed';
-  static String get savedTo => isZh ? '已保存到' : 'Saved to';
-  static String get downloading => isZh ? '正在保存...' : 'Saving...';
+  static String get chatRoom => _l.chatRoom;
+  static String get online => _l.online;
+  static String get connecting => _l.connecting;
+  static String get members => _l.members;
+  static String get chatSettings => _l.chatSettings;
+  static String get clearHistory => _l.clearHistory;
+  static String get clearHistoryConfirm => _l.clearHistoryConfirm;
+  static String get darkMode => _l.darkMode;
+  static String get messageNotification => _l.messageNotification;
+  static String get attachment => _l.attachment;
+  static String get album => _l.album;
+  static String get camera => _l.camera;
+  static String get file => _l.file;
+  static String get location => _l.location;
+  static String get imageLoadFailed => _l.imageLoadFailed;
+  static String get unknownFile => _l.unknownFile;
+  static String get selectImageFailed => _l.selectImageFailed;
+  static String get takePhotoFailed => _l.takePhotoFailed;
+  static String get sendImageFailed => _l.sendImageFailed;
+  static String get selectFileFailed => _l.selectFileFailed;
+  static String get today => _l.today;
+  static String get yesterday => _l.yesterday;
+  static String get saveSuccess => _l.saveSuccess;
+  static String get saveFailed => _l.saveFailed;
+  static String get savedTo => _l.savedTo;
+  static String get downloading => _l.downloading;
 
   // ==================== 表情分类 ====================
-  static String get emojiCommon => isZh ? '常用' : 'Common';
-  static String get emojiGesture => isZh ? '手势' : 'Gestures';
-  static String get emojiHeart => isZh ? '心形' : 'Hearts';
-  static String get emojiAnimal => isZh ? '动物' : 'Animals';
-  static String get emojiFood => isZh ? '食物' : 'Food';
-  static String get emojiSport => isZh ? '运动' : 'Sports';
-  static String get emojiTravel => isZh ? '旅行' : 'Travel';
-  static String get emojiSymbol => isZh ? '符号' : 'Symbols';
+  static String get emojiCommon => _l.emojiCommon;
+  static String get emojiGesture => _l.emojiGesture;
+  static String get emojiHeart => _l.emojiHeart;
+  static String get emojiAnimal => _l.emojiAnimal;
+  static String get emojiFood => _l.emojiFood;
+  static String get emojiSport => _l.emojiSport;
+  static String get emojiTravel => _l.emojiTravel;
+  static String get emojiSymbol => _l.emojiSymbol;
 
   // ==================== 游戏步骤 ====================
-  static String get stepDisconnect => isZh ? '等待连接' : 'Waiting to connect';
-  static String get stepConnected =>
-      isZh ? '已连接，等待对手加入...' : 'Connected, waiting for opponent...';
-  static String get stepFrontConfig => isZh ? '请配置' : 'Please configure';
-  static String get stepRearWait =>
-      isZh ? '等待先手配置' : 'Waiting for first player config';
-  static String get stepFrontWait =>
-      isZh ? '等待后手配置' : 'Waiting for second player config';
-  static String get stepRearConfig =>
-      isZh ? '请配置或查看对方配置' : 'Configure or view opponent config';
-  static String get stepAction => isZh ? '进行中' : 'In Progress';
-  static String get stepGameOver => isZh ? '游戏结束' : 'Game Over';
+  static String get stepDisconnect => _l.stepDisconnect;
+  static String get stepConnected => _l.stepConnected;
+  static String get stepFrontConfig => _l.stepFrontConfig;
+  static String get stepRearWait => _l.stepRearWait;
+  static String get stepFrontWait => _l.stepFrontWait;
+  static String get stepRearConfig => _l.stepRearConfig;
+  static String get stepAction => _l.stepAction;
+  static String get stepGameOver => _l.stepGameOver;
 
   // ==================== 斗兽棋 ====================
-  static String get animalChess => isZh ? '斗兽棋' : 'Animal Chess';
-  static String get netAnimalChess => isZh ? '联机斗兽棋' : 'Net Animal Chess';
-  static String get setBoardSize => isZh ? '设置棋盘大小' : 'Set Board Size';
-  static String redTurn() => isZh ? '红方回合' : "Red's Turn";
-  static String blueTurn() => isZh ? '蓝方回合' : "Blue's Turn";
-  static String yourTurn() => isZh ? '你的回合' : 'Your Turn';
-  static String opponentTurn() => isZh ? '对方回合' : "Opponent's Turn";
-  static String redWin() => isZh ? '红方获胜！' : 'Red Wins!';
-  static String blueWin() => isZh ? '蓝方获胜！' : 'Blue Wins!';
+  static String get animalChess => _l.animalChess;
+  static String get netAnimalChess => _l.netAnimalChess;
+  static String get setBoardSize => _l.setBoardSize;
+  static String redTurn() => _l.redTurn;
+  static String blueTurn() => _l.blueTurn;
+  static String yourTurn() => _l.yourTurn;
+  static String opponentTurn() => _l.opponentTurn;
+  static String redWin() => _l.redWin;
+  static String blueWin() => _l.blueWin;
 
   // ==================== 五子棋 ====================
-  static String get gobang => isZh ? '五子棋' : 'Gomoku';
-  static String get netGobang => isZh ? '联机五子棋' : 'Net Gomoku';
-  static String get blackSide => isZh ? '黑方' : 'Black';
-  static String get whiteSide => isZh ? '白方' : 'White';
-  static String currentTurn(String side) =>
-      isZh ? '当前回合: $side' : 'Current Turn: $side';
-  static String sideWin(String side) => isZh ? '$side获胜!' : '$side Wins!';
-  static String yourSideTurn(String side) =>
-      isZh ? '你的回合 $side' : 'Your Turn $side';
-  static String opponentSideTurn(String side) =>
-      isZh ? '对方回合 $side' : "Opponent's Turn $side";
-  static String get aiLabel => 'AI';
-  static String get aiThinking => isZh ? 'AI 思考中…' : 'AI Thinking…';
-  static String get undo => isZh ? '悔棋' : 'Undo';
+  static String get gobang => _l.gobang;
+  static String get netGobang => _l.netGobang;
+  static String get blackSide => _l.blackSide;
+  static String get whiteSide => _l.whiteSide;
+  static String currentTurn(String side) => _l.currentTurn(side);
+  static String sideWin(String side) => _l.sideWin(side);
+  static String yourSideTurn(String side) => _l.yourSideTurn(side);
+  static String opponentSideTurn(String side) => _l.opponentSideTurn(side);
+  static String get aiLabel => _l.aiLabel;
+  static String get aiThinking => _l.aiThinking;
+  static String get undo => _l.undo;
 
   // ==================== 围棋 ====================
-  static String get weiqi => isZh ? '围棋' : 'Go';
+  static String get weiqi => _l.weiqi;
 
   // ==================== 贪吃蛇 ====================
-  static String get finalLength => isZh ? '最终长度' : 'Final Length';
+  static String get finalLength => _l.finalLength;
 
   // ==================== 数独 ====================
-  static String get sudoku => isZh ? '数独' : 'Sudoku';
-  static String get setDifficulty => isZh ? '设置难度' : 'Set Difficulty';
-  static String get pleaseConfirm => isZh ? '请确认' : 'Please Confirm';
-  static String get leaveRoomLoseProgress =>
-      isZh ? '离开房间将丢失进度' : 'Leaving will lose progress';
-  static String get congratulations => isZh ? '恭喜完成！' : 'Congratulations!';
-  static String difficultyTime(String d, String t) =>
-      isZh ? '难度: $d 用时: $t' : 'Difficulty: $d Time: $t';
-  static String get startNewGame => isZh ? '开始新游戏' : 'Start New Game';
-  static String get importPuzzle => isZh ? '导入棋局' : 'Import Puzzle';
-  static String get importFailConflict => isZh
-      ? '棋盘中存在冲突，请检查行、列或宫格中是否有重复数字'
-      : 'Board has conflicts. Check rows, columns and boxes for duplicates.';
-  static String get importFailEmpty =>
-      isZh ? '请至少填写一个数字' : 'Fill in at least one number.';
-  static String get importFailNotUnique => isZh
-      ? '该棋局没有唯一解，请调整数字'
-      : 'The puzzle has no unique solution. Adjust the numbers.';
-  static String get confirmImport => isZh ? '确认导入' : 'Confirm';
-  static String get cancelImport => isZh ? '取消' : 'Cancel';
+  static String get sudoku => _l.sudoku;
+  static String get setDifficulty => _l.setDifficulty;
+  static String get pleaseConfirm => _l.pleaseConfirm;
+  static String get leaveRoomLoseProgress => _l.leaveRoomLoseProgress;
+  static String get congratulations => _l.congratulations;
+  static String difficultyTime(String d, String t) => _l.difficultyTime(d, t);
+  static String get startNewGame => _l.startNewGame;
+  static String get importPuzzle => _l.importPuzzle;
+  static String get importFailConflict => _l.importFailConflict;
+  static String get importFailEmpty => _l.importFailEmpty;
+  static String get importFailNotUnique => _l.importFailNotUnique;
+  static String get confirmImport => _l.confirmImport;
+  static String get cancelImport => _l.cancelImport;
 
   // ==================== 猜枚 ====================
-  static String get guess => isZh ? '猜枚' : 'Guess';
-  static String timeTaken(int s) =>
-      isZh ? '用时: $s 秒' : 'Time Taken: $s seconds';
-  static String correctCount(int c) => isZh ? '正确次数: $c' : 'Correct Count: $c';
+  static String get guess => _l.guess;
+  static String timeTaken(int s) => _l.timeTaken(s);
+  static String correctCount(int c) => _l.correctCount(c);
 
   // ==================== 记忆翻牌 ====================
-  static String get memoryCard => isZh ? '记忆翻牌' : 'Memory Match';
-  static String remainingPairs(int v) => isZh ? '剩余 $v 对' : 'Remaining $v pairs';
-  static String get bestTimeLabel => isZh ? '最佳用时' : 'Best Time';
+  static String get memoryCard => _l.memoryCard;
+  static String remainingPairs(int v) => _l.remainingPairs(v);
+  static String get bestTimeLabel => _l.bestTimeLabel;
 
   // ==================== 舒尔特 ====================
-  static String get schulte => isZh ? '舒尔特' : 'Schulte';
-  static String nextNumber(int v) => isZh ? '下一个: $v' : 'Next: $v';
+  static String get schulte => _l.schulte;
+  static String nextNumber(int v) => _l.nextNumber(v);
 
   // ==================== 3tiles ====================
-  static String get threeTiles => isZh ? '羊了个羊' : '3tiles';
-  static String timeSeconds(int v) => isZh ? '时间: $v 秒' : 'Time: $v s';
-  static String remaining(int v) => isZh ? '剩余: $v' : 'Remaining: $v';
-  static String get youLost => isZh ? '你输了' : 'You Lost';
-  static String get chooseDifficulty => isZh ? '选择难度' : 'Choose Difficulty';
-  static String get easy => isZh ? '简单' : 'Easy';
-  static String get medium => isZh ? '中等' : 'Medium';
-  static String get hard => isZh ? '困难' : 'Hard';
+  static String get threeTiles => _l.threeTiles;
+  static String timeSeconds(int v) => _l.timeSeconds(v);
+  static String remaining(int v) => _l.remaining(v);
+  static String get youLost => _l.youLost;
+  static String get chooseDifficulty => _l.chooseDifficulty;
+  static String get easy => _l.easy;
+  static String get medium => _l.medium;
+  static String get hard => _l.hard;
   static String difficultyTimeSeconds(String d, int t) =>
-      isZh ? '难度: $d 用时: $t 秒' : 'Difficulty: $d Time: $t s';
+      _l.difficultyTimeSeconds(d, t);
 
   // ==================== 星际战机 ====================
-  static String get spaceship => isZh ? '星际战机' : 'Space Ship';
-  static String lives(double v) => isZh ? '生命: $v' : 'Lives: $v';
-  static String score(int v) => isZh ? '分数: $v' : 'Score: $v';
-  static String level(int v) => isZh ? '等级: $v' : 'Level: $v';
-  static String get startGame => isZh ? '开始游戏' : 'Start Game';
-  static String get gamePaused => isZh ? '游戏暂停' : 'Game Paused';
-  static String get continueGame => isZh ? '继续游戏' : 'Continue';
-  static String get settings => isZh ? '设置' : 'Settings';
-  static String get general => isZh ? '通用' : 'General';
-  static String get about => isZh ? '关于' : 'About';
-  static String get version => isZh ? '版本' : 'Version';
-  static String get restartGame => isZh ? '重新开始' : 'Restart';
-  static String get exitGame => isZh ? '退出游戏' : 'Exit Game';
-  static String get levelUp => isZh ? '等级提升' : 'Level Up';
-  static String currentLevel(int v) => isZh ? '当前等级: $v' : 'Current Level: $v';
-  static String get harderChallenge =>
-      isZh ? '准备迎接更难的挑战!' : 'Ready for harder challenges!';
-  static String get finalScore => isZh ? '最终得分' : 'Final Score';
-  static String get reachedLevel => isZh ? '达到等级' : 'Reached Level';
-  static String get unlockedAchievement =>
-      isZh ? '解锁成就' : 'Unlocked Achievement';
-  static String get playAgain => isZh ? '再玩一次' : 'Play Again';
-  static String get backToHome => isZh ? '返回主页' : 'Back to Home';
-  static String get noAchievements =>
-      isZh ? '没有解锁任何成就' : 'No achievements unlocked';
-  static String get enemyEscaped => isZh ? '敌人逃脱！' : 'Enemy Escaped!';
-  static String get bossAppear => isZh ? 'Boss出现！' : 'Boss Appeared!';
-  static String get sensitivitySetting => isZh ? '灵敏度设置' : 'Sensitivity';
-  static String get mapDataEmpty => isZh ? '地图数据为空' : 'Map data is empty';
-  static String get boardDataEmpty => isZh ? '棋盘数据为空' : 'Board data is empty';
+  static String get spaceship => _l.spaceship;
+  static String lives(double v) => _l.lives(v);
+  static String score(int v) => _l.score(v);
+  static String level(int v) => _l.level(v);
+  static String get startGame => _l.startGame;
+  static String get gamePaused => _l.gamePaused;
+  static String get continueGame => _l.continueGame;
+  static String get settings => _l.settings;
+  static String get general => _l.general;
+  static String get about => _l.about;
+  static String get version => _l.version;
+  static String get restartGame => _l.restartGame;
+  static String get exitGame => _l.exitGame;
+  static String get levelUp => _l.levelUp;
+  static String currentLevel(int v) => _l.currentLevel(v);
+  static String get harderChallenge => _l.harderChallenge;
+  static String get finalScore => _l.finalScore;
+  static String get reachedLevel => _l.reachedLevel;
+  static String get unlockedAchievement => _l.unlockedAchievement;
+  static String get playAgain => _l.playAgain;
+  static String get backToHome => _l.backToHome;
+  static String get noAchievements => _l.noAchievements;
+  static String get enemyEscaped => _l.enemyEscaped;
+  static String get bossAppear => _l.bossAppear;
+  static String get sensitivitySetting => _l.sensitivitySetting;
+  static String get mapDataEmpty => _l.mapDataEmpty;
+  static String get boardDataEmpty => _l.boardDataEmpty;
 
   // ==================== 星际战机 成就 ====================
-  static String get achFirstKill => isZh ? '初露锋芒' : 'First Blood';
-  static String get achFirstKillDesc =>
-      isZh ? '首次击败敌人' : 'First enemy defeated';
-  static String get achScore100 => isZh ? '百炼成钢' : 'Steel Will';
-  static String get achScore100Desc => isZh ? '得分达到100分' : 'Score reaches 100';
-  static String get achScore500 => isZh ? '半壁江山' : 'Half Kingdom';
-  static String get achScore500Desc => isZh ? '得分达到500分' : 'Score reaches 500';
-  static String get achScore1000 => isZh ? '千锤百炼' : 'Veteran';
-  static String get achScore1000Desc =>
-      isZh ? '得分达到1000分' : 'Score reaches 1000';
-  static String get achLevel5 => isZh ? '五级挑战' : 'Level 5 Challenge';
-  static String get achLevel5Desc => isZh ? '达到5级' : 'Reach level 5';
-  static String get achLevel10 => isZh ? '十级大师' : 'Level 10 Master';
-  static String get achLevel10Desc => isZh ? '达到10级' : 'Reach level 10';
-  static String get achBossHunter => isZh ? 'Boss猎手' : 'Boss Hunter';
-  static String get achBossHunterDesc =>
-      isZh ? '首次击败BOSS' : 'First BOSS defeated';
-  static String get achEightKills => isZh ? '八连杀' : 'Eight Streak';
-  static String get achEightKillsDesc =>
-      isZh ? '连续击败八个敌人' : 'Defeat 8 enemies in a row';
+  static String get achFirstKill => _l.achFirstKill;
+  static String get achFirstKillDesc => _l.achFirstKillDesc;
+  static String get achScore100 => _l.achScore100;
+  static String get achScore100Desc => _l.achScore100Desc;
+  static String get achScore500 => _l.achScore500;
+  static String get achScore500Desc => _l.achScore500Desc;
+  static String get achScore1000 => _l.achScore1000;
+  static String get achScore1000Desc => _l.achScore1000Desc;
+  static String get achLevel5 => _l.achLevel5;
+  static String get achLevel5Desc => _l.achLevel5Desc;
+  static String get achLevel10 => _l.achLevel10;
+  static String get achLevel10Desc => _l.achLevel10Desc;
+  static String get achBossHunter => _l.achBossHunter;
+  static String get achBossHunterDesc => _l.achBossHunterDesc;
+  static String get achEightKills => _l.achEightKills;
+  static String get achEightKillsDesc => _l.achEightKillsDesc;
 
   // ==================== 塔防 ====================
-  static String get towerDefense => isZh ? '塔防' : 'Tower Defense';
-  static String get surrender => isZh ? '投降' : 'Surrender';
-  static String get startWave => isZh ? '开始波次' : 'Start Wave';
-  static String get netTowerDefense => isZh ? '联机塔防' : 'Net Tower Defense';
-  static String hp(int cur, int max) => 'HP $cur/$max';
-  static String hpMax(int v) => 'HP $v';
-  static String goldCost(int v) => '${v}g';
-  static String get wavePrefix => 'W';
+  static String get towerDefense => _l.towerDefense;
+  static String get surrender => _l.surrender;
+  static String get startWave => _l.startWave;
+  static String get netTowerDefense => _l.netTowerDefense;
+  static String hp(int cur, int max) => _l.hp(cur, max);
+  static String hpMax(int v) => _l.hpMax(v);
+  static String goldCost(int v) => _l.goldCost(v);
+  static String get wavePrefix => _l.wavePrefix;
 
   // ==================== 五行之战 通用 ====================
-  static String get attack => isZh ? '攻击' : 'Attack';
-  static String get parry => isZh ? '格挡' : 'Parry';
-  static String get skill => isZh ? '技能' : 'Skill';
-  static String get escape => isZh ? '逃跑' : 'Escape';
-  static String get pursuit => isZh ? '追击' : 'Pursuit';
-  static String get victory => isZh ? '胜利' : 'Victory';
-  static String get defeat => isZh ? '失败' : 'Defeat';
-  static String get win => isZh ? '胜利' : 'Win';
-  static String get youWon => isZh ? '你获得了胜利！' : 'You Won!';
-  static String get youLost2 => isZh ? '很遗憾，你输了...' : 'You Lost...';
-  static String get youEscaped => isZh ? '你成功逃脱了战斗' : 'You escaped the battle';
-  static String get opponentEscaped => isZh ? '对方逃跑了' : 'Opponent escaped';
-  static String get yourTurnAct => isZh ? '你的回合，请行动' : 'Your turn, take action';
-  static String get enemyTurnWait =>
-      isZh ? '敌人的回合，请等待' : "Enemy's turn, please wait";
-  static String choseAttack(String name) =>
-      isZh ? '$name 选择了 攻击' : '$name chose Attack';
+  static String get attack => _l.attack;
+  static String get parry => _l.parry;
+  static String get skill => _l.skill;
+  static String get escape => _l.escape;
+  static String get pursuit => _l.pursuit;
+  static String get victory => _l.victory;
+  static String get defeat => _l.defeat;
+  static String get win => _l.win;
+  static String get youWon => _l.youWon;
+  static String get youLost2 => _l.youLost2;
+  static String get youEscaped => _l.youEscaped;
+  static String get opponentEscaped => _l.opponentEscaped;
+  static String get yourTurnAct => _l.yourTurnAct;
+  static String get enemyTurnWait => _l.enemyTurnWait;
+  static String choseAttack(String name) => _l.choseAttack(name);
   static String castSkill(String src, String skill, String tgt, String desc) =>
-      isZh
-      ? '$src 施放了技能 $skill\n$tgt 获得效果 $desc'
-      : '$src cast $skill\n$tgt receives $desc';
-  static String switchIn(String name) => isZh ? '$name 上场' : '$name enters';
-  static String switchTo(String from, String to) =>
-      isZh ? '$from 切换为 $to' : '$from switched to $to';
+      _l.castSkill(src, skill, tgt, desc);
+  static String switchIn(String name) => _l.switchIn(name);
+  static String switchTo(String from, String to) => _l.switchTo(from, to);
 
   // ==================== 五行之战 属性标签 ====================
-  static String get levelLabel => isZh ? '等级' : 'Level';
-  static String get healthLabel => isZh ? '生命值' : 'HP';
-  static String get attackLabel => isZh ? '攻击力' : 'ATK';
-  static String get defenceLabel => isZh ? '防御力' : 'DEF';
+  static String get levelLabel => _l.levelLabel;
+  static String get healthLabel => _l.healthLabel;
+  static String get attackLabel => _l.attackLabel;
+  static String get defenceLabel => _l.defenceLabel;
 
   // ==================== 五行之战 灵根选择 ====================
-  static String get selectEnergy => isZh ? '选择一个灵根' : 'Choose Energy';
-  static String get selectSkill => isZh ? '选择一个技能' : 'Choose a Skill';
-  static String get chooseEnergy => isZh ? '选择灵根:' : 'Choose Energy:';
-  static String get chooseAttribute => isZh ? '选择属性:' : 'Choose Attribute:';
+  static String get selectEnergy => _l.selectEnergy;
+  static String get selectSkill => _l.selectSkill;
+  static String get chooseEnergy => _l.chooseEnergy;
+  static String get chooseAttribute => _l.chooseAttribute;
 
   // ==================== 五行之战 敌人 ====================
-  static String get enemyImp => isZh ? '小鬼' : 'Imp';
-  static String get enemyClown => isZh ? '小丑' : 'Clown';
-  static String get enemyDemon => isZh ? '恶魔' : 'Demon';
-  static String get enemyKing => isZh ? '鬼王' : 'Demon King';
-  static String get dummy => isZh ? '假人' : 'Dummy';
+  static String get enemyImp => _l.enemyImp;
+  static String get enemyClown => _l.enemyClown;
+  static String get enemyDemon => _l.enemyDemon;
+  static String get enemyKing => _l.enemyKing;
+  static String get dummy => _l.dummy;
 
   // ==================== 五行之战 玩家 ====================
-  static String get traveler => isZh ? '旅行者' : 'Traveler';
+  static String get traveler => _l.traveler;
 
   // ==================== 五行之战 迷宫 ====================
-  static String floorName(int v) => isZh ? '地下$v层' : 'B$v';
-  static String get mainCity => isZh ? '主城' : 'Main City';
-  static String get returnedToCity => isZh ? '你回到了主城' : 'Returned to Main City';
-  static String get notice => isZh ? '提示' : 'Notice';
-  static String get slept => isZh ? '你睡了一觉，恢复了状态' : 'You slept and recovered';
-  static String get gotMedicine => isZh ? '你得到了一个药' : 'Got a potion';
-  static String get gotWeapon => isZh ? '你得到了一个武器' : 'Got a weapon';
-  static String get gotArmor => isZh ? '你得到了一个防具' : 'Got armor';
-  static String gotMoneyBag(int m) =>
-      isZh ? '你得到了一个钱袋，获得了$m枚金币' : 'Got a money bag, $m coins';
-  static String get cannotContinue =>
-      isZh ? '无法继续冒险' : 'Cannot continue adventure';
-  static String get levelUpSuccess => isZh ? '升级成功！' : 'Level Up!';
-  static String get notEnoughExp => isZh ? '经验不足！' : 'Not enough EXP!';
+  static String floorName(int v) => _l.floorName(v);
+  static String get mainCity => _l.mainCity;
+  static String get returnedToCity => _l.returnedToCity;
+  static String get notice => _l.notice;
+  static String get slept => _l.slept;
+  static String get gotMedicine => _l.gotMedicine;
+  static String get gotWeapon => _l.gotWeapon;
+  static String get gotArmor => _l.gotArmor;
+  static String gotMoneyBag(int m) => _l.gotMoneyBag(m);
+  static String get cannotContinue => _l.cannotContinue;
+  static String get levelUpSuccess => _l.levelUpSuccess;
+  static String get notEnoughExp => _l.notEnoughExp;
 
   // ==================== 五行之战 UI 页面 ====================
-  static String get backpack => isZh ? '背包' : 'Backpack';
-  static String get status => isZh ? '状态' : 'Status';
-  static String get switchElement => isZh ? '切换' : 'Switch';
-  static String get store => isZh ? '商店' : 'Store';
-  static String get buy => isZh ? '购买' : 'Buy';
-  static String get use => isZh ? '使用' : 'Use';
-  static String get learn => isZh ? '学习' : 'Learn';
-  static String get forget => isZh ? '遗忘' : 'Forget';
-  static String get active => isZh ? '主动' : 'Active';
-  static String get passive => isZh ? '被动' : 'Passive';
-  static String get preparing => isZh ? '准备中' : 'Preparing';
-  static String get configCharacter => isZh ? '配置角色' : 'Configure';
-  static String get viewOpponent => isZh ? '查看对手信息' : 'View Opponent';
-  static String get characterConfig => isZh ? '角色配置' : 'Character Config';
-  static String remainingPoints(int v) => isZh ? '剩余点数: $v' : 'Points: $v';
-  static String coinCount(int v) => isZh ? '金币数量: $v' : 'Coins: $v';
-  static String itemName(String n) => isZh ? '名称:$n' : 'Name:$n';
-  static String get buySuccess => isZh ? '购买成功' : 'Purchase Success';
-  static String get notEnoughCoins => isZh ? '金币不足' : 'Not enough coins';
-  static String get learnSuccess => isZh ? '学习成功！' : 'Learned!';
-  static String skillTarget(String t) => isZh ? '目标: $t' : 'Target: $t';
-  static String skillEffect(String d) => isZh ? '效果: $d' : 'Effect: $d';
-  static String get notYourTurn => isZh ? '不是你的回合' : 'Not your turn';
-  static String get serverNotYourTurn =>
-      isZh ? '\n服务器：不是你的回合\n' : '\nServer: Not your turn\n';
-  static String exp(int v) => isZh ? '经验: $v' : 'EXP: $v';
-  static String lv(int v) => isZh ? '等级: $v' : 'Level: $v';
-  static String hpCap(int v) => isZh ? '生命值上限: $v' : 'HP Cap: $v';
-  static String baseAtk(int v) => isZh ? '初始攻击力: $v' : 'Base ATK: $v';
-  static String baseDef(int v) => isZh ? '初始防御力: $v' : 'Base DEF: $v';
-  static String curHp(int v) => isZh ? '当前生命值: $v' : 'Cur HP: $v';
-  static String curAtk(int v) => isZh ? '当前攻击力: $v' : 'Cur ATK: $v';
-  static String curDef(int v) => isZh ? '当前防御力: $v' : 'Cur DEF: $v';
-  static String get masteredSkills => isZh ? '掌握技能:' : 'Skills:';
-  static String get activeEffects => isZh ? '获得影响:' : 'Effects:';
+  static String get backpack => _l.backpack;
+  static String get status => _l.status;
+  static String get switchElement => _l.switchElement;
+  static String get store => _l.store;
+  static String get buy => _l.buy;
+  static String get use => _l.use;
+  static String get learn => _l.learn;
+  static String get forget => _l.forget;
+  static String get active => _l.active;
+  static String get passive => _l.passive;
+  static String get preparing => _l.preparing;
+  static String get configCharacter => _l.configCharacter;
+  static String get viewOpponent => _l.viewOpponent;
+  static String get characterConfig => _l.characterConfig;
+  static String remainingPoints(int v) => _l.remainingPoints(v);
+  static String coinCount(int v) => _l.coinCount(v);
+  static String itemName(String n) => _l.itemName(n);
+  static String get buySuccess => _l.buySuccess;
+  static String get notEnoughCoins => _l.notEnoughCoins;
+  static String get learnSuccess => _l.learnSuccess;
+  static String skillTarget(String t) => _l.skillTarget(t);
+  static String skillEffect(String d) => _l.skillEffect(d);
+  static String get notYourTurn => _l.notYourTurn;
+  static String get serverNotYourTurn => _l.serverNotYourTurn;
+  static String exp(int v) => _l.exp(v);
+  static String lv(int v) => _l.lv(v);
+  static String hpCap(int v) => _l.hpCap(v);
+  static String baseAtk(int v) => _l.baseAtk(v);
+  static String baseDef(int v) => _l.baseDef(v);
+  static String curHp(int v) => _l.curHp(v);
+  static String curAtk(int v) => _l.curAtk(v);
+  static String curDef(int v) => _l.curDef(v);
+  static String get masteredSkills => _l.masteredSkills;
+  static String get activeEffects => _l.activeEffects;
 
   // ==================== 五行之战 道具 ====================
-  static String get potion => isZh ? '药' : 'Potion';
-  static String get potionDesc => isZh ? '生命值+32' : 'HP +32';
-  static String get sword => isZh ? '剑' : 'Sword';
-  static String get swordDesc => isZh ? '攻击力+8' : 'ATK +8';
-  static String get shield => isZh ? '盾' : 'Shield';
-  static String get shieldDesc => isZh ? '防御力+8' : 'DEF +8';
-  static String get scroll => isZh ? '回城卷轴' : 'Scroll';
-  static String get scrollDesc => isZh ? '随时随地可以回家' : 'Return home anytime';
+  static String get potion => _l.potion;
+  static String get potionDesc => _l.potionDesc;
+  static String get sword => _l.sword;
+  static String get swordDesc => _l.swordDesc;
+  static String get shield => _l.shield;
+  static String get shieldDesc => _l.shieldDesc;
+  static String get scroll => _l.scroll;
+  static String get scrollDesc => _l.scrollDesc;
 
   // ==================== 五行之战 技能 ====================
-  static String get targetSelfFront => isZh ? '所属灵根' : 'Self Front';
-  static String get targetSelfAny => isZh ? '任一灵根' : 'Self Any';
-  static String get targetEnemyFront => isZh ? '敌方当前灵根' : 'Enemy Front';
-  static String get targetEnemyAny => isZh ? '敌方任一灵根' : 'Enemy Any';
+  static String get targetSelfFront => _l.targetSelfFront;
+  static String get targetSelfAny => _l.targetSelfAny;
+  static String get targetEnemyFront => _l.targetEnemyFront;
+  static String get targetEnemyAny => _l.targetEnemyAny;
 
   // 技能名
-  static String get skParry => isZh ? '格挡' : 'Parry';
-  static String get skParryDesc =>
-      isZh ? '防守时，减少75%受到的伤害，生效一次。' : 'Reduce damage by 75%, once.';
-  static String get skMetalP0 => isZh ? '攻防兼备' : 'Balanced Force';
-  static String get skMetalP0Desc =>
-      isZh ? '战斗时，获得50%额外的攻击力和防御力。' : '+50% ATK and DEF in combat.';
-  static String get skWoodP0 => isZh ? '叶落归根' : 'Life Drain';
-  static String get skWoodP0Desc =>
-      isZh ? '造成伤害后，根据伤害量的25%，回复生命。' : 'Heal 25% of damage dealt.';
-  static String get skWaterP0 => isZh ? '水无常形' : 'Adaptive Flow';
-  static String get skWaterP0Desc => isZh
-      ? '受到伤害后，防御力减少，根据减少量的75%，提高攻击力，如果是法术伤害，还会因此附魔。\n\n兵无常势，水无常形。'
-      : 'After taking damage, lose DEF, gain 75% of lost DEF as ATK. Magic damage also enchants.\n\nWater adapts to its container.';
-  static String get skFireP0 => isZh ? '燃烧吧' : 'Ignite';
-  static String get skFireP0Desc => isZh
-      ? '攻击时，获得100%附魔，所有伤害均为无视防御的法术伤害。\n\n燃起来了。'
-      : '100% enchant, all damage ignores defense.\n\nIt\'s on fire.';
-  static String get skEarthP0 => isZh ? '厚积薄发' : 'Accumulate';
-  static String get skEarthP0Desc => isZh
-      ? '受到伤害后，将物理伤害的50%和法术伤害的15%作为加成，提高下次攻击的攻击力。\n\n大地会记住一切。'
-      : 'After damage: +50% physical, +15% magic as ATK bonus.\n\nEarth remembers all.';
-  static String get skMetalA0 => isZh ? '以退为进' : 'Retreat to Advance';
-  static String get skMetalA0Desc =>
-      isZh ? '下次攻击时，额外进行一次，生效一次。' : 'Extra attack next turn, once.';
-  static String get skWoodA0 => isZh ? '根深蒂固' : 'Deep Roots';
-  static String get skWoodA0Desc =>
-      isZh ? '根据自身生命上限的12.5%回复生命，生效一次。' : 'Heal 12.5% max HP, once.';
-  static String get skWaterA0 => isZh ? '拖泥带水' : 'Slow Down';
-  static String get skWaterA0Desc =>
-      isZh ? '下次攻击时，减少50%的攻击力，生效两次。' : 'Reduce enemy ATK by 50%, twice.';
-  static String get skFireA0 => isZh ? '爆裂魔法' : 'Explosion';
-  static String get skFireA0Desc => isZh
-      ? '生命值降为1，根据降低的比例，提高伤害系数，并进行一次攻击。\n\n Explosion！'
-      : 'HP to 1, boost damage by ratio, attack once.\n\nExplosion!';
-  static String get skEarthA0 => isZh ? '不动如山' : 'Immovable';
-  static String get skEarthA0Desc => isZh
-      ? '下次受到伤害时，进行一次攻击。\n力的作用是相互的。'
-      : 'Counter-attack when hit.\nForce is mutual.';
-  static String get skMetalAdv0 => isZh ? '以逸待劳' : 'Wait and See';
-  static String get skMetalAdv0Desc => isZh
-      ? '以退为进可以施加给己方任一灵根，使其下次攻击时，额外进行一次。'
-      : 'Retreat to Advance targets any ally.';
-  static String get skWoodAdv0 => isZh ? '开枝散叶' : 'Spread Roots';
-  static String get skWoodAdv0Desc => isZh
-      ? '根深蒂固可以施加给己方任一灵根，根据自身生命上限的12.5%回复其生命。'
-      : 'Deep Roots targets any ally.';
-  static String get skWaterAdv0 => isZh ? '水泄不通' : 'Tight Seal';
-  static String get skWaterAdv0Desc => isZh
-      ? '拖泥带水可以施加给敌方任一灵根，使其下次攻击时，减少50%的攻击力，生效两次。'
-      : 'Slow Down targets any enemy.';
-  static String get skFireAdv0 => isZh ? '薪火相传' : 'Pass the Torch';
-  static String get skFireAdv0Desc => isZh
-      ? '爆裂魔法可以施加给己方任一灵根，使其生命值降为1，根据降低的比例，提高伤害系数，并上场进行一次攻击。'
-      : 'Explosion targets any ally.';
-  static String get skEarthAdv0 => isZh ? '玉石俱焚' : 'Mutual Destruction';
-  static String get skEarthAdv0Desc => isZh
-      ? '不动如山可以施加给己方任一灵根，使其下次受到伤害时，进行一次攻击。'
-      : 'Immovable targets any ally.';
-  static String get skMetalAux0 => isZh ? '全副武装' : 'Full Arms';
-  static String get skMetalAux0Desc =>
-      isZh ? '战斗时，额外获得50%的攻击力和防御力，生效两次。' : '+50% ATK and DEF, twice.';
-  static String get skWoodAux0 => isZh ? '移花接木' : 'Graft';
-  static String get skWoodAux0Desc =>
-      isZh ? '造成伤害时，根据伤害量的25%，回复生命，生效两次。' : 'Heal 25% of damage dealt, twice.';
-  static String get skWaterAux0 => isZh ? '因地制流' : 'Adapt';
-  static String get skWaterAux0Desc => isZh
-      ? '受到伤害后，防御力减少，根据减少量的75%，提高攻击力，生效两次。\n\n水因地制流，兵因敌制胜。'
-      : 'Lose DEF, gain 75% as ATK, twice.\n\nWater flows with the land.';
-  static String get skFireAux0 => isZh ? '火力全开' : 'Full Firepower';
-  static String get skFireAux0Desc => isZh
-      ? '攻击时，获得100%附魔比例，造成无视防御的法术伤害，生效两次。\n\n对他使用炎拳吧！'
-      : '100% enchant, twice.\n\nUse Fire Fist!';
-  static String get skEarthAux0 => isZh ? '卷土重来' : 'Comeback';
-  static String get skEarthAux0Desc => isZh
-      ? '受到伤害后，将物理伤害的50%和法术伤害的15%作为加成，提高下次攻击的攻击力，生效两次。'
-      : '+50% phys, +15% magic as ATK, twice.';
-  static String get skMetalF0 => isZh ? '屠龙' : 'Dragon Slayer';
-  static String get skMetalF0Desc => isZh
-      ? '攻击时，基于敌方当前生命值的25%，提高自身攻击力，生效一次。'
-      : '+ATK based on 25% enemy HP, once.';
-  static String get skWoodF0 => isZh ? '桎梏' : 'Shackle';
-  static String get skWoodF0Desc =>
-      isZh ? '回复生命时，溢出的治疗量会提高生命值上限。' : 'Overflow healing increases max HP.';
-  static String get skWaterF0 => isZh ? '止水' : 'Still Water';
-  static String get skWaterF0Desc => isZh
-      ? '受到致命伤害时，生命值回复到1，生效一次。\n\n区区致命伤。'
-      : 'Survive lethal damage at 1 HP, once.\n\nJust a scratch.';
-  static String get skFireF0 => isZh ? '灼烧' : 'Scorch';
-  static String get skFireF0Desc => isZh
-      ? '造成的法术伤害，会使敌人烧伤，使其再次受到伤害时，追加本次伤害值25%的伤害，生效两次。\n\n阿玛忒拉斯。'
-      : 'Magic burns enemy, +25% damage on next hit, twice.\n\nAmaterasu.';
-  static String get skEarthF0 => isZh ? '砥砺' : 'Sharpen';
-  static String get skEarthF0Desc => isZh
-      ? '受到伤害时，将已损失生命值的25%作为攻击力，造成一次伤害系数为25%的物理伤害，生效两次。'
-      : 'On hit: 25% lost HP as ATK, 25% multiplier, twice.';
+  static String get skParry => _l.skParry;
+  static String get skParryDesc => _l.skParryDesc;
+  static String get skMetalP0 => _l.skMetalP0;
+  static String get skMetalP0Desc => _l.skMetalP0Desc;
+  static String get skWoodP0 => _l.skWoodP0;
+  static String get skWoodP0Desc => _l.skWoodP0Desc;
+  static String get skWaterP0 => _l.skWaterP0;
+  static String get skWaterP0Desc => _l.skWaterP0Desc;
+  static String get skFireP0 => _l.skFireP0;
+  static String get skFireP0Desc => _l.skFireP0Desc;
+  static String get skEarthP0 => _l.skEarthP0;
+  static String get skEarthP0Desc => _l.skEarthP0Desc;
+  static String get skMetalA0 => _l.skMetalA0;
+  static String get skMetalA0Desc => _l.skMetalA0Desc;
+  static String get skWoodA0 => _l.skWoodA0;
+  static String get skWoodA0Desc => _l.skWoodA0Desc;
+  static String get skWaterA0 => _l.skWaterA0;
+  static String get skWaterA0Desc => _l.skWaterA0Desc;
+  static String get skFireA0 => _l.skFireA0;
+  static String get skFireA0Desc => _l.skFireA0Desc;
+  static String get skEarthA0 => _l.skEarthA0;
+  static String get skEarthA0Desc => _l.skEarthA0Desc;
+  static String get skMetalAdv0 => _l.skMetalAdv0;
+  static String get skMetalAdv0Desc => _l.skMetalAdv0Desc;
+  static String get skWoodAdv0 => _l.skWoodAdv0;
+  static String get skWoodAdv0Desc => _l.skWoodAdv0Desc;
+  static String get skWaterAdv0 => _l.skWaterAdv0;
+  static String get skWaterAdv0Desc => _l.skWaterAdv0Desc;
+  static String get skFireAdv0 => _l.skFireAdv0;
+  static String get skFireAdv0Desc => _l.skFireAdv0Desc;
+  static String get skEarthAdv0 => _l.skEarthAdv0;
+  static String get skEarthAdv0Desc => _l.skEarthAdv0Desc;
+  static String get skMetalAux0 => _l.skMetalAux0;
+  static String get skMetalAux0Desc => _l.skMetalAux0Desc;
+  static String get skWoodAux0 => _l.skWoodAux0;
+  static String get skWoodAux0Desc => _l.skWoodAux0Desc;
+  static String get skWaterAux0 => _l.skWaterAux0;
+  static String get skWaterAux0Desc => _l.skWaterAux0Desc;
+  static String get skFireAux0 => _l.skFireAux0;
+  static String get skFireAux0Desc => _l.skFireAux0Desc;
+  static String get skEarthAux0 => _l.skEarthAux0;
+  static String get skEarthAux0Desc => _l.skEarthAux0Desc;
+  static String get skMetalF0 => _l.skMetalF0;
+  static String get skMetalF0Desc => _l.skMetalF0Desc;
+  static String get skWoodF0 => _l.skWoodF0;
+  static String get skWoodF0Desc => _l.skWoodF0Desc;
+  static String get skWaterF0 => _l.skWaterF0;
+  static String get skWaterF0Desc => _l.skWaterF0Desc;
+  static String get skFireF0 => _l.skFireF0;
+  static String get skFireF0Desc => _l.skFireF0Desc;
+  static String get skEarthF0 => _l.skEarthF0;
+  static String get skEarthF0Desc => _l.skEarthF0Desc;
 
   // ==================== 战斗日志 ====================
-  static String healLog(String name, int actual, int hp) => isZh
-      ? '$name 回复了 $actual 生命值，当前生命值 $hp'
-      : '$name healed $actual HP, now $hp';
-  static String selfDamageLog(String name, int dmg) => isZh
-      ? '$name 对自身造成 $dmg 伤害，伤害系数提高'
-      : '$name took $dmg self damage, damage multiplier increased';
-  static String damageLog(String name, int dmg, bool magic, int hp) => isZh
-      ? '$name 受到 $dmg ${magic ? "法术" : "物理"} 伤害, 生命值 $hp'
-      : '$name took $dmg ${magic ? "magic" : "physical"} damage, HP $hp';
+  static String healLog(String name, int actual, int hp) =>
+      _l.healLog(name, actual, hp);
+  static String selfDamageLog(String name, int dmg) =>
+      _l.selfDamageLog(name, dmg);
+  static String damageLog(String name, int dmg, bool magic, int hp) => magic
+      ? _l.damageLogMagic(name, dmg, hp)
+      : _l.damageLogPhysical(name, dmg, hp);
 
   // ==================== 地图/棋盘 ====================
-  static String get mapDataEmpty2 => isZh ? '地图数据为空' : 'Map data is empty';
-  static String get boardDataEmpty2 => isZh ? '棋盘数据为空' : 'Board data is empty';
+  static String get mapDataEmpty2 => _l.mapDataEmpty2;
+  static String get boardDataEmpty2 => _l.boardDataEmpty2;
 
   // ==================== 对局游戏名翻译 ====================
   static String roomTypeString(String raw) {
     switch (raw) {
       case 'onlyChat':
-        return isZh ? '聊天室' : 'Chat';
+        return _l.roomTypeChat;
       case 'animalChess':
-        return isZh ? '斗兽棋' : 'Animal Chess';
+        return _l.animalChess;
       case 'elementalBattle':
-        return isZh ? '五行之战' : 'Elemental Battle';
+        return _l.elementalBattle;
       case 'gobang':
-        return isZh ? '五子棋' : 'Gomoku';
+        return _l.gobang;
       case 'greedySnake':
-        return isZh ? '贪吃蛇' : 'Greedy Snake';
+        return _l.greedySnake;
       case 'weiqi':
-        return isZh ? '围棋' : 'Go';
+        return _l.weiqi;
       case 'sudoku':
-        return isZh ? '数独' : 'Sudoku';
+        return _l.sudoku;
       case 'guess':
-        return isZh ? '猜枚' : 'Guess';
+        return _l.guess;
       case 'memoryCard':
-        return isZh ? '记忆翻牌' : 'Memory Match';
+        return _l.memoryCard;
       case 'schulte':
-        return isZh ? '舒尔特' : 'Schulte';
+        return _l.schulte;
       case 'threeTiles':
-        return isZh ? '羊了个羊' : '3tiles';
+        return _l.threeTiles;
       case 'spaceship':
-        return isZh ? '星际战机' : 'Space Ship';
+        return _l.spaceship;
       case 'soft':
-        return isZh ? '软环' : 'Soft';
+        return _l.soft;
       case 'minecraft':
-        return isZh ? '我的世界' : 'Minecraft';
+        return _l.minecraft;
       case 'towerDefense':
-        return isZh ? '塔防' : 'Tower Defense';
+        return _l.towerDefense;
       default:
         return raw;
     }
