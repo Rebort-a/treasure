@@ -26,12 +26,7 @@ class SettingsPage extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(S.version),
-                subtitle: Text(AppInfo.isLoaded
-                    ? (AppInfo.buildNumber != null &&
-                            AppInfo.buildNumber!.isNotEmpty
-                        ? '${AppInfo.version} (${AppInfo.buildNumber})'
-                        : (AppInfo.version ?? ''))
-                    : '—'),
+                subtitle: Text(AppInfo.isLoaded ? (AppInfo.version ?? '—') : '—'),
               ),
             ],
           ),
