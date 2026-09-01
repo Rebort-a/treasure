@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-01
+
+升级工具链、插件，并支持网页端聊天内的文件/图片分享，修复 Java 21 下的 Android 构建失败。
+
+### Changed
+- Flutter 3.44.0 → 3.47.2 (Dart 3.13.2)
+- Android Gradle Plugin 8.9.1 → 9.1.0 ; Gradle 8.14.1 → 9.3.1 ; Kotlin 1.9.20 → 2.4.0
+- file_picker 11.0.2 → 12.1.2（迁移到 v12 API）；image_picker 1.2.2 → 1.2.3
+- Dart SDK 约束 ^3.12.0 → ^3.13.0
+- 网页端聊天支持发送文件/图片（跨平台 XFile/PlatformFile.readAsBytes，移除 dart:io 限制）
+- CI：web 产物重命名 web-build → web；迁移 GitHub Pages 部署到 flutter.yml；升级 actions
+- 发布脚本支持 Conventional Commits 前缀驱动、自动分类 CHANGELOG、等待并校验 CI
+
+### Fixed
+- Android 构建在 Java 21 下失败，回退编译目标到 Java 17
+
 ## [1.0.0] - 2026-08-31
 
 首个正式版本：跨平台游戏合集，14 单机 + 5 联机 + 1 聊天室，纯 Dart 零依赖内核。
