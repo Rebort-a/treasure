@@ -91,14 +91,14 @@ class _SchultePageState extends State<SchultePage>
     );
   }
 
-  /// 显示区：左用时，右下一个数字
+  /// 1. 文本显示区：进行中显示下一个数字，结束后显示完成用时
   Widget _buildDisplayArea() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: ValueListenableBuilder<int>(
-        valueListenable: _manager.nextNumber,
-        builder: (_, n, __) => Text(
-          S.nextNumber(n),
+      child: ValueListenableBuilder<String>(
+        valueListenable: _manager.displayInfo,
+        builder: (_, value, __) => Text(
+          value,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),

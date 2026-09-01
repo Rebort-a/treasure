@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/tool/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../00.common/tool/storage_service.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
-import '../00.common/widget/effect/magic_celebration.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
@@ -16,12 +14,12 @@ class SchulteManager {
 
   int _regionCount = 12; // N（区域数 = 数字数）
   bool _isGameOver = false;
-  Future<int>? _bestTimeFuture;
 
   final ValueNotifier<SchulteBoard> board =
       ValueNotifier(SchulteBoard(cols: cols, rows: rows, regions: const []));
   final ValueNotifier<int> nextNumber = ValueNotifier(1);
   final ValueNotifier<int> elapsed = ValueNotifier(0);
+  final ValueNotifier<String> displayInfo = ValueNotifier('');
   final AlwaysNotifier<SchulteTapFeedback?> tapFeedback = AlwaysNotifier(null);
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
@@ -47,6 +45,7 @@ class SchulteManager {
     nextNumber.value = 1;
     tapFeedback.value = null;
     _isGameOver = false;
+    displayInfo.value = _displayText;
   }
 
   void resetGame() => _initGame();
@@ -60,6 +59,7 @@ class SchulteManager {
     board.dispose();
     nextNumber.dispose();
     elapsed.dispose();
+    displayInfo.dispose();
     tapFeedback.dispose();
     pageNavigator.dispose();
   }
@@ -90,6 +90,7 @@ class SchulteManager {
       // 正确：首次启动计时，棋盘样式保持不变（不标记/不清理）
       if (!_timer.isRunning) _timer.start();
       nextNumber.value++;
+      displayInfo.value = _displayText;
       tapFeedback.value = SchulteTapFeedback(regionId: id, isCorrect: true);
       if (nextNumber.value > _regionCount) _handleGameOver();
     } else {
@@ -98,73 +99,14 @@ class SchulteManager {
     }
   }
 
-  Future<void> _handleGameOver() async {
+  void _handleGameOver() {
     _timer.stop();
     _isGameOver = true;
-    await _saveBestTime();
-    _bestTimeFuture = _readBestTime(); // 缓存 Future，避免 FutureBuilder 重建重读
-    _showCompletionDialog();
+    displayInfo.value = _displayText;
   }
 
-  /// 保存最佳用时（按区域数 N，仿 08.sudoku）
-  Future<void> _saveBestTime() async {
-    final data = await StorageService.instance.read('schulte_best');
-    final key = 'diff_$_regionCount';
-    final best = data[key] as int? ?? 0;
-    if (best == 0 || _timer.tick < best) {
-      data[key] = _timer.tick;
-      await StorageService.instance.write('schulte_best', data);
-    }
-  }
-
-  Future<int> _readBestTime() async {
-    final data = await StorageService.instance.read('schulte_best');
-    return data['diff_$_regionCount'] as int? ?? 0;
-  }
-
-  void _showCompletionDialog() {
-    pageNavigator.value = (context) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) => AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(S.congratulations,
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Text(S.difficultyTime(
-                  '$_regionCount', TimerCounter.formatDuration(_timer.tick))),
-              const SizedBox(height: 8),
-              FutureBuilder<int>(
-                future: _bestTimeFuture,
-                builder: (_, snap) {
-                  final best = snap.data ?? 0;
-                  if (best == 0) return const SizedBox.shrink();
-                  return Text(
-                    '${S.bestTimeLabel}: ${TimerCounter.formatDuration(best)}',
-                    style: const TextStyle(color: Colors.grey),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              const MagicCelebrationAnimation(),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  resetGame();
-                },
-                child: Text(S.startNewGame),
-              ),
-            ],
-          ),
-        ),
-      );
-    };
-  }
+  String get _displayText =>
+      _isGameOver ? S.timeTaken(_timer.tick) : S.nextNumber(nextNumber.value);
 
   /// 难度设置（区域数 N：4~40）
   void showSelector() {

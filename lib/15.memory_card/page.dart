@@ -54,14 +54,14 @@ class MemoryPage extends StatelessWidget {
     );
   }
 
-  /// 显示区：左侧用时，右侧剩余对数
+  /// 1. 文本显示区：进行中显示剩余对数，结束后显示完成用时
   Widget _buildDisplayArea() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: ValueListenableBuilder<int>(
-        valueListenable: _manager.matchedCount,
-        builder: (_, c, __) => Text(
-          S.remainingPairs(_manager.difficulty - c),
+      child: ValueListenableBuilder<String>(
+        valueListenable: _manager.displayInfo,
+        builder: (_, value, __) => Text(
+          value,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),

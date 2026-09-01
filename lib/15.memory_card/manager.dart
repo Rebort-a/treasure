@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/tool/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../00.common/tool/storage_service.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
-import '../00.common/widget/effect/magic_celebration.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
@@ -15,13 +13,13 @@ class MemoryManager {
 
   int _difficulty = 6; // 牌对数
   bool _isGameOver = false;
-  Future<int>? _bestTimeFuture;
 
   final ListNotifier<MemoryCardNotifier> cards = ListNotifier([]);
   final ValueNotifier<int> firstIndex = ValueNotifier(-1);
   final ValueNotifier<bool> isMatching = ValueNotifier(false);
   final ValueNotifier<int> matchedCount = ValueNotifier(0);
   final ValueNotifier<int> elapsed = ValueNotifier(0);
+  final ValueNotifier<String> displayInfo = ValueNotifier('');
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
@@ -62,6 +60,7 @@ class MemoryManager {
     isMatching.value = false;
     matchedCount.value = 0;
     _isGameOver = false;
+    displayInfo.value = _displayText;
   }
 
   int get difficulty => _difficulty;
@@ -129,6 +128,7 @@ class MemoryManager {
       cardA.changeState(CardState.matched);
       cardB.changeState(CardState.matched);
       matchedCount.value++;
+      displayInfo.value = _displayText;
       if (matchedCount.value == _difficulty) _handleGameOver();
     } else {
       // 匹配失败：翻回背面
@@ -139,81 +139,14 @@ class MemoryManager {
     isMatching.value = false;
   }
 
-  Future<void> _handleGameOver() async {
+  void _handleGameOver() {
     _timer.stop();
     _isGameOver = true;
-    await _saveBestTime();
-    _bestTimeFuture = _readBestTime(); // 缓存 Future，避免 FutureBuilder 每次重建重读
-    _showCompletionDialog();
+    displayInfo.value = _displayText;
   }
 
-  /// 保存最佳用时（按难度，仿 08.sudoku）
-  Future<void> _saveBestTime() async {
-    final data = await StorageService.instance.read('memory_best');
-    final key = 'diff_$_difficulty';
-    final best = data[key] as int? ?? 0;
-    if (best == 0 || _timer.tick < best) {
-      data[key] = _timer.tick;
-      await StorageService.instance.write('memory_best', data);
-    }
-  }
-
-  void _showCompletionDialog() {
-    pageNavigator.value = (context) {
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) => AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                S.congratulations,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                S.difficultyTime(
-                  '$_difficulty',
-                  TimerCounter.formatDuration(_timer.tick),
-                ),
-              ),
-              const SizedBox(height: 8),
-              FutureBuilder<int>(
-                future: _bestTimeFuture,
-                builder: (_, snap) {
-                  final best = snap.data ?? 0;
-                  if (best == 0) return const SizedBox.shrink();
-                  return Text(
-                    '${S.bestTimeLabel}: ${TimerCounter.formatDuration(best)}',
-                    style: const TextStyle(color: Colors.grey),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              const MagicCelebrationAnimation(),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  resetGame();
-                },
-                child: Text(S.startNewGame),
-              ),
-            ],
-          ),
-        ),
-      );
-    };
-  }
-
-  Future<int> _readBestTime() async {
-    final data = await StorageService.instance.read('memory_best');
-    return data['diff_$_difficulty'] as int? ?? 0;
-  }
+  String get _displayText =>
+      _isGameOver ? S.timeTaken(_timer.tick) : S.remainingPairs(_difficulty - matchedCount.value);
 
   /// 难度设置对话框（牌对数 4~16）
   void showSelector() {
