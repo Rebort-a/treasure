@@ -22,9 +22,9 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -35,7 +35,7 @@ jobs:
           cache: true
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -44,7 +44,7 @@ jobs:
           restore-keys: pub-${{ runner.os }}-
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -57,7 +57,7 @@ jobs:
       - run: flutter build apk --release
 
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: android
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -68,7 +68,7 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build libgtk-3-dev
@@ -79,7 +79,7 @@ jobs:
           cache: true
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -91,7 +91,7 @@ jobs:
       - run: flutter build linux --release
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: linux
           path: build/linux/x64/release/bundle/
@@ -102,7 +102,7 @@ jobs:
     needs: ci
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -110,7 +110,7 @@ jobs:
           cache: true
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -122,7 +122,7 @@ jobs:
       - run: flutter build windows --release
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: windows
           path: build/windows/x64/runner/Release/
@@ -133,7 +133,7 @@ jobs:
     needs: ci
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -141,7 +141,7 @@ jobs:
           cache: true
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -153,7 +153,7 @@ jobs:
       - run: flutter build macos --release
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos
           path: build/macos/Build/Products/Release/
@@ -164,7 +164,7 @@ jobs:
     needs: ci
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -172,7 +172,7 @@ jobs:
           cache: true
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -185,7 +185,7 @@ jobs:
       - run: flutter build ios --release --no-codesign
 
       - name: Upload iOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ios
           path: build/ios/iphoneos/Runner.app
@@ -198,7 +198,7 @@ jobs:
     environment:
       name: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -206,8 +206,14 @@ jobs:
         id: version
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
+      - name: Extract release notes
+        run: |
+          git log -1 --pretty=format:'%B' | awk '/^## Release Notes$/{f=1;next} /^## End Notes$/{f=0} f' > release_notes.md
+          echo "----- release_notes.md -----"
+          cat release_notes.md
+
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
 
@@ -217,8 +223,8 @@ jobs:
         run: |
           cd artifacts
 
-          # Web → zip（来自 _ci-common.yml 的 web-build artifact）
-          cd web-build && zip -r "../../treasure-web-${VERSION}.zip" . && cd ..
+          # Web → zip（来自 _ci-common.yml 的 web artifact）
+          cd web && zip -r "../../treasure-web-${VERSION}.zip" . && cd ..
 
           # Android → rename
           mv android/app-release.apk "../treasure-android-${VERSION}.apk"
@@ -236,9 +242,9 @@ jobs:
           cd ios && zip -r "../../treasure-ios-${VERSION}.zip" . && cd ..
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          body_path: release_notes.md
           files: |
             treasure-web-${{ steps.version.outputs.tag }}.zip
             treasure-android-${{ steps.version.outputs.tag }}.apk

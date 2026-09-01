@@ -11,6 +11,13 @@ analyzer:
     use_null_aware_elements: ignore
   exclude:
     - test/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   rules:

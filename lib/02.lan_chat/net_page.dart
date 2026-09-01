@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
-// ignore: unnecessary_import
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -170,8 +168,7 @@ class _NetChatPageState extends State<NetChatPage> {
           child: MessageList(
             networkEngine: _manager.networkEngine,
             theme: _theme,
-            topPadding:
-                MediaQuery.of(context).padding.top + kToolbarHeight + 4,
+            topPadding: MediaQuery.of(context).padding.top + kToolbarHeight + 4,
           ),
         ),
         MessageInput(
@@ -199,7 +196,7 @@ class _NetChatPageState extends State<NetChatPage> {
         maxHeight: 1024,
         imageQuality: 85,
       );
-      if (pickedFile != null) await _sendImageFile(pickedFile.path);
+      if (pickedFile != null) await _sendImageFile(pickedFile);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -209,10 +206,8 @@ class _NetChatPageState extends State<NetChatPage> {
     }
   }
 
-  Future<void> _sendImageFile(String filePath) async {
+  Future<void> _sendImageFile(XFile file) async {
     try {
-      final file = File(filePath);
-      if (!await file.exists()) return;
       final bytes = await file.readAsBytes();
 
       // 计算 BlurHash（忽略错误，不影响发送）
@@ -224,40 +219,32 @@ class _NetChatPageState extends State<NetChatPage> {
 
       _manager.networkEngine.sendImageMessage(
         base64Encode(bytes),
-        fileName: filePath.replaceAll('\\', '/').split('/').last,
+        fileName: file.name,
         blurHash: blurHash,
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${S.sendImageFailed}: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${S.sendImageFailed}: $e')));
       }
     }
   }
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-      );
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        if (file.path != null) {
-          final fileBytes = await File(file.path!).readAsBytes();
-          _manager.networkEngine.sendFileMessage(
-            file.name,
-            file.size,
-            base64Encode(fileBytes),
-          );
-        }
+      final file = await FilePicker.pickFile(type: FileType.any);
+      if (file != null) {
+        final fileBytes = await file.readAsBytes();
+        _manager.networkEngine.sendFileMessage(
+          file.name,
+          fileBytes.length,
+          base64Encode(fileBytes),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${S.selectFileFailed}: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${S.selectFileFailed}: $e')));
       }
     }
   }

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 // ignore: unnecessary_import
 import 'dart:ui';
@@ -556,26 +555,18 @@ class _MessageListState extends State<MessageList> {
     final bytes = base64Decode(base64Data);
     final messenger = ScaffoldMessenger.of(context);
 
-    // 系统保存对话框，用户选择路径和文件名
-    // Android/iOS 需传入 bytes，Windows/Web/macOS 返回路径后手动写入
-    final savePath = await FilePicker.saveFile(
+    // 系统保存对话框：file_picker v12 在所有平台统一写入 bytes 并返回文件 Uri
+    final savedUri = await FilePicker.saveFile(
       dialogTitle: S.downloading,
       fileName: fileName,
-      bytes: Platform.isAndroid || Platform.isIOS ? bytes : null,
+      bytes: bytes,
     );
-    if (savePath == null) return;
+    if (savedUri == null) return;
 
-    // 桌面平台：saveFile 返回路径，需手动写入
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      try {
-        await File(savePath).writeAsBytes(bytes);
-      } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('${S.saveFailed}: $e')));
-        return;
-      }
-    }
-
-    messenger.showSnackBar(SnackBar(content: Text('${S.savedTo}: $savePath')));
+    final displayPath = savedUri.scheme == 'file'
+        ? savedUri.toFilePath()
+        : savedUri.toString();
+    messenger.showSnackBar(SnackBar(content: Text('${S.savedTo}: $displayPath')));
   }
 
   Widget _systemMsg(ChatMessage msg) {
