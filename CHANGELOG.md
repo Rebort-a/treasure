@@ -1,3 +1,17 @@
+
+## [1.2.0] - 2026-09-01
+Release: 跨平台游戏合集 1.2 中版本更新：本地化、About 真实版本号、移除庆祝弹窗、CI 修复
+
+### Added
+- show real app version from package info in About
+
+### Changed
+- declare github-pages environment for Pages deploy
+- bump GitHub Actions artifacts and deploy-pages to latest
+- replace celebration dialogs with simple completion-time info
+
+### Other
+- docs: add missing v1.1.0 changelog entry
 # Changelog
 
 All notable changes to this project will be documented in this file.

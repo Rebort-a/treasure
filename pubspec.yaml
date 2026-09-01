@@ -2,7 +2,7 @@ name: treasure
 description: "A cross-platform multiplayer game collection. 11 local games + 5 LAN games + 1 chat room. Pure Dart, zero dependencies."
 publishing_to: 'none'
 
-version: 1.1.0+4
+version: 1.2.0+5
 
 topics:
   - game
