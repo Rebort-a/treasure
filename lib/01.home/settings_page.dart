@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../00.common/l10n/l10n.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/style/theme.dart';
+import '../00.common/tool/app_info.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -25,7 +26,12 @@ class SettingsPage extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: Text(S.version),
-                subtitle: const Text('1.0.0'),
+                subtitle: Text(AppInfo.isLoaded
+                    ? (AppInfo.buildNumber != null &&
+                            AppInfo.buildNumber!.isNotEmpty
+                        ? '${AppInfo.version} (${AppInfo.buildNumber})'
+                        : (AppInfo.version ?? ''))
+                    : '—'),
               ),
             ],
           ),
