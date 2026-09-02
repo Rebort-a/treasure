@@ -45,7 +45,7 @@ class ThemeProvider {
   Future<void> _save() async {
     final data = await StorageService.instance.read('settings');
     data['themeMode'] = themeMode.value.index;
-    StorageService.instance.write('settings', data);
+    await StorageService.instance.write('settings', data);
   }
 }
 

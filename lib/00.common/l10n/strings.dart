@@ -5,7 +5,7 @@ import 'l10n.dart';
 /// 全局翻译服务，无需 BuildContext。
 ///
 /// 薄门面：委托给由 gen-l10n 生成的 [AppLocalizations]（翻译源为
-/// lib/l10n/app_en.arb / app_zh.arb）。实例由 [LanguageProvider] 持有并随
+/// lib/00.common/l10n/app_en.arb / app_zh.arb）。实例由 [LanguageProvider] 持有并随
 /// 语言切换重载，故 base / middle / upper 各层均可无 context 访问本地化字符串。
 /// 修改文案请编辑 ARB 文件，而非本文件。
 class S {

@@ -18,10 +18,19 @@ class StorageService {
   late Directory _baseDir;
   bool _initialized = false;
 
+  /// 覆盖存储目录，仅用于测试隔离。
+  ///
+  /// 测试可将其指向独立临时目录，避免与真实 `.treasure/` 数据及并发测试
+  /// 共享同一份文件而竞态。设置后 [init] 优先使用该目录。
+  @visibleForTesting
+  Directory? overrideBaseDir;
+
   /// 重置状态，仅用于测试
   @visibleForTesting
   void resetForTesting() {
     _initialized = false;
+    // 兜底清理测试目录覆盖：若测试遗漏 tearDown，避免泄漏到下一测试用例
+    overrideBaseDir = null;
   }
 
   Future<void> init() async {
@@ -39,7 +48,7 @@ class StorageService {
         appDir = Directory.current;
       }
 
-      _baseDir = Directory('${appDir.path}/.treasure');
+      _baseDir = overrideBaseDir ?? Directory('${appDir.path}/.treasure');
       if (!await _baseDir.exists()) {
         await _baseDir.create(recursive: true);
       }

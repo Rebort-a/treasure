@@ -51,7 +51,7 @@ class LanguageProvider {
   Future<void> _save() async {
     final data = await StorageService.instance.read('settings');
     data['language'] = locale.value.index;
-    StorageService.instance.write('settings', data);
+    await StorageService.instance.write('settings', data);
   }
 
   Future<void> toggle() async {

@@ -101,9 +101,9 @@ Each layer is a subdirectory. Used by complex modules (`04.elemental_battle`, `1
 
 ### Pattern B: Flat Framework | 扁平框架
 
-Each layer is a single file within the module root. Used by the remaining modules (#02–#03, #05–#12, #14–#16):
+Each layer is a single file within the module root. Used by LAN-capable modules (#02–#03, #05–#07):
 
-各层为模块根目录下的单个文件，用于其余模块：
+各层为模块根目录下的单个文件，用于支持联机的模块：
 
 ```
 ├── base.dart               # Data models | 数据模型 (base)
@@ -113,6 +113,20 @@ Each layer is a single file within the module root. Used by the remaining module
 ├── net_manager.dart        # LAN mode logic | 联机逻辑 (middle)
 └── net_page.dart           # LAN mode UI | 联机界面 (upper)
 ```
+
+### Pattern C: Compact Framework | 精简框架
+
+Pure single-player games use a compact `base / manager / page` split, dropping the local/net separation (no LAN, no AI opponent):
+
+纯单机游戏采用精简的 `base / manager / page` 划分，省略 local/net 分离（无联机、无 AI 对手）：
+
+```
+├── base.dart     # Data models | 数据模型 (base)
+├── manager.dart  # Business logic | 业务逻辑 (middle)
+└── page.dart     # UI | 界面 (upper)
+```
+
+Used by #08–#12, #14–#16. | 用于 #08–#12、#14–#16。
 
 ### Project Layout | 项目目录
 
@@ -125,7 +139,7 @@ lib/
 ├── 01.home/         # Home page
 ├── 02.lan_chat/     # LAN chat room (flat)
 ├── 03.animal_chess/ # 斗兽棋 (flat)
-├── 04.elemental_battle/ # 五行对决 (standard)
+├── 04.elemental_battle/ # 五行之战 (standard)
 ├── 05.gobang/       # 五子棋 (flat)
 ├── ...
 ├── 13.minecraft/    # 3D voxel engine (standard)
@@ -179,7 +193,6 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 | `image_picker` | 聊天发送图片<br/>Send images in chat | `02.lan_chat/net_page.dart` | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项<br/>Delete `_pickImage()`, attachment menu auto-hides album | 聊天无法发送图片<br/>Cannot send images |
 | `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `02.lan_chat/net_page.dart`、`00.common/widget/component/chat_component.dart` | 删除 `_pickFile()` 方法和 `_saveFile()` 中的 FilePicker 调用<br/>Delete `_pickFile()` and FilePicker calls in `_saveFile()` | 聊天无法发送和保存文件<br/>Cannot send or save files |
 | `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/tool/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |
-| `cupertino_icons` | iOS 风格图标<br/>iOS style icons | 全局 Global | 用 Material Icons 替代后从 `pubspec.yaml` 移除<br/>Replace with Material Icons, remove from pubspec | 无功能影响，仅图标风格变化<br/>No functional impact, icon style only |
 
 > **平台权限 Platform Permissions**：`image_picker` 需要 Android `READ_MEDIA_IMAGES`（13+）/ `READ_EXTERNAL_STORAGE`（12-）和 iOS `NSPhotoLibraryUsageDescription`。`file_picker` 需要 Android `WRITE_EXTERNAL_STORAGE`（9-）。已在 `AndroidManifest.xml` 和 `Info.plist` 中声明，移除插件后可同步删除。
 >

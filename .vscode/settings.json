@@ -1,0 +1,11 @@
+// Dart/Flutter 插件：忽略 .treasure 运行数据目录（含夜班备份），
+// 避免其中的 pubspec.yaml 被当嵌套项目误跑 pub get（exit 69）。
+// 仅排除分析与搜索，不在资源管理器隐藏（运行数据仍可见）。
+{
+  "dart.analysisExcludedFolders": [
+    ".treasure"
+  ],
+  "search.exclude": {
+    ".treasure": true
+  }
+}

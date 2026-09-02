@@ -1,11 +1,24 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:treasure/00.common/tool/storage_service.dart';
 
 void main() {
   group('StorageService', () {
-    setUp(() {
+    setUp(() async {
       StorageService.instance.resetForTesting();
+      // 独立临时目录，避免污染真实 .treasure/ 数据
+      StorageService.instance.overrideBaseDir =
+          await Directory.systemTemp.createTemp('treasure_storage_');
+    });
+
+    tearDown(() async {
+      final dir = StorageService.instance.overrideBaseDir;
+      StorageService.instance.overrideBaseDir = null;
+      if (dir != null && await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
     });
 
     group('init', () {

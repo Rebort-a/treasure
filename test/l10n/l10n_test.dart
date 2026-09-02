@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,9 +11,19 @@ void main() {
   group('LanguageProvider', () {
     setUp(() async {
       StorageService.instance.resetForTesting();
+      // 独立临时目录，避免与真实 .treasure/ 及并发测试共享同一份 settings.json
+      StorageService.instance.overrideBaseDir =
+          await Directory.systemTemp.createTemp('treasure_l10n_');
       await StorageService.instance.init();
-      await StorageService.instance.delete('settings');
       LanguageProvider.instance.resetForTesting();
+    });
+
+    tearDown(() async {
+      final dir = StorageService.instance.overrideBaseDir;
+      StorageService.instance.overrideBaseDir = null;
+      if (dir != null && await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
     });
 
     group('default state', () {
@@ -28,22 +40,22 @@ void main() {
     });
 
     group('toggle', () {
-      test('toggle switches locale', () {
-        LanguageProvider.instance.toggle();
+      test('toggle switches locale', () async {
+        await LanguageProvider.instance.toggle();
         expect(LanguageProvider.instance.locale.value, equals(AppLocale.zh));
       });
 
-      test('toggle twice restores original locale', () {
+      test('toggle twice restores original locale', () async {
         final original = LanguageProvider.instance.locale.value;
 
-        LanguageProvider.instance.toggle();
-        LanguageProvider.instance.toggle();
+        await LanguageProvider.instance.toggle();
+        await LanguageProvider.instance.toggle();
 
         expect(LanguageProvider.instance.locale.value, equals(original));
       });
 
-      test('flutterLocale updates after toggle', () {
-        LanguageProvider.instance.toggle();
+      test('flutterLocale updates after toggle', () async {
+        await LanguageProvider.instance.toggle();
         expect(
           LanguageProvider.instance.flutterLocale,
           equals(const Locale('zh')),

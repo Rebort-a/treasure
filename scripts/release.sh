@@ -23,7 +23,7 @@ usage() {
       由 flutter.yml 处理（push main → CI + 部署 GitHub Pages），不要用本脚本发布。
 
 选项:
-  -m, --message MSG       提交信息正文（标题之后的内容），默认用版本号
+  -m, --message MSG       提交信息正文（标题「前缀 vX.Y.Z」之后的内容），不指定则无正文
   -v, --version VERSION   指定版本号 (例: 2.0.0)，覆盖版本递增；标题仍由 --major/--minor/--patch（默认 patch）决定
   -n, --dry-run           预览模式，不实际执行
   -y, --yes               跳过确认提示
@@ -31,12 +31,12 @@ usage() {
   --skip-wait             不等待 GitHub Actions 结果（默认会等待并校验）
   -h, --help              显示帮助
 
-示例:
-  ./scripts/release.sh -m "修复联机断线"            # 默认 patch: release: 修复联机断线
-  ./scripts/release.sh --minor -m "新增贪吃蛇"     # Release: 新增贪吃蛇
-  ./scripts/release.sh --major -m "重构网络层"     # RELEASE: 重构网络层
-  ./scripts/release.sh                               # 默认 patch: release: vX.Y.Z
-  ./scripts/release.sh --major -v 2.0.0 -m "2.0"   # RELEASE: 2.0（指定版本号）
+示例（标题格式固定为「前缀 vX.Y.Z」，-m 内容进正文，不可篡改标题）:
+  ./scripts/release.sh -m "修复联机断线"            # patch: 标题 release: vX.Y.Z，正文「修复联机断线」
+  ./scripts/release.sh --minor -m "新增贪吃蛇"     # 标题 Release: vX.Y.Z，正文「新增贪吃蛇」
+  ./scripts/release.sh --major -m "重构网络层"     # 标题 RELEASE: vX.Y.Z，正文「重构网络层」
+  ./scripts/release.sh                               # patch: 标题 release: vX.Y.Z，无正文
+  ./scripts/release.sh --major -v 2.0.0 -m "2.0"   # RELEASE: v2.0.0，正文「2.0」（-v 指定版本号）
   ./scripts/release.sh --skip-changelog             # 不更新 CHANGELOG
   ./scripts/release.sh -n                           # 预览，不执行
 EOF
@@ -92,7 +92,8 @@ calc_version() {
 update_pubspec() {
   local new_ver="$1+$2"
   # 用 perl -i 替代 sed -i：GNU sed（Linux/Git Bash）与 BSD sed（macOS）的 -i 行为不同，perl 跨平台一致
-  perl -i -pe "s/^version: .*/version: $new_ver/" pubspec.yaml
+  # 用 [^\r\n]* 只匹配版本号内容、不触碰 CR/LF，避免把 CRLF 文件的 version 行打成 LF，造成行尾混用
+  perl -i -pe "s/^version: [^\r\n]*/version: $new_ver/" pubspec.yaml
   info "pubspec.yaml → version: $new_ver"
 }
 
@@ -162,7 +163,18 @@ update_changelog() {
 
   local original
   original=$(cat CHANGELOG.md)
-  printf '%s%s\n' "${changelog_entry}" "${original}" > CHANGELOG.md
+
+  # 新条目应插到标题块之后（第一个 "## [" 版本条目之前），而非文件最顶，
+  # 否则每次发布会把 "# Changelog" 标题不断向下挤压。无版本条目时退回原逻辑。
+  if grep -q '^## \[' CHANGELOG.md; then
+    awk -v entry="$changelog_entry" '
+      !inserted && /^## \[/ { printf "%s\n", entry; inserted=1 }
+      { print }
+    ' CHANGELOG.md > CHANGELOG.md.tmp
+    mv CHANGELOG.md.tmp CHANGELOG.md
+  else
+    printf '%s%s\n' "${changelog_entry}" "${original}" > CHANGELOG.md
+  fi
   info "CHANGELOG.md → 已添加 [${new_ver}] 条目（基于 ${log_range} 提交自动分类）"
 }
 
@@ -284,9 +296,16 @@ esac
 calc_version
 
 TAG="v$NEW_VERSION"
-# commit message = 自动生成标题 + 正文（-m 内容，无则默认 TAG）
-BODY="${COMMIT_MSG:-$TAG}"
-COMMIT_MSG="$PREFIX $BODY"
+# 标题由脚本固定生成「前缀 + 版本号」，-m 内容仅作为正文，不可篡改标题
+TITLE="$PREFIX $TAG"
+# 正文：-m 内容（未指定则无正文）
+BODY="$COMMIT_MSG"
+# 完整 commit message：标题 + 空行 + 正文
+if [[ -n "$BODY" ]]; then
+  COMMIT_MSG="$TITLE"$'\n\n'"$BODY"
+else
+  COMMIT_MSG="$TITLE"
+fi
 
 # #4: 检查 tag 是否已存在
 if git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -299,7 +318,12 @@ info "========== Release 预览 =========="
 info "当前版本:   $CURRENT+$BUILD"
 info "新版本:     $NEW_VERSION+$NEW_BUILD"
 info "Git 标签:   $TAG"
-info "提交信息:   $COMMIT_MSG"
+info "提交标题:   $TITLE"
+if [[ -n "$BODY" ]]; then
+  info "提交正文:   $BODY"
+else
+  info "提交正文:   (无)"
+fi
 if $SKIP_CHANGELOG; then
   warn "CHANGELOG:  跳过（--skip-changelog）"
 else
@@ -329,12 +353,16 @@ update_pubspec "$NEW_VERSION" "$NEW_BUILD"
 
 if ! $SKIP_CHANGELOG; then
   info "更新 CHANGELOG..."
-  update_changelog "$NEW_VERSION" "$COMMIT_MSG"
+  update_changelog "$NEW_VERSION" "$BODY"
 fi
 
 info "创建提交..."
 git add pubspec.yaml CHANGELOG.md
-git commit -m "$COMMIT_MSG"
+if [[ -n "$BODY" ]]; then
+  git commit -m "$TITLE" -m "$BODY"
+else
+  git commit -m "$TITLE"
+fi
 
 info "创建标签 $TAG..."
 git tag -a "$TAG" -m "$COMMIT_MSG"
