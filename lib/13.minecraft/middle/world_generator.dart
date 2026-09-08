@@ -1,447 +1,322 @@
 import 'dart:math' as math;
 
-import '../base/aabb.dart';
 import '../base/block.dart';
-import '../base/constant.dart';
 import '../base/chunk.dart';
+import '../base/constant.dart';
 import '../base/vector.dart';
 
-/// 预计算的树木数据
-class PrecomputedTree {
-  final Vector3Int coord; // 树干基部坐标（实际地表高度）
-  final int trunkHeight; // 树干高度
-  final AABBInt treeAABB; // 整棵树包围盒
+enum BiomeType { plains, forest, desert, mountains, snowy, beach, swamp }
 
-  PrecomputedTree({
-    required this.coord,
-    required this.trunkHeight,
-    required this.treeAABB,
-  });
-}
-
-/// 生物群系类型
-enum BiomeType {
-  plains, // 平原
-  forest, // 森林
-  desert, // 沙漠
-  mountains, // 山脉
-  snowy, // 雪地
-  beach, // 海滩
-  swamp, // 沼泽
-}
-
-/// 世界生成器
+/// 确定性的程序化世界生成器。
+///
+/// 地形由连续分形噪声生成，地下为实体石层并包含洞穴和矿石；低地会被
+/// 海水填充。树木和仙人掌使用坐标哈希生成，因此区块生成顺序不会改变
+/// 世界结果，也能自然跨越区块边界。
 class WorldGenerator {
-  // ---------------------- 核心常量 ----------------------
   static const int _blockSize = Constants.blockSize;
-  static const int _blockSizeHalf = Constants.blockSizeHalf; // 确保为奇数（如1,3等）
-  static const int _chunkBlockCount = Constants.chunkBlockCount;
-  static const int _groupSize = Constants.chunkGroupSize;
+  static const int _half = Constants.blockSizeHalf;
+  static const int _chunkSize = Constants.chunkBlockCount * Constants.blockSize;
 
-  // 衍生尺寸
-  static const int _chunkSize = _chunkBlockCount * _blockSize;
-  static const int _groupTotalSize = _chunkSize * _groupSize;
+  final int seed;
 
-  // 树木配置
-  static const int _treeCanopyRadius = 2 * _blockSize;
-  static const int _treeCanopyHeight = 4 * _blockSize;
-  static const int _canopyHalfHeight = _treeCanopyHeight ~/ 2;
+  const WorldGenerator(this.seed);
 
-  // 世界高度（worldSurfaceLevel为地表最低高度基准）
-  static const int _minSurfaceY =
-      Constants.worldSurfaceLevel; // 地表最低高度（符合y坐标规则）
-  static const int _bedrockY = Constants.worldBedrockLevel;
-
-  // 地表层数配置（最少1层，最多6层，零层概率1%）
-  static const int _minSurfaceLayers = 1;
-  static const int _maxSurfaceLayers = 6;
-  static const double _zeroLayerChance = 0.01;
-
-  // 矿石配置（基岩上方 Y 范围内随机分布）
-  static const int _oreMinY = -50;
-  static const int _oreMaxY = 10;
-  static const Map<BlockType, double> _oreChances = {
-    BlockType.coalOre: 0.03,
-    BlockType.ironOre: 0.02,
-    BlockType.goldOre: 0.008,
-    BlockType.diamondOre: 0.003,
-    BlockType.emeraldOre: 0.005,
-  };
-
-  // 噪音配置
-  static const double _noiseTempScale = 0.002;
-  static const double _noiseHumidityScale = 0.003;
-
-  // 生物群系-树木映射
-  static const Map<BiomeType, double> _treeSpawnChances = {
-    BiomeType.forest: 0.1,
-    BiomeType.plains: 0.025,
-    BiomeType.swamp: 0.075,
-  };
-  static const Map<BiomeType, (int base, int range)> _treeHeightConfig = {
-    BiomeType.forest: (4, 3),
-    BiomeType.plains: (3, 2),
-    BiomeType.swamp: (2, 2),
-  };
-
-  // ---------------------- 缓存与成员变量 ----------------------
-  final Map<Vector3Int, int> _groupSeeds = {};
-  final Map<Vector3Int, List<List<BiomeType>>> _groupBiomeMaps = {};
-  final Map<Vector3Int, List<List<int>>> _groupSurfaceTopYs =
-      {}; // 存储每个(x,z)的地表顶层Y坐标
-  final Map<Vector3Int, List<PrecomputedTree>> _groupPrecomputedTrees = {};
-  final int index;
-
-  WorldGenerator(this.index);
-
-  // ---------------------- 通用工具：缓存获取 ----------------------
-  T _getCached<T>(
-    Map<Vector3Int, T> cache,
-    Vector3Int key,
-    T Function() generator,
-  ) => cache.putIfAbsent(key, generator);
-
-  // ---------------------- 坐标转换 ----------------------
-  static Vector3Int _getGroupCoord(Vector3Int chunkCoord) => Vector3Int(
-    chunkCoord.x ~/ _groupSize,
-    chunkCoord.y ~/ _groupSize,
-    chunkCoord.z ~/ _groupSize,
-  );
-
-  static Vector3Int _getGroupOffset(Vector3Int chunkCoord) => Vector3Int(
-    chunkCoord.x % _groupSize,
-    chunkCoord.y % _groupSize,
-    chunkCoord.z % _groupSize,
-  );
-
-  // ---------------------- 种子与生物群系生成 ----------------------
-  int _getGroupSeed(Vector3Int groupCoord) =>
-      _getCached(_groupSeeds, groupCoord, () {
-        final baseSeed = math.Random(index).nextInt(0x7FFFFFFF);
-        return (baseSeed ^ groupCoord.x ^ groupCoord.y ^ groupCoord.z) &
-            0x7FFFFFFF;
-      });
-
-  List<List<BiomeType>> _getGroupBiomeMap(
-    Vector3Int groupCoord,
-    math.Random groupRandom,
-  ) => _getCached(_groupBiomeMaps, groupCoord, () {
-    final groupWorldX = groupCoord.x * _groupTotalSize;
-    final groupWorldZ = groupCoord.z * _groupTotalSize;
-    final biomeMap = List.generate(
-      _groupTotalSize,
-      (_) => List.filled(_groupTotalSize, BiomeType.plains),
-    );
-
-    for (int x = _blockSizeHalf; x < _groupTotalSize; x += _blockSize) {
-      for (int z = _blockSizeHalf; z < _groupTotalSize; z += _blockSize) {
-        final worldX = groupWorldX + x;
-        final worldZ = groupWorldZ + z;
-
-        final temperature =
-            _simpleNoise(
-                  worldX * _noiseTempScale,
-                  worldZ * _noiseTempScale,
-                  groupRandom,
-                ) *
-                0.5 +
-            0.5;
-        final humidity =
-            _simpleNoise(
-                  worldX * _noiseHumidityScale,
-                  worldZ * _noiseHumidityScale,
-                  groupRandom,
-                ) *
-                0.5 +
-            0.5;
-
-        biomeMap[x][z] = _getBiomeType(temperature, humidity);
-      }
-    }
-    return biomeMap;
-  });
-
-  // ---------------------- 地表高度生成（核心修改） ----------------------
-  /// 获取地表层数（1-6层为主，1%概率0层）
-  int _getSurfaceLayers(math.Random random) {
-    if (random.nextDouble() < _zeroLayerChance) {
-      return 0; // 零层（空）
-    }
-    return _minSurfaceLayers +
-        random.nextInt(_maxSurfaceLayers - _minSurfaceLayers + 1);
+  void generateChunk(Chunk chunk) {
+    _generateTerrain(chunk);
+    _generateStructures(chunk);
   }
 
-  /// 计算地表顶层Y坐标（基于层数，确保符合y坐标规则）
-  int _getSurfaceTopY(int layers) {
-    if (layers == 0) {
-      return _minSurfaceY - _blockSize; // 零层时低于最低高度
-    }
-    // 层数为n时，顶层Y = 最低高度 + (n-1)*blockSize（确保步进为blockSize）
-    return _minSurfaceY + (layers - 1) * _blockSize;
-  }
+  void _generateTerrain(Chunk chunk) {
+    for (var localX = _half; localX < _chunkSize; localX += _blockSize) {
+      for (var localZ = _half; localZ < _chunkSize; localZ += _blockSize) {
+        final worldX = chunk.min.x + localX;
+        final worldZ = chunk.min.z + localZ;
+        final column = _columnInfo(worldX, worldZ);
 
-  /// 获取群组内所有位置的地表顶层Y坐标缓存
-  List<List<int>> _getGroupSurfaceTopYs(
-    Vector3Int groupCoord,
-    math.Random groupRandom,
-  ) => _getCached(_groupSurfaceTopYs, groupCoord, () {
-    final surfaceTopYs = List.generate(
-      _groupTotalSize,
-      (_) => List.filled(_groupTotalSize, _minSurfaceY),
-    );
-
-    for (int x = _blockSizeHalf; x < _groupTotalSize; x += _blockSize) {
-      for (int z = _blockSizeHalf; z < _groupTotalSize; z += _blockSize) {
-        final layers = _getSurfaceLayers(groupRandom);
-        surfaceTopYs[x][z] = _getSurfaceTopY(layers);
+        for (var y = chunk.min.y; y < chunk.max.y; y += _blockSize) {
+          final type = _blockAt(worldX, y, worldZ, column);
+          if (type != BlockType.air) {
+            chunk.addBlock(
+              Block(position: Vector3Int(worldX, y, worldZ), type: type),
+            );
+          }
+        }
       }
     }
-    return surfaceTopYs;
-  });
+  }
 
-  // ---------------------- 生物群系判断 ----------------------
-  BiomeType _getBiomeType(double temperature, double humidity) {
-    if (temperature > 0.7) {
-      return humidity < 0.3 ? BiomeType.desert : BiomeType.plains;
+  BlockType _blockAt(int x, int y, int z, _ColumnInfo column) {
+    if (y < Constants.worldBedrockLevel || y >= Constants.worldMaxHeight) {
+      return BlockType.air;
     }
-    if (temperature < 0.3) return BiomeType.swamp;
-    if (humidity > 0.6) return BiomeType.forest;
+    if (y == Constants.worldBedrockLevel) return BlockType.bedrock;
+
+    if (y > column.surfaceY) {
+      if (y <= Constants.worldSeaLevel) {
+        if (column.biome == BiomeType.snowy && y == Constants.worldSeaLevel) {
+          return BlockType.ice;
+        }
+        return BlockType.water;
+      }
+      return BlockType.air;
+    }
+
+    final depth = column.surfaceY - y;
+    if (depth == 0) return _surfaceBlock(column.biome, column.surfaceY);
+    if (depth <= _blockSize * 3) {
+      return switch (column.biome) {
+        BiomeType.desert || BiomeType.beach => BlockType.sand,
+        _ => BlockType.dirt,
+      };
+    }
+
+    if (_isCave(x, y, z, column.surfaceY)) return BlockType.air;
+    return _oreAt(x, y, z) ?? BlockType.stone;
+  }
+
+  _ColumnInfo _columnInfo(int x, int z) {
+    final continental = _fbm2(x * 0.012, z * 0.012, 11);
+    final detail = _fbm2(x * 0.035, z * 0.035, 23);
+    final temperature = (_fbm2(x * 0.004, z * 0.004, 37) + 1) * 0.5;
+    final humidity = (_fbm2(x * 0.005, z * 0.005, 53) + 1) * 0.5;
+
+    var height = Constants.worldSurfaceLevel + continental * 13 + detail * 4;
+    final preliminaryHeight = _snapVertical(height.round());
+    final biome = _selectBiome(
+      temperature: temperature,
+      humidity: humidity,
+      elevation: continental,
+      surfaceY: preliminaryHeight,
+    );
+
+    if (biome == BiomeType.mountains) {
+      height += 8 + continental.abs() * 12;
+    } else if (biome == BiomeType.swamp) {
+      height = Constants.worldSeaLevel - 2 + detail * 2;
+    } else if (biome == BiomeType.beach) {
+      height = height.clamp(
+        Constants.worldSeaLevel - 2,
+        Constants.worldSeaLevel + 2,
+      );
+    }
+
+    return _ColumnInfo(
+      surfaceY: _snapVertical(
+        height
+            .clamp(
+              Constants.worldBedrockLevel + 8,
+              Constants.worldMaxHeight - 20,
+            )
+            .round(),
+      ),
+      biome: biome,
+    );
+  }
+
+  BiomeType _selectBiome({
+    required double temperature,
+    required double humidity,
+    required double elevation,
+    required int surfaceY,
+  }) {
+    if ((surfaceY - Constants.worldSeaLevel).abs() <= 2) {
+      return BiomeType.beach;
+    }
+    if (elevation > 0.48) return BiomeType.mountains;
+    if (temperature < 0.28 || surfaceY > 42) return BiomeType.snowy;
+    if (surfaceY < Constants.worldSeaLevel - 2 && humidity > 0.55) {
+      return BiomeType.swamp;
+    }
+    if (temperature > 0.68 && humidity < 0.42) {
+      return BiomeType.desert;
+    }
+    if (humidity > 0.62) return BiomeType.forest;
     return BiomeType.plains;
   }
 
-  // ---------------------- 树木生成辅助（修改基准为实际地表高度） ----------------------
-  bool _shouldGenerateTree(BiomeType biome, math.Random groupRandom) =>
-      groupRandom.nextDouble() < (_treeSpawnChances[biome] ?? 0.0);
-
-  int _getTreeHeight(BiomeType biome, math.Random groupRandom) {
-    final (base, range) = _treeHeightConfig[biome] ?? (3, 0);
-    return base * _blockSize + groupRandom.nextInt(range) * _blockSize;
+  BlockType _surfaceBlock(BiomeType biome, int surfaceY) {
+    return switch (biome) {
+      BiomeType.desert || BiomeType.beach => BlockType.sand,
+      BiomeType.snowy => BlockType.snow,
+      BiomeType.mountains when surfaceY > 46 => BlockType.stone,
+      _ => BlockType.grass,
+    };
   }
 
-  bool _isAwayFromGroupEdge(
-    int worldX,
-    int worldZ,
-    int groupWorldX,
-    int groupWorldZ,
-  ) {
-    final edgeMargin = _treeCanopyRadius;
-    final innerX = worldX - groupWorldX;
-    final innerZ = worldZ - groupWorldZ;
-    return innerX >= edgeMargin &&
-        innerX <= _groupTotalSize - edgeMargin &&
-        innerZ >= edgeMargin &&
-        innerZ <= _groupTotalSize - edgeMargin;
-  }
+  BlockType? _oreAt(int x, int y, int z) {
+    final value = _hash01(x, y, z, 71);
+    final depthFactor = ((Constants.worldSeaLevel - y) / 80).clamp(0.0, 1.0);
 
-  // ---------------------- 地表方块类型 ----------------------
-  BlockType _getSurfaceBlockType(BiomeType biome) => switch (biome) {
-    BiomeType.desert || BiomeType.beach => BlockType.sand,
-    BiomeType.snowy => BlockType.snow,
-    _ => BlockType.grass,
-  };
-
-  // ---------------------- 噪音生成 ----------------------
-  static double _simpleNoise(double x, double z, math.Random groupRandom) {
-    final seed =
-        (((x * 73856093).toInt()) ^ ((z * 19349663).toInt())) & 0x7FFFFFFF;
-    return math.Random(seed ^ groupRandom.nextInt(0x7FFFFFFF)).nextDouble() *
-            2 -
-        1;
-  }
-
-  // ---------------------- 区块生成核心（修改地表和树木生成逻辑） ----------------------
-  void generateChunk(Chunk chunk) {
-    final chunkCoord = chunk.chunkCoord;
-    final groupCoord = _getGroupCoord(chunkCoord);
-    final groupRandom = math.Random(_getGroupSeed(groupCoord));
-    final groupBiomeMap = _getGroupBiomeMap(groupCoord, groupRandom);
-    final groupSurfaceTopYs = _getGroupSurfaceTopYs(groupCoord, groupRandom);
-    final groupTrees = _precomputeTrees(
-      groupCoord,
-      groupBiomeMap,
-      groupSurfaceTopYs,
-      groupRandom,
-    );
-
-    // 计算区块坐标范围
-    final groupOffset = _getGroupOffset(chunkCoord);
-    final chunkXStart = groupOffset.x * _chunkSize;
-    final chunkZStart = groupOffset.z * _chunkSize;
-    final worldXBase = chunkCoord.x * _chunkSize;
-    final worldZBase = chunkCoord.z * _chunkSize;
-
-    // 生成地表（多层结构，基于实际高度）
-    for (int x = _blockSizeHalf; x < _chunkSize; x += _blockSize) {
-      for (int z = _blockSizeHalf; z < _chunkSize; z += _blockSize) {
-        final mapX = chunkXStart + x;
-        final mapZ = chunkZStart + z;
-        final biome = groupBiomeMap[mapX][mapZ];
-        final surfaceTopY = groupSurfaceTopYs[mapX][mapZ];
-        final layers = (surfaceTopY - _minSurfaceY) ~/ _blockSize + 1;
-
-        // 生成地表层（顶层为生物群系对应类型，下层为泥土）
-        if (layers > 0) {
-          for (int i = 0; i < layers; i++) {
-            final y = surfaceTopY - i * _blockSize; // y坐标步进为blockSize，保持奇数
-            final blockType = i == 0
-                ? _getSurfaceBlockType(biome)
-                : BlockType.dirt; // 下层用泥土
-
-            final surfaceBlock = Block(
-              position: Vector3Int(worldXBase + x, y, worldZBase + z),
-              type: blockType,
-            );
-            chunk.addBlock(surfaceBlock);
-          }
-        }
-
-        // 生成基岩（固定高度，确保y坐标符合规则）
-        final bedrockBlock = Block(
-          position: Vector3Int(worldXBase + x, _bedrockY, worldZBase + z),
-          type: BlockType.bedrock,
-        );
-        chunk.addBlock(bedrockBlock);
-
-        // 生成湖泊（地表低于海平面时填充水）
-        if (surfaceTopY < Constants.worldSeaLevel && layers > 0) {
-          for (int y = surfaceTopY + _blockSize;
-              y <= Constants.worldSeaLevel;
-              y += _blockSize) {
-            chunk.addBlock(Block(
-              position: Vector3Int(worldXBase + x, y, worldZBase + z),
-              type: BlockType.water,
-            ));
-          }
-        }
-
-        // 生成地下矿石
-        for (int y = _oreMinY; y <= _oreMaxY; y += _blockSize) {
-          if (y >= surfaceTopY) continue; // 不在地表以上生成
-          final pos = Vector3Int(worldXBase + x, y, worldZBase + z);
-          if (!chunk.aabb.contains(pos)) continue;
-
-          final oreRandom = math.Random(
-            pos.x * 73856093 ^ pos.y * 19349663 ^ pos.z * 83492791,
-          );
-          for (final entry in _oreChances.entries) {
-            if (oreRandom.nextDouble() < entry.value) {
-              chunk.addBlock(Block(position: pos, type: entry.key));
-              break;
-            }
-          }
-        }
-      }
+    if (y < -28 && value < 0.004 + depthFactor * 0.004) {
+      return BlockType.diamondOre;
     }
+    if (y < -12 && value < 0.012) return BlockType.goldOre;
+    if (y < 8 && value < 0.025) return BlockType.ironOre;
+    if (value < 0.055) return BlockType.coalOre;
+    if (y < -20 && value > 0.992) return BlockType.emeraldOre;
+    return null;
+  }
 
-    // 生成重叠的树木部分
-    for (final tree in groupTrees) {
-      if (tree.treeAABB.intersects(chunk.aabb)) {
-        _generateOverlappedTreePart(chunk, tree, groupRandom);
+  bool _isCave(int x, int y, int z, int surfaceY) {
+    if (y >= surfaceY - 6 || y <= Constants.worldBedrockLevel + 4) {
+      return false;
+    }
+    final waves =
+        math.sin((x + seed) * 0.10) +
+        math.sin((y - seed) * 0.13) +
+        math.sin((z + seed * 2) * 0.09);
+    final variation = _fbm2((x + y) * 0.025, (z - y) * 0.025, 89);
+    return waves + variation * 1.2 > 2.45;
+  }
+
+  void _generateStructures(Chunk chunk) {
+    const margin = 6;
+    final minX = chunk.min.x - margin;
+    final maxX = chunk.max.x + margin;
+    final minZ = chunk.min.z - margin;
+    final maxZ = chunk.max.z + margin;
+
+    for (var x = _snapHorizontal(minX.toDouble()); x < maxX; x += _blockSize) {
+      for (
+        var z = _snapHorizontal(minZ.toDouble());
+        z < maxZ;
+        z += _blockSize
+      ) {
+        final column = _columnInfo(x, z);
+        if (column.surfaceY < Constants.worldSeaLevel) continue;
+
+        if (column.biome == BiomeType.desert) {
+          if (_hash01(x, 0, z, 101) < 0.018) {
+            _placeCactus(chunk, x, column.surfaceY + _blockSize, z);
+          }
+          continue;
+        }
+
+        final chance = switch (column.biome) {
+          BiomeType.forest => 0.10,
+          BiomeType.plains => 0.022,
+          BiomeType.swamp => 0.055,
+          BiomeType.snowy => 0.025,
+          _ => 0.0,
+        };
+        if (_hash01(x, 0, z, 103) < chance) {
+          _placeTree(chunk, x, column.surfaceY + _blockSize, z);
+        }
       }
     }
   }
 
-  // ---------------------- 树木预计算（基于实际地表高度） ----------------------
-  List<PrecomputedTree> _precomputeTrees(
-    Vector3Int groupCoord,
-    List<List<BiomeType>> groupBiomeMap,
-    List<List<int>> groupSurfaceTopYs,
-    math.Random groupRandom,
-  ) => _getCached(_groupPrecomputedTrees, groupCoord, () {
-    final groupWorldX = groupCoord.x * _groupTotalSize;
-    final groupWorldZ = groupCoord.z * _groupTotalSize;
-    final trees = <PrecomputedTree>[];
+  void _placeTree(Chunk chunk, int x, int baseY, int z) {
+    final trunkBlocks = 3 + (_hash(x, baseY, z, 107) % 3);
+    final trunkTop = baseY + (trunkBlocks - 1) * _blockSize;
 
-    for (int x = _blockSizeHalf; x < _groupTotalSize; x += _blockSize) {
-      for (int z = _blockSizeHalf; z < _groupTotalSize; z += _blockSize) {
-        final worldX = groupWorldX + x;
-        final worldZ = groupWorldZ + z;
-        final biome = groupBiomeMap[x][z];
-        final surfaceTopY = groupSurfaceTopYs[x][z];
-        final layers = (surfaceTopY - _minSurfaceY) ~/ _blockSize + 1;
+    for (var i = 0; i < trunkBlocks; i++) {
+      _placeIfInside(
+        chunk,
+        Vector3Int(x, baseY + i * _blockSize, z),
+        BlockType.wood,
+      );
+    }
 
-        // 零层地表不生成树木
-        if (layers <= 0) continue;
-
-        if (_shouldGenerateTree(biome, groupRandom) &&
-            _isAwayFromGroupEdge(worldX, worldZ, groupWorldX, groupWorldZ)) {
-          final trunkHeight = _getTreeHeight(biome, groupRandom);
-          final trunkBaseY = surfaceTopY; // 树干从实际地表顶层开始
-
-          // 计算树木包围盒（基于实际地表高度）
-          final treeMin = Vector3Int(
-            worldX - _treeCanopyRadius,
-            trunkBaseY, // 包围盒从树干基部（实际地表）开始
-            worldZ - _treeCanopyRadius,
-          );
-          final treeMax = Vector3Int(
-            worldX + _treeCanopyRadius,
-            trunkBaseY + trunkHeight + _treeCanopyHeight,
-            worldZ + _treeCanopyRadius,
-          );
-
-          trees.add(
-            PrecomputedTree(
-              coord: Vector3Int(worldX, trunkBaseY, worldZ),
-              trunkHeight: trunkHeight,
-              treeAABB: AABBInt(treeMin, treeMax),
-            ),
+    for (var dx = -4; dx <= 4; dx += _blockSize) {
+      for (var dz = -4; dz <= 4; dz += _blockSize) {
+        for (var dy = -2; dy <= 4; dy += _blockSize) {
+          final horizontal = dx.abs() + dz.abs();
+          final allowed = dy >= 2 ? 4 : 6;
+          if (horizontal > allowed) continue;
+          if (dx == 0 && dz == 0 && dy <= 0) continue;
+          _placeIfInside(
+            chunk,
+            Vector3Int(x + dx, trunkTop + dy, z + dz),
+            BlockType.leaf,
+            replaceSolid: false,
           );
         }
       }
     }
-    return trees;
-  });
+  }
 
-  // ---------------------- 生成重叠树木（确保y坐标符合规则） ----------------------
-  void _generateOverlappedTreePart(
+  void _placeCactus(Chunk chunk, int x, int baseY, int z) {
+    final height = 2 + (_hash(x, baseY, z, 109) % 2);
+    for (var i = 0; i < height; i++) {
+      _placeIfInside(
+        chunk,
+        Vector3Int(x, baseY + i * _blockSize, z),
+        BlockType.cactus,
+      );
+    }
+  }
+
+  void _placeIfInside(
     Chunk chunk,
-    PrecomputedTree tree,
-    math.Random groupRandom,
-  ) {
-    final (trunkX, trunkBaseY, trunkZ) = (
-      tree.coord.x,
-      tree.coord.y,
-      tree.coord.z,
-    );
-    final trunkHeight = tree.trunkHeight;
-    final canopyBaseY = trunkBaseY + trunkHeight;
-
-    // 1. 生成树干（y坐标步进为blockSize，保持奇数）
-    for (int y = trunkBaseY; y < trunkBaseY + trunkHeight; y += _blockSize) {
-      final pos = Vector3Int(trunkX, y, trunkZ);
-      if (chunk.aabb.contains(pos)) {
-        chunk.addBlock(Block(position: pos, type: BlockType.wood));
-      }
-    }
-
-    // 2. 生成树叶（y坐标符合规则）
-    final canopyMin = -_treeCanopyRadius;
-    final canopyMax = _treeCanopyRadius;
-    final step = _blockSize;
-
-    for (int xOff = canopyMin; xOff <= canopyMax; xOff += step) {
-      for (int zOff = canopyMin; zOff <= canopyMax; zOff += step) {
-        for (int yOff = 0; yOff < _treeCanopyHeight; yOff += step) {
-          final leafPos = Vector3Int(
-            trunkX + xOff,
-            canopyBaseY + yOff, // yOff步进为blockSize，确保整体为奇数
-            trunkZ + zOff,
-          );
-          if (!chunk.aabb.contains(leafPos)) continue;
-
-          // 球形树冠判断
-          final dist2D = math.sqrt((xOff * xOff + zOff * zOff).toDouble());
-          final heightFactor = 1.0 - (yOff / _treeCanopyHeight);
-          final maxDist = _treeCanopyRadius * (0.3 + 0.7 * heightFactor);
-          final yDiff = yOff - _canopyHalfHeight;
-          final dist3D = math.sqrt(dist2D * dist2D + (yDiff / 2) * (yDiff / 2));
-
-          if (dist3D <= maxDist) {
-            chunk.addBlock(Block(position: leafPos, type: BlockType.leaf));
-          }
-        }
-      }
-    }
+    Vector3Int position,
+    BlockType type, {
+    bool replaceSolid = true,
+  }) {
+    if (!chunk.aabb.contains(position)) return;
+    final existing = chunk.getBlock(position);
+    if (existing != null && !replaceSolid) return;
+    chunk.addBlock(Block(position: position, type: type));
   }
+
+  double _fbm2(double x, double z, int salt) {
+    var amplitude = 0.55;
+    var frequency = 1.0;
+    var total = 0.0;
+    var normalization = 0.0;
+
+    for (var octave = 0; octave < 4; octave++) {
+      total +=
+          _valueNoise2(x * frequency, z * frequency, salt + octave * 17) *
+          amplitude;
+      normalization += amplitude;
+      amplitude *= 0.5;
+      frequency *= 2.0;
+    }
+    return total / normalization;
+  }
+
+  double _valueNoise2(double x, double z, int salt) {
+    final x0 = x.floor();
+    final z0 = z.floor();
+    final tx = _smooth(x - x0);
+    final tz = _smooth(z - z0);
+
+    final a = _hash01(x0, 0, z0, salt) * 2 - 1;
+    final b = _hash01(x0 + 1, 0, z0, salt) * 2 - 1;
+    final c = _hash01(x0, 0, z0 + 1, salt) * 2 - 1;
+    final d = _hash01(x0 + 1, 0, z0 + 1, salt) * 2 - 1;
+
+    return _lerp(_lerp(a, b, tx), _lerp(c, d, tx), tz);
+  }
+
+  int _hash(int x, int y, int z, int salt) {
+    var value = seed ^ salt;
+    value = (value ^ (x * 0x45d9f3b)) & 0x7fffffff;
+    value = (value ^ (y * 0x119de1f3)) & 0x7fffffff;
+    value = (value ^ (z * 0x3449f5d)) & 0x7fffffff;
+    value = ((value ^ (value >> 16)) * 0x45d9f3b) & 0x7fffffff;
+    value = ((value ^ (value >> 16)) * 0x45d9f3b) & 0x7fffffff;
+    return value ^ (value >> 16);
+  }
+
+  double _hash01(int x, int y, int z, int salt) =>
+      (_hash(x, y, z, salt) & 0x7fffffff) / 0x7fffffff;
+
+  static double _smooth(double value) => value * value * (3 - 2 * value);
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  static int _snapHorizontal(double value) =>
+      (value / _blockSize).floor() * _blockSize + _half;
+
+  static int _snapVertical(int value) =>
+      (value / _blockSize).round() * _blockSize;
+}
+
+class _ColumnInfo {
+  final int surfaceY;
+  final BiomeType biome;
+
+  const _ColumnInfo({required this.surfaceY, required this.biome});
 }

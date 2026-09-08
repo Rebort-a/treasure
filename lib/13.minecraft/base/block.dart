@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'collider.dart';
 import 'constant.dart';
 import 'face.dart';
@@ -71,8 +72,14 @@ extension BlockTypeProperties on BlockType {
     BlockType.redstoneLamp: const Color(0xFF424242),
   }[this]!;
 
-  bool get isPenetrate =>
-      [BlockType.air, BlockType.water, BlockType.leaf].contains(this);
+  bool get isPenetrate => switch (this) {
+    BlockType.air ||
+    BlockType.water ||
+    BlockType.lava ||
+    BlockType.leaf ||
+    BlockType.sapling => true,
+    _ => false,
+  };
 
   bool get isTransparent => [
     BlockType.leaf,
@@ -99,8 +106,7 @@ extension BlockTypeProperties on BlockType {
     BlockType.redstoneLamp,
   ].contains(this);
 
-  bool get isRedstoneConductor =>
-      isRedstone || this == BlockType.air;
+  bool get isRedstoneConductor => isRedstone || this == BlockType.air;
 }
 
 /// 方块面数据

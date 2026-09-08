@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+
 import '../base/block.dart';
+import '../base/aabb.dart';
 import '../base/constant.dart';
 import '../base/player.dart';
 import '../base/vector.dart';
-import '../upper/scene_render.dart';
 import 'chunk_manager.dart';
 import 'common.dart';
 import 'control_manager.dart';
@@ -26,6 +27,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   RaycastHit? targetedBlock;
   double destroyProgress = 0.0;
   bool _needsUpdate = false;
+  int _sceneRevision = 0;
 
   // 背包系统（类型 → 数量，slotOrder 记录栏位顺序）
   final Map<BlockType, int> _inventoryCounts = {};
@@ -50,6 +52,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     _chunkManager = ChunkManager();
     _redstoneManager = RedstoneManager();
     _chunkManager.updateChunks(_player.position);
+    _addStarterInventory();
     _updateVisibleBlocks();
     _startGameLoop();
   }
@@ -85,7 +88,10 @@ class Manager with ChangeNotifier implements TickerProvider {
     _controlManager.updateDestroyProgress(deltaTime);
 
     // 分批处理加载队列
-    _chunkManager.processLoadQueue();
+    if (_chunkManager.processLoadQueue()) {
+      _sceneRevision++;
+      _needsUpdate = true;
+    }
 
     // 恢复旧版的更新阈值，减少无效渲染更新
     if (_shouldUpdate()) {
@@ -117,6 +123,7 @@ class Manager with ChangeNotifier implements TickerProvider {
       blocks: blocks,
       targetedBlock: targetedBlock?.block,
       targetedFaceNormal: targetedBlock?.faceNormal,
+      revision: _sceneRevision,
     );
   }
 
@@ -145,10 +152,13 @@ class Manager with ChangeNotifier implements TickerProvider {
     if (target == null) return false;
     final pos = target.block.position;
     final type = target.block.type;
+    if (type == BlockType.bedrock) return false;
+    if (!_canAddInventory(type)) return false;
     if (_chunkManager.destroyBlock(pos)) {
       addInventory(type);
       _redstoneManager.onBlockDestroyed(_chunkManager, pos, type);
       targetedBlock = null;
+      _sceneRevision++;
       _needsUpdate = true;
       return true;
     }
@@ -163,6 +173,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     // 点击拉杆 → 切换开关
     if (target.block.type == BlockType.lever) {
       _redstoneManager.toggleLever(_chunkManager, target.block.position);
+      _sceneRevision++;
       _needsUpdate = true;
       return true;
     }
@@ -177,9 +188,14 @@ class Manager with ChangeNotifier implements TickerProvider {
       target.block.position.y + n.y * bs,
       target.block.position.z + n.z * bs,
     );
+    final half = Vector3.all(Constants.blockSizeHalf.toDouble());
+    final placedBounds = AABB.fromCenterAndHalfSize(placePos.toVector3(), half);
+    if (placedBounds.intersects(_player.collider.aabb)) return false;
+
     if (_chunkManager.placeBlock(placePos, selectedType)) {
       removeInventory(selectedType);
       _redstoneManager.onBlockPlaced(_chunkManager, placePos, selectedType);
+      _sceneRevision++;
       _needsUpdate = true;
       return true;
     }
@@ -193,13 +209,27 @@ class Manager with ChangeNotifier implements TickerProvider {
   int getCount(BlockType type) => _inventoryCounts[type] ?? 0;
 
   /// 添加方块到背包
-  void addInventory(BlockType type) {
+  void addInventory(BlockType type, [int amount = 1]) {
+    if (amount <= 0) return;
     if (_inventoryCounts.containsKey(type)) {
-      _inventoryCounts[type] = _inventoryCounts[type]! + 1;
+      _inventoryCounts[type] = _inventoryCounts[type]! + amount;
     } else if (_slotOrder.length < Constants.hotbarSlotCount) {
-      _inventoryCounts[type] = 1;
+      _inventoryCounts[type] = amount;
       _slotOrder.add(type);
     }
+  }
+
+  bool _canAddInventory(BlockType type) =>
+      _inventoryCounts.containsKey(type) ||
+      _slotOrder.length < Constants.hotbarSlotCount;
+
+  void _addStarterInventory() {
+    addInventory(BlockType.planks, 32);
+    addInventory(BlockType.glass, 24);
+    addInventory(BlockType.redstoneDust, 32);
+    addInventory(BlockType.redstoneTorch, 8);
+    addInventory(BlockType.lever, 8);
+    addInventory(BlockType.redstoneLamp, 16);
   }
 
   /// 从背包移除一个方块
@@ -228,7 +258,7 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   @override
   void dispose() {
-    _ticker.stop();
+    _ticker.dispose();
     _controlManager.dispose();
     super.dispose();
   }

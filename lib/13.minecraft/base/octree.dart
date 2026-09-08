@@ -124,7 +124,7 @@ class OctreeNode {
 
     // 递归查询子节点
     for (final child in _children) {
-      result.addAll(child.blocks);
+      result.addAll(child.getAllBlocks());
     }
 
     return result;

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../base/block.dart';
@@ -9,45 +10,6 @@ import 'occlusion_culler.dart';
 import '../base/vector.dart';
 import 'frustum.dart';
 import '../middle/common.dart';
-
-/// 渲染调试配置
-class RenderDebugConfig {
-  /// 近裁剪面剔除
-  bool enableNearClip = true;
-
-  /// 背面剔除
-  bool enableBackfaceCulling = true;
-
-  /// 深度排序
-  bool enableDepthSorting = true;
-
-  /// 屏幕裁剪
-  bool enableScreenClipping = true;
-
-  /// 视锥体裁剪
-  bool enableFrustumCulling = true;
-
-  /// 遮挡剔除
-  bool enableOcclusionCulling = true;
-
-  // 合并渲染
-  bool enableFaceMerging = true;
-
-  /// 方块交互轮廓
-  bool showBlockOutline = false;
-
-  /// 调试信息
-  bool showDebugInfo = false;
-
-  /// 面法向量
-  bool showFaceNormals = false;
-
-  /// 顶点坐标
-  bool showVertexPositions = false;
-
-  /// 视锥体
-  bool showFrustum = false;
-}
 
 /// 场景渲染器
 class ScenePainter extends CustomPainter {
@@ -83,7 +45,8 @@ class ScenePainter extends CustomPainter {
     return oldDelegate.sceneInfo.position != sceneInfo.position ||
         oldDelegate.sceneInfo.orientation != sceneInfo.orientation ||
         oldDelegate.sceneInfo.targetedBlock != sceneInfo.targetedBlock ||
-        oldDelegate.debugConfig.showBlockOutline != debugConfig.showBlockOutline;
+        oldDelegate.debugConfig.showBlockOutline !=
+            debugConfig.showBlockOutline;
   }
 
   void _renderScene(Canvas canvas, Size size) {
@@ -209,12 +172,7 @@ class ScenePainter extends CustomPainter {
     }
   }
 
-  void _drawBlockOutline(
-    Canvas canvas,
-    Size size,
-    Block block,
-    Color color,
-  ) {
+  void _drawBlockOutline(Canvas canvas, Size size, Block block, Color color) {
     final half = Constants.blockSizeHalf.toDouble();
     _drawWireBox(canvas, size, block.position.toVector3(), half, color);
   }
@@ -238,9 +196,7 @@ class ScenePainter extends CustomPainter {
       Vector3(center.x - half, center.y + half, center.z + half),
     ];
 
-    final screenPts = corners
-        .map((v) => _project3DTo2D(v, size))
-        .toList();
+    final screenPts = corners.map((v) => _project3DTo2D(v, size)).toList();
 
     if (screenPts.any((p) => p == Offset.infinite)) return;
 
@@ -266,10 +222,10 @@ class ScenePainter extends CustomPainter {
     }
 
     addFaceEdges([0, 1, 2, 3], Vector3(0, 0, -1)); // -Z
-    addFaceEdges([4, 5, 6, 7], Vector3(0, 0, 1));  // +Z
+    addFaceEdges([4, 5, 6, 7], Vector3(0, 0, 1)); // +Z
     addFaceEdges([0, 4, 7, 3], Vector3(-1, 0, 0)); // -X
-    addFaceEdges([1, 5, 6, 2], Vector3(1, 0, 0));  // +X
-    addFaceEdges([3, 2, 6, 7], Vector3(0, 1, 0));  // +Y
+    addFaceEdges([1, 5, 6, 2], Vector3(1, 0, 0)); // +X
+    addFaceEdges([3, 2, 6, 7], Vector3(0, 1, 0)); // +Y
     addFaceEdges([0, 1, 5, 4], Vector3(0, -1, 0)); // -Y
   }
 
@@ -378,7 +334,30 @@ class ScenePainter extends CustomPainter {
     if (clippedVertices.length < 3) return;
 
     final fogFactor = _calcFogFactor(face.bounds.center.toVector3());
-    _drawPolygonFace(canvas, face.blockType, clippedVertices, face.normal, fogFactor);
+    _drawPolygonFace(
+      canvas,
+      face.blockType,
+      clippedVertices,
+      face.normal,
+      fogFactor,
+      face.powerLevel,
+    );
+    _drawMergedFaceGrid(canvas, size, face);
+  }
+
+  void _drawMergedFaceGrid(Canvas canvas, Size size, MergedFace face) {
+    if (face.blockType == BlockType.glass) return;
+
+    final paint = Paint()
+      ..color = Colors.black38
+      ..strokeWidth = 1;
+
+    for (final line in face.gridLines) {
+      final start = _project3DTo2D(line.start.toVector3(), size);
+      final end = _project3DTo2D(line.end.toVector3(), size);
+      if (start == Offset.infinite || end == Offset.infinite) continue;
+      canvas.drawLine(start, end, paint);
+    }
   }
 
   void _renderSingleBlock(Canvas canvas, Size size, Block block) {
@@ -430,7 +409,14 @@ class ScenePainter extends CustomPainter {
     if (clippedVertices.length < 3) return;
 
     final fogFactor = _calcFogFactor(block.position.toVector3());
-    _drawPolygonFace(canvas, block.type, clippedVertices, face.normal, fogFactor, block.powerLevel);
+    _drawPolygonFace(
+      canvas,
+      block.type,
+      clippedVertices,
+      face.normal,
+      fogFactor,
+      block.powerLevel,
+    );
 
     // 绘制调试信息
     if (debugConfig.showFaceNormals) {
@@ -531,6 +517,7 @@ class ScenePainter extends CustomPainter {
 
   /// 红石灯亮色
   static const Color _lampOnColor = Color(0xFFFFEB3B);
+
   /// 红石灯灭色
   static const Color _lampOffColor = Color(0xFF424242);
 
@@ -540,7 +527,11 @@ class ScenePainter extends CustomPainter {
       case BlockType.redstoneDust:
         // 暗红 → 亮红，根据信号强度
         final ratio = powerLevel / 15.0;
-        return Color.lerp(const Color(0xFF440000), const Color(0xFFFF0000), ratio)!;
+        return Color.lerp(
+          const Color(0xFF440000),
+          const Color(0xFFFF0000),
+          ratio,
+        )!;
       case BlockType.redstoneLamp:
         return powerLevel > 0 ? _lampOnColor : _lampOffColor;
       case BlockType.redstoneTorch:
@@ -587,7 +578,8 @@ class ScenePainter extends CustomPainter {
     final dist = (worldPos - sceneInfo.position).magnitude;
     if (dist <= Constants.fogStart) return 0.0;
     if (dist >= Constants.fogEnd) return 1.0;
-    return (dist - Constants.fogStart) / (Constants.fogEnd - Constants.fogStart);
+    return (dist - Constants.fogStart) /
+        (Constants.fogEnd - Constants.fogStart);
   }
 
   /// 应用面光照

@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:collection';
 
 import '../base/aabb.dart';
@@ -7,32 +6,29 @@ import '../base/chunk.dart';
 import '../base/constant.dart';
 import '../base/player.dart';
 import '../base/vector.dart';
+import '../base/voxel_coordinates.dart';
 import 'world_generator.dart';
 
 /// 区块管理器
 class ChunkManager {
   static const int chunkSize = Constants.chunkBlockCount * Constants.blockSize;
-  static const int distance = Constants.loadChunkCount;
-  static const int distanceSquare = distance * distance;
-
+  static const int horizontalDistance = Constants.loadChunkHorizontalCount;
+  static const int verticalDistance = Constants.loadChunkVerticalCount;
   final Map<Vector3Int, Chunk> _archivedBlocks = HashMap();
   final Map<Vector3Int, Chunk> _loadedChunks = HashMap();
   final Queue<Vector3Int> _chunkLoadQueue = Queue();
   late final WorldGenerator _worldGenerator;
 
-  // 性能优化
-  Vector3Int _lastPlayerChunk = Vector3Int.zero;
+  Vector3Int? _lastPlayerChunk;
+  Set<Vector3Int> _desiredChunks = {};
+  bool _initialized = false;
 
-  ChunkManager() {
-    _worldGenerator = WorldGenerator(math.Random().nextInt(1000000));
+  ChunkManager({int seed = 20260908}) {
+    _worldGenerator = WorldGenerator(seed);
   }
 
   static Vector3Int getChunkCoord(Vector3 worldPos) {
-    return Vector3Int(
-      (worldPos.x / chunkSize).floor(),
-      (worldPos.y / chunkSize).floor(),
-      (worldPos.z / chunkSize).floor(),
-    );
+    return VoxelCoordinates.worldToChunk(worldPos, chunkSize);
   }
 
   /// 区块更新
@@ -47,6 +43,7 @@ class ChunkManager {
 
     // 1.生成需要保留的区块列表
     final aroundChunks = _getAroundChunks(playerChunk);
+    _desiredChunks = aroundChunks;
 
     // 2. 卸载不在需要保留列表中的区块
     final chunksToUnload = _loadedChunks.keys
@@ -56,15 +53,30 @@ class ChunkManager {
       _loadedChunks.remove(coord);
     }
 
-    // 3. 加载需要但未加载的区块
-    for (final chunkCoord in aroundChunks) {
-      if (!_loadedChunks.containsKey(chunkCoord)) {
+    _chunkLoadQueue.removeWhere((coord) => !aroundChunks.contains(coord));
+
+    final chunksToLoad =
+        aroundChunks
+            .where(
+              (coord) =>
+                  !_loadedChunks.containsKey(coord) &&
+                  !_chunkLoadQueue.contains(coord),
+            )
+            .toList()
+          ..sort((a, b) {
+            final da = (a - playerChunk).magnitudeSquare;
+            final db = (b - playerChunk).magnitudeSquare;
+            return da.compareTo(db);
+          });
+
+    if (!_initialized) {
+      // 首屏需要立即可用；之后的区块切换使用加载队列摊平开销。
+      for (final chunkCoord in chunksToLoad) {
         _loadChunk(chunkCoord);
       }
-      // if (!_loadedChunks.containsKey(chunkCoord) &&
-      //     !_chunkLoadQueue.contains(chunkCoord)) {
-      //   _chunkLoadQueue.addLast(chunkCoord);
-      // }
+      _initialized = true;
+    } else {
+      _chunkLoadQueue.addAll(chunksToLoad);
     }
   }
 
@@ -73,9 +85,9 @@ class ChunkManager {
     final Set<Vector3Int> chunks = {};
 
     // 一次遍历生成所有在距离范围内的区块
-    for (int x = -distance; x <= distance; x++) {
-      for (int z = -distance; z <= distance; z++) {
-        for (int y = -distance; y <= distance; y++) {
+    for (int x = -horizontalDistance; x <= horizontalDistance; x++) {
+      for (int z = -horizontalDistance; z <= horizontalDistance; z++) {
+        for (int y = -verticalDistance; y <= verticalDistance; y++) {
           chunks.add(
             Vector3Int(playerChunk.x + x, playerChunk.y + y, playerChunk.z + z),
           );
@@ -87,12 +99,15 @@ class ChunkManager {
   }
 
   /// 处理加载队列
-  void processLoadQueue() {
-    // 每次最多加载1个区块，避免卡顿
-    if (_chunkLoadQueue.isNotEmpty) {
+  bool processLoadQueue({int budget = 1}) {
+    var loadedAny = false;
+    for (var i = 0; i < budget && _chunkLoadQueue.isNotEmpty; i++) {
       final chunkCoord = _chunkLoadQueue.removeFirst();
+      if (!_desiredChunks.contains(chunkCoord)) continue;
       _loadChunk(chunkCoord);
+      loadedAny = true;
     }
+    return loadedAny;
   }
 
   /// 加载单个区块
@@ -125,7 +140,11 @@ class ChunkManager {
   List<Block> getRenderBlocks(Player player) {
     final AABB aabb = AABB.fromCenterAndHalfSize(
       player.position,
-      Vector3.all(Constants.renderDistance),
+      const Vector3(
+        Constants.renderDistance,
+        Constants.renderVerticalDistance,
+        Constants.renderDistance,
+      ),
     );
 
     return _getBlocksNearPlayer(aabb);
@@ -161,6 +180,7 @@ class ChunkManager {
     final chunkCoord = getChunkCoord(position.toVector3());
     final chunk = _loadedChunks[chunkCoord];
     if (chunk == null) return false;
+    if (chunk.getBlock(position) != null) return false;
     return chunk.addBlock(Block(position: position, type: type));
   }
 

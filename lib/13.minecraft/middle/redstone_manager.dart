@@ -5,194 +5,134 @@ import '../base/constant.dart';
 import '../base/vector.dart';
 import 'chunk_manager.dart';
 
-/// 红石信号管理器
+/// 简洁且确定性的红石网络。
 ///
-/// 简化版红石系统：红石粉传导信号，红石火把/拉杆为电源，红石灯响应信号。
+/// - 拉杆和红石火把输出 15 级信号；
+/// - 红石粉每经过一格衰减 1；
+/// - 红石灯收到任意信号即点亮，但不继续传导；
+/// - 网络变化时先清空动态状态，再从所有电源重新传播，避免幽灵信号。
 class RedstoneManager {
   static const int _maxPower = 15;
-  static const int _bs = Constants.blockSize;
+  static const int _step = Constants.blockSize;
 
-  /// 方块放置时触发红石更新
   void onBlockPlaced(ChunkManager chunks, Vector3Int pos, BlockType type) {
-    if (type.isRedstone) {
-      _propagateFrom(chunks, pos);
-    } else {
-      // 非红石方块放置可能阻断信号
-      _propagateFrom(chunks, pos);
-    }
+    _rebuildAround(chunks, pos);
   }
 
-  /// 方块摧毁时触发红石更新
   void onBlockDestroyed(ChunkManager chunks, Vector3Int pos, BlockType type) {
-    // 清除该位置的电源
-    final block = chunks.getBlock(pos);
-    block?.powerLevel = 0;
-
-    // 重新计算周围信号
-    _propagateFrom(chunks, pos);
-
-    // 如果摧毁的是电源，需要更大范围重新计算
-    if (type == BlockType.redstoneTorch || type == BlockType.lever) {
-      for (final neighbor in _getNeighbors(pos)) {
-        _propagateFrom(chunks, neighbor);
-      }
-    }
+    _rebuildAround(chunks, pos);
   }
 
-  /// 切换拉杆状态（返回新状态：true=激活）
   bool toggleLever(ChunkManager chunks, Vector3Int pos) {
     final block = chunks.getBlock(pos);
     if (block == null || block.type != BlockType.lever) return false;
 
-    // 拉杆通过 powerLevel 表示状态：0=关，15=开
-    final isActive = block.powerLevel > 0;
-    block.powerLevel = isActive ? 0 : _maxPower;
-
-    // 重新传播信号
-    _propagateFrom(chunks, pos);
-    return !isActive;
+    block.powerLevel = block.powerLevel > 0 ? 0 : _maxPower;
+    _rebuildAround(chunks, pos);
+    return block.powerLevel > 0;
   }
 
-  /// 从指定位置开始传播红石信号
-  void _propagateFrom(ChunkManager chunks, Vector3Int start) {
-    // BFS 传播
-    final Queue<(Vector3Int, int)> queue = Queue();
-    final Set<Vector3Int> visited = {};
-    final List<(Vector3Int, Block)> toUpdate = [];
+  void _rebuildAround(ChunkManager chunks, Vector3Int changedPosition) {
+    final processed = <Vector3Int>{};
+    final seeds = <Vector3Int>[changedPosition, ..._neighbors(changedPosition)];
 
-    // 从起始位置的邻居开始
-    for (final neighbor in _getNeighbors(start)) {
-      final block = chunks.getBlock(neighbor);
-      if (block == null) continue;
-      if (_shouldPropagateTo(block.type)) {
-        queue.add((neighbor, 0));
+    for (final seed in seeds) {
+      final block = chunks.getBlock(seed);
+      if (block == null || !block.type.isRedstone) continue;
+      if (processed.contains(seed)) continue;
+
+      final component = _collectComponent(chunks, seed);
+      processed.addAll(component.keys);
+      _recalculateComponent(chunks, component);
+    }
+  }
+
+  Map<Vector3Int, Block> _collectComponent(
+    ChunkManager chunks,
+    Vector3Int start,
+  ) {
+    final component = <Vector3Int, Block>{};
+    final queue = Queue<Vector3Int>()..add(start);
+
+    while (queue.isNotEmpty) {
+      final position = queue.removeFirst();
+      if (component.containsKey(position)) continue;
+
+      final block = chunks.getBlock(position);
+      if (block == null || !block.type.isRedstone) continue;
+      component[position] = block;
+
+      for (final neighbor in _neighbors(position)) {
+        if (!component.containsKey(neighbor)) queue.add(neighbor);
       }
     }
+    return component;
+  }
 
-    // 也检查起始位置本身
-    final startBlock = chunks.getBlock(start);
-    if (startBlock != null && _isPowerSource(startBlock)) {
-      queue.add((start, 0));
+  void _recalculateComponent(
+    ChunkManager chunks,
+    Map<Vector3Int, Block> component,
+  ) {
+    final queue = Queue<Vector3Int>();
+
+    for (final entry in component.entries) {
+      final block = entry.value;
+      switch (block.type) {
+        case BlockType.redstoneTorch:
+          block.powerLevel = _maxPower;
+          queue.add(entry.key);
+        case BlockType.lever:
+          if (block.powerLevel > 0) {
+            block.powerLevel = _maxPower;
+            queue.add(entry.key);
+          } else {
+            block.powerLevel = 0;
+          }
+        case BlockType.redstoneDust:
+        case BlockType.redstoneLamp:
+          block.powerLevel = 0;
+        default:
+          break;
+      }
     }
 
     while (queue.isNotEmpty) {
-      final (pos, dist) = queue.removeFirst();
-      if (visited.contains(pos)) continue;
-      if (dist > _maxPower) continue;
-      visited.add(pos);
+      final position = queue.removeFirst();
+      final source = chunks.getBlock(position);
+      if (source == null || source.powerLevel <= 0) continue;
 
-      final block = chunks.getBlock(pos);
-      if (block == null) continue;
+      for (final neighborPosition in _neighbors(position)) {
+        final neighbor = component[neighborPosition];
+        if (neighbor == null) continue;
 
-      int receivedPower = _calculateReceivedPower(chunks, pos, visited);
-      int newPower = receivedPower;
-
-      // 电源方块自身产生信号
-      if (_isPowerSource(block)) {
-        newPower = _maxPower;
-      }
-
-      // 红石火把：反转信号（被强信号熄灭）
-      if (block.type == BlockType.redstoneTorch) {
-        final belowPos = Vector3Int(pos.x, pos.y - _bs, pos.z);
-        final belowBlock = chunks.getBlock(belowPos);
-        if (belowBlock != null && belowBlock.powerLevel >= _maxPower) {
-          newPower = 0; // 被强信号熄灭
-        } else {
-          newPower = _maxPower;
-        }
-      }
-
-      // 红石粉：接收信号后衰减
-      if (block.type == BlockType.redstoneDust) {
-        if (receivedPower > 0) {
-          newPower = (receivedPower - 1).toInt().clamp(0, _maxPower);
-        } else {
-          newPower = 0;
-        }
-      }
-
-      // 红石灯：任何信号 ≥ 1 即点亮（通过 powerLevel 表示）
-      if (block.type == BlockType.redstoneLamp) {
-        newPower = receivedPower > 0 ? _maxPower : 0;
-      }
-
-      // 更新电源
-      if (block.powerLevel != newPower) {
-        block.powerLevel = newPower;
-        toUpdate.add((pos, block));
-
-        // 继续传播给邻居
-        for (final neighbor in _getNeighbors(pos)) {
-          if (!visited.contains(neighbor)) {
-            final nBlock = chunks.getBlock(neighbor);
-            if (nBlock != null && _shouldPropagateTo(nBlock.type)) {
-              queue.add((neighbor, dist + 1));
+        switch (neighbor.type) {
+          case BlockType.redstoneDust:
+            final nextPower = (source.powerLevel - 1).clamp(0, _maxPower);
+            if (nextPower > neighbor.powerLevel) {
+              neighbor.powerLevel = nextPower;
+              queue.add(neighborPosition);
             }
-          }
+          case BlockType.redstoneLamp:
+            if (neighbor.powerLevel == 0 && source.powerLevel > 0) {
+              neighbor.powerLevel = _maxPower;
+            }
+          case BlockType.redstoneTorch:
+          case BlockType.lever:
+            // 固定电源不被邻居覆盖。
+            break;
+          default:
+            break;
         }
       }
     }
   }
 
-  /// 计算某位置从邻居接收到的最强信号
-  int _calculateReceivedPower(
-    ChunkManager chunks,
-    Vector3Int pos,
-    Set<Vector3Int> visited,
-  ) {
-    int maxPower = 0;
-
-    for (final neighbor in _getNeighbors(pos)) {
-      final nBlock = chunks.getBlock(neighbor);
-      if (nBlock == null) continue;
-      if (nBlock.powerLevel <= 0) continue;
-
-      // 红石火把输出的是全强度
-      int signalStrength = nBlock.powerLevel;
-
-      // 红石粉传导时衰减
-      if (nBlock.type == BlockType.redstoneDust) {
-        signalStrength = nBlock.powerLevel - 1;
-      }
-
-      if (signalStrength > maxPower) {
-        maxPower = signalStrength;
-      }
-    }
-
-    return maxPower.clamp(0, _maxPower);
-  }
-
-  /// 是否为电源方块
-  bool _isPowerSource(Block block) {
-    switch (block.type) {
-      case BlockType.redstoneTorch:
-        return true;
-      case BlockType.lever:
-        return block.powerLevel > 0;
-      default:
-        return false;
-    }
-  }
-
-  /// 是否应该向该方块传播信号
-  bool _shouldPropagateTo(BlockType type) {
-    return type == BlockType.redstoneDust ||
-        type == BlockType.redstoneLamp ||
-        type == BlockType.redstoneTorch ||
-        type == BlockType.lever;
-  }
-
-  /// 获取 6 个相邻位置（上、下、前、后、左、右）
-  List<Vector3Int> _getNeighbors(Vector3Int pos) {
-    return [
-      Vector3Int(pos.x, pos.y + _bs, pos.z),
-      Vector3Int(pos.x, pos.y - _bs, pos.z),
-      Vector3Int(pos.x + _bs, pos.y, pos.z),
-      Vector3Int(pos.x - _bs, pos.y, pos.z),
-      Vector3Int(pos.x, pos.y, pos.z + _bs),
-      Vector3Int(pos.x, pos.y, pos.z - _bs),
-    ];
-  }
+  List<Vector3Int> _neighbors(Vector3Int pos) => [
+    Vector3Int(pos.x + _step, pos.y, pos.z),
+    Vector3Int(pos.x - _step, pos.y, pos.z),
+    Vector3Int(pos.x, pos.y + _step, pos.z),
+    Vector3Int(pos.x, pos.y - _step, pos.z),
+    Vector3Int(pos.x, pos.y, pos.z + _step),
+    Vector3Int(pos.x, pos.y, pos.z - _step),
+  ];
 }

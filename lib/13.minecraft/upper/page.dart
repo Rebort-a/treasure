@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +43,19 @@ class _MinecraftPageState extends State<MinecraftPage> {
   @override
   Widget build(BuildContext context) {
     final cm = manager.controlManager;
+    final isDesktop =
+        kIsWeb ||
+        {
+          TargetPlatform.windows,
+          TargetPlatform.macOS,
+          TargetPlatform.linux,
+        }.contains(defaultTargetPlatform);
+    final isMobile =
+        !kIsWeb &&
+        {
+          TargetPlatform.android,
+          TargetPlatform.iOS,
+        }.contains(defaultTargetPlatform);
 
     return Scaffold(
       body: Stack(
@@ -64,10 +75,9 @@ class _MinecraftPageState extends State<MinecraftPage> {
           const IgnorePointer(child: Crosshair()),
 
           // 输入控制（按平台区分）
-          if (kIsWeb || Platform.isWindows || Platform.isMacOS || Platform.isLinux)
-            _buildDesktopControl(cm),
-          if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) _buildMobileGesture(cm),
-          if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) _buildMobileControl(cm),
+          if (isDesktop) _buildDesktopControl(cm),
+          if (isMobile) _buildMobileGesture(cm),
+          if (isMobile) _buildMobileControl(cm),
 
           // 背包栏（竖屏靠上，横屏靠下）
           _buildHotbar(),
@@ -164,10 +174,7 @@ class _MinecraftPageState extends State<MinecraftPage> {
 
   /// 移动端：摇杆 + 跳跃
   Widget _buildMobileControl(ControlManager cm) {
-    return MobileControls(
-      onMove: cm.setMobileMove,
-      onJump: cm.setMobileJump,
-    );
+    return MobileControls(onMove: cm.setMobileMove, onJump: cm.setMobileJump);
   }
 
   Widget _buildHotbar() {
@@ -198,7 +205,7 @@ class _MinecraftPageState extends State<MinecraftPage> {
         } else if (event.scrollDelta.dy > 0) {
           manager.selectedSlot =
               (manager.selectedSlot - 1 + Constants.hotbarSlotCount) %
-                  Constants.hotbarSlotCount;
+              Constants.hotbarSlotCount;
         }
       });
     }

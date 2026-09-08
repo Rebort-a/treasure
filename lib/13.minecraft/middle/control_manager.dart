@@ -15,6 +15,7 @@ class ControlManager {
   late final FocusNode focusNode;
 
   Vector2 _moveInput = Vector2.zero;
+  final Set<LogicalKeyboardKey> _pressedKeys = {};
   bool _jumpRequested = false;
   Offset? _lastTouchPos;
 
@@ -28,7 +29,7 @@ class ControlManager {
   bool _touchMoved = false;
 
   ControlManager(this.player, this.manager)
-      : focusNode = FocusNode()..requestFocus();
+    : focusNode = FocusNode()..requestFocus();
 
   // ==================== 更新循环 ====================
 
@@ -50,28 +51,41 @@ class ControlManager {
 
   /// 处理键盘事件（WASD / 方向键移动，空格跳跃）
   void handleKeyEvent(KeyEvent event) {
-    final isKeyUp = event is KeyUpEvent;
     final key = event.logicalKey;
 
-    switch (key) {
-      case LogicalKeyboardKey.arrowUp:
-      case LogicalKeyboardKey.keyW:
-        _moveInput = _moveInput.appointY(isKeyUp ? 0.0 : 1.0);
-      case LogicalKeyboardKey.arrowDown:
-      case LogicalKeyboardKey.keyS:
-        _moveInput = _moveInput.appointY(isKeyUp ? 0.0 : -1.0);
-      case LogicalKeyboardKey.arrowLeft:
-      case LogicalKeyboardKey.keyA:
-        _moveInput = _moveInput.appointX(isKeyUp ? 0.0 : -1.0);
-      case LogicalKeyboardKey.arrowRight:
-      case LogicalKeyboardKey.keyD:
-        _moveInput = _moveInput.appointX(isKeyUp ? 0.0 : 1.0);
-      case LogicalKeyboardKey.space:
-        if (!isKeyUp) _jumpRequested = true;
-      default:
-        break;
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      _pressedKeys.add(key);
+      if (key == LogicalKeyboardKey.space && event is KeyDownEvent) {
+        _jumpRequested = true;
+      }
+    } else if (event is KeyUpEvent) {
+      _pressedKeys.remove(key);
     }
+
+    final left = _isPressed(
+      LogicalKeyboardKey.arrowLeft,
+      LogicalKeyboardKey.keyA,
+    );
+    final right = _isPressed(
+      LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.keyD,
+    );
+    final forward = _isPressed(
+      LogicalKeyboardKey.arrowUp,
+      LogicalKeyboardKey.keyW,
+    );
+    final backward = _isPressed(
+      LogicalKeyboardKey.arrowDown,
+      LogicalKeyboardKey.keyS,
+    );
+    _moveInput = Vector2(
+      (right ? 1.0 : 0.0) - (left ? 1.0 : 0.0),
+      (forward ? 1.0 : 0.0) - (backward ? 1.0 : 0.0),
+    );
   }
+
+  bool _isPressed(LogicalKeyboardKey first, LogicalKeyboardKey second) =>
+      _pressedKeys.contains(first) || _pressedKeys.contains(second);
 
   // ==================== 鼠标输入 ====================
 
@@ -170,11 +184,7 @@ class ControlManager {
     if (!_moveInput.isZero) {
       player.move(_moveInput, Constants.moveSpeed);
     } else {
-      player.velocity = Vector3(
-        player.velocity.x * Constants.friction,
-        player.velocity.y,
-        player.velocity.z * Constants.friction,
-      );
+      player.applyHorizontalDamping(deltaTime);
     }
 
     if (_jumpRequested) {

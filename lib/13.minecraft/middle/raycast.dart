@@ -1,5 +1,7 @@
 import '../base/block.dart';
+import '../base/constant.dart';
 import '../base/vector.dart';
+import '../base/voxel_coordinates.dart';
 import 'chunk_manager.dart';
 
 /// 射线检测命中结果
@@ -11,10 +13,10 @@ class RaycastHit {
 }
 
 /// X/Z: 方块中心在奇数 (1, 3, 5, ...)
-int _snapOdd(double v) => (v / 2).floor() * 2 + 1;
+int _snapOdd(double v) => VoxelCoordinates.snapHorizontal(v);
 
 /// Y: 方块中心在偶数 (0, 2, 4, ...)
-int _snapEven(double v) => (v / 2).floor() * 2;
+int _snapEven(double v) => VoxelCoordinates.snapVertical(v);
 
 /// DDA 射线检测：从 position 沿 direction 找到第一个非空气方块
 RaycastHit? raycast(
@@ -48,9 +50,16 @@ RaycastHit? raycast(
       ? (nextZ - position.z) / dir.z
       : double.maxFinite;
 
-  final tDeltaX = dir.x.abs() > 1e-10 ? 2.0 / dir.x.abs() : double.maxFinite;
-  final tDeltaY = dir.y.abs() > 1e-10 ? 2.0 / dir.y.abs() : double.maxFinite;
-  final tDeltaZ = dir.z.abs() > 1e-10 ? 2.0 / dir.z.abs() : double.maxFinite;
+  final blockSize = Constants.blockSize.toDouble();
+  final tDeltaX = dir.x.abs() > 1e-10
+      ? blockSize / dir.x.abs()
+      : double.maxFinite;
+  final tDeltaY = dir.y.abs() > 1e-10
+      ? blockSize / dir.y.abs()
+      : double.maxFinite;
+  final tDeltaZ = dir.z.abs() > 1e-10
+      ? blockSize / dir.z.abs()
+      : double.maxFinite;
 
   double tMaxX_ = tMaxX;
   double tMaxY_ = tMaxY;
@@ -69,24 +78,24 @@ RaycastHit? raycast(
     if (tMaxX_ < tMaxY_) {
       if (tMaxX_ < tMaxZ_) {
         if (tMaxX_ > maxDistance) break;
-        ix += stepX * 2;
+        ix += stepX * Constants.blockSize;
         tMaxX_ += tDeltaX;
         faceNormal = Vector3Int(-stepX, 0, 0);
       } else {
         if (tMaxZ_ > maxDistance) break;
-        iz += stepZ * 2;
+        iz += stepZ * Constants.blockSize;
         tMaxZ_ += tDeltaZ;
         faceNormal = Vector3Int(0, 0, -stepZ);
       }
     } else {
       if (tMaxY_ < tMaxZ_) {
         if (tMaxY_ > maxDistance) break;
-        iy += stepY * 2;
+        iy += stepY * Constants.blockSize;
         tMaxY_ += tDeltaY;
         faceNormal = Vector3Int(0, -stepY, 0);
       } else {
         if (tMaxZ_ > maxDistance) break;
-        iz += stepZ * 2;
+        iz += stepZ * Constants.blockSize;
         tMaxZ_ += tDeltaZ;
         faceNormal = Vector3Int(0, 0, -stepZ);
       }

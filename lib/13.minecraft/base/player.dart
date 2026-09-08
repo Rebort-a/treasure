@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'block.dart';
 import 'constant.dart';
 import 'vector.dart';
@@ -43,6 +45,10 @@ class Player {
 
   /// 更新玩家状态
   void update(double deltaTime, List<Block> blocks) {
+    if (isGrounded && !_hasGroundSupport(blocks)) {
+      isGrounded = false;
+    }
+
     // 应用重力（不在地面上时）
     if (!isGrounded) {
       velocity = Vector3(
@@ -60,27 +66,8 @@ class Player {
     // 应用速度更新位置
     position += velocity * deltaTime;
 
-    // 重置地面状态条件：
-    // 1. 跳跃上升中（velocity.y > 1）
-    // 2. 脚下无支撑方块（方块被摧毁后应下落）
     if (velocity.y > 1.0) {
       isGrounded = false;
-    } else if (isGrounded) {
-      final footY = position.y - Constants.playerHeight * 0.75 - 0.1;
-      final footPos = Vector3Int(
-        (position.x / 2).round() * 2,
-        (footY / 2).floor() * 2,
-        (position.z / 2).round() * 2,
-      );
-      bool hasSupport = false;
-      for (final block in blocks) {
-        if (block.type.isPenetrate) continue;
-        if (block.position == footPos) {
-          hasSupport = true;
-          break;
-        }
-      }
-      if (!hasSupport) isGrounded = false;
     }
 
     // 检测与方块的碰撞
@@ -91,6 +78,32 @@ class Player {
         _handleCollision(block.collider);
       }
     }
+
+    if (velocity.y <= 0 && _hasGroundSupport(blocks)) {
+      isGrounded = true;
+    }
+  }
+
+  bool _hasGroundSupport(List<Block> blocks) {
+    final playerBounds = collider.aabb;
+    const maxGroundGap = 0.08;
+
+    for (final block in blocks) {
+      if (block.type.isPenetrate) continue;
+      final bounds = block.collider.aabb;
+      final horizontalOverlap =
+          playerBounds.max.x > bounds.min.x + Constants.epsilon &&
+          playerBounds.min.x < bounds.max.x - Constants.epsilon &&
+          playerBounds.max.z > bounds.min.z + Constants.epsilon &&
+          playerBounds.min.z < bounds.max.z - Constants.epsilon;
+      if (!horizontalOverlap) continue;
+
+      final gap = playerBounds.min.y - bounds.max.y;
+      if (gap >= -Constants.epsilon && gap <= maxGroundGap) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// 处理碰撞
@@ -128,13 +141,26 @@ class Player {
         velocity.z * Constants.friction,
       );
     } else {
-      final moveDirection = rightUnit * input.x + forwardUnit * input.y;
+      final horizontalForward = forwardUnit.normalized;
+      final horizontalRight = Vector2(
+        horizontalForward.y,
+        -horizontalForward.x,
+      );
+      final normalizedInput = input.magnitude > 1 ? input.normalized : input;
+      final moveDirection =
+          horizontalRight * normalizedInput.x +
+          horizontalForward * normalizedInput.y;
       velocity = Vector3(
         moveDirection.x * speed,
         velocity.y,
         moveDirection.y * speed,
       );
     }
+  }
+
+  void applyHorizontalDamping(double deltaTime) {
+    final damping = math.pow(Constants.friction, deltaTime * 60).toDouble();
+    velocity = Vector3(velocity.x * damping, velocity.y, velocity.z * damping);
   }
 
   /// 旋转视角 deltaYaw代表偏移角度，deltaPitch代表俯仰角度

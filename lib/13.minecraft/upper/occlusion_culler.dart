@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import '../base/vector.dart';
 import '../base/aabb.dart';
 import '../base/constant.dart';
@@ -45,7 +46,7 @@ class OcclusionCuller {
     // 近距离物体总是可见
     final distanceSquared =
         (targetBounds.center - cameraPosition).magnitudeSquare;
-    if (distanceSquared < Constants.blockSize) {
+    if (distanceSquared < Constants.blockSize * Constants.blockSize) {
       return OcclusionResult.fullyVisible;
     }
 
@@ -64,11 +65,13 @@ class OcclusionCuller {
   /// 统计可见角点数量
   int _countVisibleCorners(AABB bounds, Vector3 camera) {
     final corners = _getAABBCorners(bounds);
-    return corners.where((corner) => _isCornerVisible(corner, camera)).length;
+    return corners
+        .where((corner) => _isCornerVisible(corner, camera, bounds))
+        .length;
   }
 
   /// 检查单个角点是否可见
-  bool _isCornerVisible(Vector3 corner, Vector3 camera) {
+  bool _isCornerVisible(Vector3 corner, Vector3 camera, AABB targetBounds) {
     final ray = _OcclusionRay(
       origin: camera,
       direction: (corner - camera).normalized,
@@ -78,12 +81,17 @@ class OcclusionCuller {
     if (maxDistance < Constants.blockSizeHalf) return true;
 
     for (final occluder in _occluders) {
+      if (_sameBounds(occluder, targetBounds)) continue;
       final intersection = _rayAABBIntersection(ray, occluder, maxDistance);
       if (intersection != null && intersection < maxDistance) {
         return false;
       }
     }
     return true;
+  }
+
+  bool _sameBounds(AABB first, AABB second) {
+    return first.min == second.min && first.max == second.max;
   }
 
   /// 射线-AABB相交检测（优化版）

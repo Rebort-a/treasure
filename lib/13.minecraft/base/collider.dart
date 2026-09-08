@@ -45,14 +45,11 @@ class MovedBoxCollider {
     final minY = position.y - bottomHalfY; // 碰撞体底部
     final maxY = position.y + topHalfY; // 碰撞体顶部
 
-    // 3. 前后方向（Z轴）：眼睛靠近前端（前端占比小，后端占比大）
-    // 例如：前端占总深度的25%，后端占75%
-    const frontRatio = 0.25; // 前端距离占总深度比例
-    final backRatio = 1.0 - frontRatio; // 后端距离占总深度比例
-    final frontHalfZ = size.z * frontRatio; // 眼睛到前端的距离
-    final backHalfZ = size.z * backRatio; // 眼睛到后端的距离
-    final minZ = position.z - backHalfZ; // 碰撞体后端
-    final maxZ = position.z + frontHalfZ; // 碰撞体前端
+    // 3. 水平方向保持对称。碰撞盒不应沿世界 Z 轴产生固定偏移；
+    // 玩家朝向只影响移动和视角，不改变身体中心。
+    final halfDepth = size.z / 2.0;
+    final minZ = position.z - halfDepth;
+    final maxZ = position.z + halfDepth;
 
     // 构建AABB的min和max
     final min = Vector3(minX, minY, minZ);

@@ -365,8 +365,9 @@ class Vector3Int {
   double get magnitude => math.sqrt(magnitudeSquare);
 
   Vector3 get normalized {
-    return magnitudeSquare > Constants.epsilon
-        ? Vector3(x / magnitudeSquare, y / magnitudeSquare, z / magnitudeSquare)
+    final length = magnitude;
+    return length > Constants.epsilon
+        ? Vector3(x / length, y / length, z / length)
         : Vector3.zero;
   }
 

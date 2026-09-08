@@ -63,7 +63,7 @@ class Constants {
   static const double minDeltaTime = 0.004;
 
   /// 最大帧时间
-  static const double maxDeltaTime = 0.02;
+  static const double maxDeltaTime = 0.05;
 
   // ============================
   // 区块参数
@@ -75,11 +75,17 @@ class Constants {
   /// 区块组
   static const int chunkGroupSize = 3;
 
-  /// 加载区块数量
-  static const int loadChunkCount = 1;
+  /// 水平方向加载半径（区块数）
+  static const int loadChunkHorizontalCount = 2;
 
-  /// 渲染距离
-  static const double renderDistance = 16;
+  /// 垂直方向加载半径（区块数）
+  static const int loadChunkVerticalCount = 1;
+
+  /// 水平渲染距离
+  static const double renderDistance = 30;
+
+  /// 垂直渲染距离。地形主要沿水平面展开，无需加载同等高度的空区块。
+  static const double renderVerticalDistance = 14;
 
   // ============================
   // 八叉树参数
@@ -90,6 +96,9 @@ class Constants {
 
   /// 合并阈值
   static const int mergeThreshold = 3;
+
+  /// 单个合并面每个方向最多包含的方块数。
+  static const int maxMergedFaceBlocks = 8;
 
   // ============================
   // 渲染参数
@@ -135,7 +144,7 @@ class Constants {
   static const double fogStart = 20.0;
 
   /// 雾效结束距离
-  static const double fogEnd = 50.0;
+  static const double fogEnd = 29.0;
 
   // ============================
   // UI参数
@@ -192,11 +201,11 @@ class Constants {
   static const int worldMinHeight = -64;
 
   /// 基岩层
-  static const int worldBedrockLevel = worldMinHeight + blockSizeHalf;
+  static const int worldBedrockLevel = worldMinHeight + blockSize;
 
   /// 海平面
-  static const int worldSeaLevel = 0;
+  static const int worldSeaLevel = 18;
 
   /// 地表
-  static const int worldSurfaceLevel = 16;
+  static const int worldSurfaceLevel = 20;
 }
