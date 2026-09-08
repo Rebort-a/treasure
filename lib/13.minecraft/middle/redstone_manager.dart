@@ -12,7 +12,7 @@ import 'chunk_manager.dart';
 /// - 红石灯收到任意信号即点亮，但不继续传导；
 /// - 网络变化时先清空动态状态，再从所有电源重新传播，避免幽灵信号。
 class RedstoneManager {
-  static const int _maxPower = 15;
+  static const int _maxPower = Constants.redstoneMaxPower;
   static const int _step = Constants.blockSize;
 
   void onBlockPlaced(ChunkManager chunks, Vector3Int pos, BlockType type) {

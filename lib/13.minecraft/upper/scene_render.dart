@@ -17,11 +17,21 @@ class ScenePainter extends CustomPainter {
   final String debugInfo;
   final OcclusionCuller occlusionCuller;
   late FrustumManager _frustum;
+  late ColMat4 _viewProjectionMatrix;
+  late Vector3 _cameraForward;
   final RenderDebugConfig debugConfig;
+  final FaceMeshCache faceMeshCache;
+  final int _debugSignature;
 
-  ScenePainter(this.sceneInfo, this.debugInfo, {RenderDebugConfig? debugConfig})
-    : debugConfig = debugConfig ?? RenderDebugConfig(),
-      occlusionCuller = OcclusionCuller() {
+  ScenePainter(
+    this.sceneInfo,
+    this.debugInfo, {
+    RenderDebugConfig? debugConfig,
+    FaceMeshCache? faceMeshCache,
+  }) : debugConfig = debugConfig ?? RenderDebugConfig(),
+       faceMeshCache = faceMeshCache ?? FaceMeshCache(),
+       _debugSignature = (debugConfig ?? RenderDebugConfig()).signature,
+       occlusionCuller = OcclusionCuller() {
     _updateFrustum(Size(800, 600));
   }
 
@@ -35,7 +45,9 @@ class ScenePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _resetStats();
     _updateFrustum(size);
-    _updateOcclusionCuller();
+    if (debugConfig.enableOcclusionCulling) {
+      _updateOcclusionCuller();
+    }
 
     _renderScene(canvas, size);
   }
@@ -44,9 +56,12 @@ class ScenePainter extends CustomPainter {
   bool shouldRepaint(covariant ScenePainter oldDelegate) {
     return oldDelegate.sceneInfo.position != sceneInfo.position ||
         oldDelegate.sceneInfo.orientation != sceneInfo.orientation ||
+        oldDelegate.sceneInfo.revision != sceneInfo.revision ||
         oldDelegate.sceneInfo.targetedBlock != sceneInfo.targetedBlock ||
-        oldDelegate.debugConfig.showBlockOutline !=
-            debugConfig.showBlockOutline;
+        oldDelegate.sceneInfo.targetedFaceNormal !=
+            sceneInfo.targetedFaceNormal ||
+        oldDelegate.debugInfo != debugInfo ||
+        oldDelegate._debugSignature != _debugSignature;
   }
 
   void _renderScene(Canvas canvas, Size size) {
@@ -73,40 +88,46 @@ class ScenePainter extends CustomPainter {
   }
 
   void _updateFrustum(Size size) {
+    _cameraForward = sceneInfo.orientation.normalized;
     final viewMatrix = ColMat4.lookAtLH(
       sceneInfo.position,
-      sceneInfo.position + sceneInfo.orientation.normalized,
+      sceneInfo.position + _cameraForward,
       Vector3Unit.up,
     );
     final projectionMatrix = ColMat4.perspectiveLH(
       Constants.fieldOfView * math.pi / 180,
-      size.width / size.height,
+      size.width / math.max(size.height, 1),
       Constants.nearClip,
       Constants.farClip,
     );
-    final vpMatrix = projectionMatrix * viewMatrix;
-    _frustum = FrustumManager.fromViewProjectionMatrix(vpMatrix);
+    _viewProjectionMatrix = projectionMatrix * viewMatrix;
+    _frustum = FrustumManager.fromViewProjectionMatrix(_viewProjectionMatrix);
   }
 
   void _updateOcclusionCuller() {
     occlusionCuller.clear();
 
     // 改进的遮挡物选择策略
-    final potentialOccluders = sceneInfo.blocks.where((block) {
-      final blockPos = block.position.toVector3();
-      final toBlock = blockPos - sceneInfo.position;
-      final distance = toBlock.magnitudeSquare;
+    final maxOccluderDistance = Constants.renderDistance * 0.8;
+    final maxOccluderDistanceSquared =
+        maxOccluderDistance * maxOccluderDistance;
+    final potentialOccluders =
+        sceneInfo.blocks.where((block) {
+          if (block.type.isTransparent) return false;
 
-      // 1. 距离检查：选择渲染距离内的方块
-      if (distance > Constants.renderDistance * 0.8) {
-        return false;
-      }
+          final toBlock = block.position.toVector3() - sceneInfo.position;
+          if (toBlock.magnitudeSquare > maxOccluderDistanceSquared) {
+            return false;
+          }
 
-      // 2. 方向检查：放宽条件，允许部分前方的方块作为遮挡物
-      final dotProduct = toBlock.dot(sceneInfo.orientation.normalized);
-
-      return dotProduct > -1.0;
-    }).toList();
+          return toBlock.dot(_cameraForward) > -Constants.blockSize.toDouble();
+        }).toList()..sort((a, b) {
+          final distanceA =
+              (a.position.toVector3() - sceneInfo.position).magnitudeSquare;
+          final distanceB =
+              (b.position.toVector3() - sceneInfo.position).magnitudeSquare;
+          return distanceA.compareTo(distanceB);
+        });
 
     final selectedOccluders = potentialOccluders.take(32).toList();
 
@@ -156,7 +177,7 @@ class ScenePainter extends CustomPainter {
 
     // 绿色轮廓：放置位置（可放置）
     if (faceNormal != null) {
-      final placePos = target.position + faceNormal;
+      final placePos = target.position + faceNormal * Constants.blockSize;
       final half = Constants.blockSizeHalf;
       _drawWireBox(
         canvas,
@@ -231,14 +252,17 @@ class ScenePainter extends CustomPainter {
 
   void _renderWithFaceMerging(Canvas canvas, Size size, List<Block> blocks) {
     // 合并面
-    final mergedFaces = FaceMerger.mergeVisibleFaces(
-      blocks,
+    final mergedFaces = FaceMerger.filterVisibleFaces(
+      faceMeshCache.resolve(blocks),
       sceneInfo.position,
     );
     _mergedFaces = mergedFaces.length;
 
-    // 深度排序
-    final sortedFaces = _sortMergedFacesByDepth(mergedFaces);
+    // Canvas 没有深度缓冲。BSP 会在其他面的平面处切开跨越前后两侧的
+    // 大面，再生成稳定的从远到近顺序，避免屏幕边缘出现漏出的三角形。
+    final sortedFaces = debugConfig.enableDepthSorting
+        ? FaceDepthSorter.sort(mergedFaces, sceneInfo.position, _cameraForward)
+        : mergedFaces;
 
     // 渲染合并后的面
     for (final face in sortedFaces) {
@@ -300,33 +324,18 @@ class ScenePainter extends CustomPainter {
     if (!debugConfig.enableDepthSorting) return blocks;
 
     blocks.sort((a, b) {
-      final distA =
-          (a.position.toVector3() - sceneInfo.position).magnitudeSquare;
-      final distB =
-          (b.position.toVector3() - sceneInfo.position).magnitudeSquare;
-      return distB.compareTo(distA);
+      final depthA = _cameraDepth(a.position.toVector3());
+      final depthB = _cameraDepth(b.position.toVector3());
+      return depthB.compareTo(depthA);
     });
     return blocks;
   }
 
-  List<MergedFace> _sortMergedFacesByDepth(List<MergedFace> faces) {
-    if (!debugConfig.enableDepthSorting) return faces;
-
-    faces.sort((a, b) {
-      final distA =
-          (a.bounds.center.toVector3() - sceneInfo.position).magnitudeSquare;
-      final distB =
-          (b.bounds.center.toVector3() - sceneInfo.position).magnitudeSquare;
-      return distB.compareTo(distA);
-    });
-    return faces;
-  }
-
   void _renderMergedFace(Canvas canvas, Size size, MergedFace face) {
-    final screenVertices = face.vertices
-        .map((vertex) => _project3DTo2D(vertex.toVector3(), size))
-        .where((vertex) => vertex != Offset.infinite)
-        .toList();
+    final screenVertices = _projectPolygonToScreen(
+      face.vertices.map((vertex) => vertex.toVector3()).toList(),
+      size,
+    );
 
     if (screenVertices.length < 3) return;
 
@@ -364,10 +373,7 @@ class ScenePainter extends CustomPainter {
     final visibleFaces = _getVisibleFaces(block);
     if (visibleFaces.isEmpty) return;
 
-    final sortedFaces = _sortFacesByDepth(
-      visibleFaces,
-      block.position.toVector3(),
-    );
+    final sortedFaces = _sortFacesByDepth(visibleFaces);
 
     for (final face in sortedFaces) {
       _renderBlockFace(canvas, size, block, face);
@@ -383,27 +389,25 @@ class ScenePainter extends CustomPainter {
     }
   }
 
-  List<BlockFace> _sortFacesByDepth(
-    List<BlockFace> faces,
-    Vector3 blockPosition,
-  ) {
+  List<BlockFace> _sortFacesByDepth(List<BlockFace> faces) {
     if (!debugConfig.enableDepthSorting) return faces;
 
     faces.sort((a, b) {
-      final depthA = _calculateFaceDepth(a, blockPosition);
-      final depthB = _calculateFaceDepth(b, blockPosition);
+      final depthA = _calculateFaceDepth(a);
+      final depthB = _calculateFaceDepth(b);
       return depthB.compareTo(depthA);
     });
     return faces;
   }
 
-  double _calculateFaceDepth(BlockFace face, Vector3 blockPosition) {
-    return (face.center.toVector3() - sceneInfo.position).magnitudeSquare;
-  }
+  double _calculateFaceDepth(BlockFace face) =>
+      _cameraDepth(face.center.toVector3());
 
   void _renderBlockFace(Canvas canvas, Size size, Block block, BlockFace face) {
-    final worldVertices = face.vertices;
-    final screenVertices = _projectVerticesToScreen(worldVertices, size);
+    final screenVertices = _projectPolygonToScreen(
+      face.vertices.map((vertex) => vertex.toVector3()).toList(),
+      size,
+    );
     final clippedVertices = _clipToScreenBounds(screenVertices, size);
 
     if (clippedVertices.length < 3) return;
@@ -424,12 +428,44 @@ class ScenePainter extends CustomPainter {
     }
   }
 
-  /// 投影顶点到屏幕空间
-  List<Offset> _projectVerticesToScreen(List<Vector3Int> vertices, Size size) {
-    return vertices
-        .map((vertex) => _project3DTo2D(vertex.toVector3(), size))
+  /// 先在世界空间裁剪近平面，再投影到屏幕，避免相机后方顶点产生巨型多边形。
+  List<Offset> _projectPolygonToScreen(List<Vector3> vertices, Size size) {
+    return _clipPolygonToNearPlane(vertices)
+        .map((vertex) => _project3DTo2D(vertex, size))
+        .where((vertex) => vertex != Offset.infinite)
         .toList();
   }
+
+  List<Vector3> _clipPolygonToNearPlane(List<Vector3> vertices) {
+    if (!debugConfig.enableNearClip || vertices.isEmpty) return vertices;
+
+    final output = <Vector3>[];
+    var previous = vertices.last;
+    var previousDepth = _cameraDepth(previous);
+    var previousInside = previousDepth >= Constants.nearClip;
+
+    for (final current in vertices) {
+      final currentDepth = _cameraDepth(current);
+      final currentInside = currentDepth >= Constants.nearClip;
+
+      if (currentInside != previousInside) {
+        final denominator = currentDepth - previousDepth;
+        if (denominator.abs() > Constants.epsilon) {
+          final t = (Constants.nearClip - previousDepth) / denominator;
+          output.add(previous + (current - previous) * t);
+        }
+      }
+      if (currentInside) output.add(current);
+
+      previous = current;
+      previousDepth = currentDepth;
+      previousInside = currentInside;
+    }
+    return output;
+  }
+
+  double _cameraDepth(Vector3 point) =>
+      (point - sceneInfo.position).dot(_cameraForward);
 
   /// 裁剪到屏幕边界
   List<Offset> _clipToScreenBounds(List<Offset> vertices, Size size) {
@@ -458,36 +494,12 @@ class ScenePainter extends CustomPainter {
 
   /// 3D到2D投影变换
   Offset _project3DTo2D(Vector3 point, Size size) {
-    // 构建视图投影矩阵
-    final viewMatrix = ColMat4.lookAtLH(
-      sceneInfo.position,
-      sceneInfo.position + sceneInfo.orientation.normalized,
-      Vector3Unit.up,
-    );
-
-    final projectionMatrix = ColMat4.perspectiveLH(
-      Constants.fieldOfView * math.pi / 180,
-      size.width / size.height,
-      Constants.nearClip,
-      Constants.farClip,
-    );
-
-    final vpMatrix = projectionMatrix * viewMatrix;
     final worldPoint = Vector4(point.x, point.y, point.z, 1);
-    final clipPoint = vpMatrix.multiplyVector4(worldPoint);
+    final clipPoint = _viewProjectionMatrix.multiplyVector4(worldPoint);
+    if (clipPoint.w <= Constants.epsilon) return Offset.infinite;
 
-    double ndcX, ndcY;
-
-    if (clipPoint.w <= 0) {
-      // 处理相机后面的点
-      final w = 0.001; // 避免除零
-      ndcX = clipPoint.x / w;
-      ndcY = clipPoint.y / w;
-    } else {
-      // 正常透视除法
-      ndcX = clipPoint.x / clipPoint.w;
-      ndcY = clipPoint.y / clipPoint.w;
-    }
+    final ndcX = clipPoint.x / clipPoint.w;
+    final ndcY = clipPoint.y / clipPoint.w;
 
     final screenX =
         (ndcX * Constants.ndcScale + Constants.ndcOffset) * size.width;
@@ -501,7 +513,7 @@ class ScenePainter extends CustomPainter {
 
   /// 变换到视图空间（用于可见性判断）
   Vector3 _transformToViewSpace(Vector3 point) {
-    final forward = sceneInfo.orientation.normalized;
+    final forward = _cameraForward;
     final right = Vector3.up.cross(forward).normalized;
     final up = forward.cross(right).normalized;
 
@@ -526,7 +538,7 @@ class ScenePainter extends CustomPainter {
     switch (type) {
       case BlockType.redstoneDust:
         // 暗红 → 亮红，根据信号强度
-        final ratio = powerLevel / 15.0;
+        final ratio = powerLevel / Constants.redstoneMaxPower;
         return Color.lerp(
           const Color(0xFF440000),
           const Color(0xFFFF0000),
@@ -600,19 +612,7 @@ class ScenePainter extends CustomPainter {
   }
 
   void _drawFrustum(Canvas canvas, Size size) {
-    final viewMatrix = ColMat4.lookAtLH(
-      sceneInfo.position,
-      sceneInfo.position + sceneInfo.orientation.normalized,
-      Vector3Unit.up,
-    );
-    final projectionMatrix = ColMat4.perspectiveLH(
-      Constants.fieldOfView * math.pi / 180,
-      size.width / size.height,
-      Constants.nearClip,
-      Constants.farClip,
-    );
-    final vpMatrix = projectionMatrix * viewMatrix;
-    final invViewProj = vpMatrix.inverse();
+    final invViewProj = _viewProjectionMatrix.inverse();
 
     final corners = _frustum.getCorners(invViewProj);
     final screenCorners = corners

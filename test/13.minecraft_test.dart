@@ -109,6 +109,18 @@ void main() {
   });
 
   group('Redstone', () {
+    test('block power remains within the supported range', () {
+      final block = Block(
+        position: const Vector3Int(1, 0, 1),
+        type: BlockType.redstoneDust,
+      );
+
+      block.powerLevel = -1;
+      expect(block.powerLevel, 0);
+      block.powerLevel = Constants.redstoneMaxPower + 1;
+      expect(block.powerLevel, Constants.redstoneMaxPower);
+    });
+
     test(
       'lever powers dust with one-level decay and turns lamp off cleanly',
       () {
@@ -189,9 +201,94 @@ void main() {
         )),
       );
     });
+
+    test('face mesh cache is reused and invalidated by visual state', () {
+      final block = Block(
+        position: const Vector3Int(1, 0, 1),
+        type: BlockType.redstoneDust,
+      );
+      final cache = FaceMeshCache();
+
+      final first = cache.resolve([block]);
+      final second = cache.resolve([block]);
+      expect(identical(first, second), isTrue);
+
+      block.powerLevel = 15;
+      final powered = cache.resolve([block]);
+      expect(identical(first, powered), isFalse);
+      expect(powered.every((face) => face.powerLevel == 15), isTrue);
+    });
+
+    test('BSP draws a floor before an occluding wall', () {
+      final floor = MergedFace(
+        blockType: BlockType.snow,
+        powerLevel: 0,
+        normal: Vector3Int.up,
+        minBounds: const Vector3Int(0, 0, 0),
+        maxBounds: const Vector3Int(6, 0, 4),
+      );
+      final wall = MergedFace(
+        blockType: BlockType.stone,
+        powerLevel: 0,
+        normal: const Vector3Int(-1, 0, 0),
+        minBounds: const Vector3Int(2, 0, 0),
+        maxBounds: const Vector3Int(2, 4, 4),
+      );
+
+      final sorted = FaceDepthSorter.sort(
+        [wall, floor],
+        const Vector3(0, 2, 2),
+        const Vector3(1, 0, 0),
+      );
+
+      final floorIndex = sorted.indexWhere(
+        (face) => face.blockType == BlockType.snow,
+      );
+      final wallIndex = sorted.indexWhere(
+        (face) => face.blockType == BlockType.stone,
+      );
+      expect(floorIndex, isNonNegative);
+      expect(wallIndex, isNonNegative);
+      expect(floorIndex, lessThan(wallIndex));
+    });
   });
 
   group('Scene rendering', () {
+    test('scene painter repaints for geometry and debug revisions', () {
+      const baseInfo = SceneInfo(
+        position: Vector3.zero,
+        orientation: Vector3(0, 0, 1),
+        blocks: [],
+      );
+      const revisedInfo = SceneInfo(
+        position: Vector3.zero,
+        orientation: Vector3(0, 0, 1),
+        blocks: [],
+        revision: 1,
+      );
+      final config = RenderDebugConfig();
+      final oldPainter = ScenePainter(baseInfo, '60 FPS', debugConfig: config);
+
+      expect(
+        ScenePainter(
+          revisedInfo,
+          '60 FPS',
+          debugConfig: config,
+        ).shouldRepaint(oldPainter),
+        isTrue,
+      );
+
+      config.showDebugInfo = true;
+      expect(
+        ScenePainter(
+          baseInfo,
+          '60 FPS',
+          debugConfig: config,
+        ).shouldRepaint(oldPainter),
+        isTrue,
+      );
+    });
+
     test('scene painter renders a generated world without exceptions', () {
       final player = Player(position: const Vector3(24, 34, 24));
       final chunks = ChunkManager(seed: 42)..updateChunks(player.position);
@@ -200,6 +297,27 @@ void main() {
           position: player.position,
           orientation: player.orientation,
           blocks: chunks.getRenderBlocks(player),
+        ),
+        'test',
+      );
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      expect(
+        () => painter.paint(canvas, const Size(320, 180)),
+        returnsNormally,
+      );
+      recorder.endRecording();
+    });
+
+    test('near-plane intersecting geometry renders without exceptions', () {
+      final painter = ScenePainter(
+        SceneInfo(
+          position: const Vector3(1, 0, 0.5),
+          orientation: const Vector3(0, 0, 1),
+          blocks: [
+            Block(position: const Vector3Int(1, 0, 1), type: BlockType.stone),
+          ],
         ),
         'test',
       );

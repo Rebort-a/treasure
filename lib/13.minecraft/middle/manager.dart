@@ -13,7 +13,8 @@ import 'raycast.dart';
 import 'redstone_manager.dart';
 
 /// 游戏管理器
-class Manager with ChangeNotifier implements TickerProvider {
+class Manager with ChangeNotifier {
+  final TickerProvider _vsync;
   late final Ticker _ticker;
   late double _lastTime;
   late double _deltaTime;
@@ -40,7 +41,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     blocks: [],
   );
 
-  Manager() {
+  Manager({required TickerProvider vsync}) : _vsync = vsync {
     _initialize();
   }
 
@@ -61,7 +62,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   void _startGameLoop() {
     _lastTime = 0;
     _deltaTime = 0;
-    _ticker = createTicker(_update);
+    _ticker = _vsync.createTicker(_update);
     _ticker.start();
   }
 
@@ -203,7 +204,7 @@ class Manager with ChangeNotifier implements TickerProvider {
   }
 
   /// 背包栏位类型列表（只读）
-  List<BlockType> get slotTypes => _slotOrder;
+  List<BlockType> get slotTypes => List.unmodifiable(_slotOrder);
 
   /// 获取某类型的数量
   int getCount(BlockType type) => _inventoryCounts[type] ?? 0;
@@ -252,9 +253,6 @@ class Manager with ChangeNotifier implements TickerProvider {
   /// 当前选中方块类型
   BlockType? get currentSelectedType =>
       selectedSlot < _slotOrder.length ? _slotOrder[selectedSlot] : null;
-
-  @override
-  Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
 
   @override
   void dispose() {

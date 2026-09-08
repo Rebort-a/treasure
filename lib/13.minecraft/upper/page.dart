@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../base/constant.dart';
 import '../middle/control_manager.dart';
 import '../middle/manager.dart';
+import 'face_merger.dart';
 import 'scene_render.dart';
 import 'widget.dart';
 
@@ -17,13 +18,15 @@ class MinecraftPage extends StatefulWidget {
   State<MinecraftPage> createState() => _MinecraftPageState();
 }
 
-class _MinecraftPageState extends State<MinecraftPage> {
+class _MinecraftPageState extends State<MinecraftPage>
+    with SingleTickerProviderStateMixin {
   late final Manager manager;
+  final FaceMeshCache _faceMeshCache = FaceMeshCache();
 
   @override
   void initState() {
     super.initState();
-    manager = Manager();
+    manager = Manager(vsync: this);
     manager.addListener(_onManagerUpdate);
     // 确保 widget 挂载后再请求焦点
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -89,18 +92,14 @@ class _MinecraftPageState extends State<MinecraftPage> {
   Widget _buildScene() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return AnimatedBuilder(
-          animation: manager,
-          builder: (context, child) {
-            return CustomPaint(
-              painter: ScenePainter(
-                manager.sceneInfo,
-                manager.debugInfo,
-                debugConfig: manager.debugConfig,
-              ),
-              size: constraints.biggest,
-            );
-          },
+        return CustomPaint(
+          painter: ScenePainter(
+            manager.sceneInfo,
+            manager.debugInfo,
+            debugConfig: manager.debugConfig,
+            faceMeshCache: _faceMeshCache,
+          ),
+          size: constraints.biggest,
         );
       },
     );

@@ -81,30 +81,36 @@ extension BlockTypeProperties on BlockType {
     _ => false,
   };
 
-  bool get isTransparent => [
-    BlockType.leaf,
-    BlockType.water,
-    BlockType.glass,
-    BlockType.ice,
-    BlockType.air,
-  ].contains(this);
+  bool get isTransparent => switch (this) {
+    BlockType.leaf ||
+    BlockType.water ||
+    BlockType.glass ||
+    BlockType.ice ||
+    BlockType.air => true,
+    _ => false,
+  };
 
-  bool get isLiquid => [BlockType.water, BlockType.lava].contains(this);
+  bool get isLiquid => switch (this) {
+    BlockType.water || BlockType.lava => true,
+    _ => false,
+  };
 
-  bool get isOre => [
-    BlockType.coalOre,
-    BlockType.ironOre,
-    BlockType.goldOre,
-    BlockType.diamondOre,
-    BlockType.emeraldOre,
-  ].contains(this);
+  bool get isOre => switch (this) {
+    BlockType.coalOre ||
+    BlockType.ironOre ||
+    BlockType.goldOre ||
+    BlockType.diamondOre ||
+    BlockType.emeraldOre => true,
+    _ => false,
+  };
 
-  bool get isRedstone => [
-    BlockType.redstoneDust,
-    BlockType.redstoneTorch,
-    BlockType.lever,
-    BlockType.redstoneLamp,
-  ].contains(this);
+  bool get isRedstone => switch (this) {
+    BlockType.redstoneDust ||
+    BlockType.redstoneTorch ||
+    BlockType.lever ||
+    BlockType.redstoneLamp => true,
+    _ => false,
+  };
 
   bool get isRedstoneConductor => isRedstone || this == BlockType.air;
 }
@@ -132,8 +138,14 @@ class Block {
   final List<Vector3Int> _vertices;
   late final List<BlockFace> _faces;
 
-  /// 红石信号强度（0-15）
-  int powerLevel = 0;
+  int _powerLevel = 0;
+
+  /// 红石信号强度，始终限制在 0 到 [Constants.redstoneMaxPower]。
+  int get powerLevel => _powerLevel;
+
+  set powerLevel(int value) {
+    _powerLevel = value.clamp(0, Constants.redstoneMaxPower);
+  }
 
   Vector3? _lastCameraPosition;
   List<BlockFace>? _cachedVisibleFaces;

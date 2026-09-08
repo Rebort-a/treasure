@@ -190,6 +190,9 @@ class Constants {
   /// 背包栏位数
   static const int hotbarSlotCount = 9;
 
+  /// 红石最大信号强度
+  static const int redstoneMaxPower = 15;
+
   // ============================
   // 世界生成参数
   // ============================
