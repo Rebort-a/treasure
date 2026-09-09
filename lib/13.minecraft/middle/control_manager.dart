@@ -17,16 +17,11 @@ class ControlManager {
   Vector2 _moveInput = Vector2.zero;
   final Set<LogicalKeyboardKey> _pressedKeys = {};
   bool _jumpRequested = false;
-  Offset? _lastTouchPos;
+  final Map<int, Offset> _lastTouchPos = {};
 
   // 方块交互状态
   bool _isDestroying = false;
   bool _destroyConsumed = false; // 本次长按已摧毁过，需松开再按
-
-  // 移动端手势状态
-  Offset? _touchStartPos;
-  double _touchStartTime = 0;
-  bool _touchMoved = false;
 
   ControlManager(this.player, this.manager)
     : focusNode = FocusNode()..requestFocus();
@@ -114,47 +109,28 @@ class ControlManager {
 
   // ==================== 移动端手势 ====================
 
-  void handlePanStart(DragStartDetails details) {
-    _touchStartPos = details.localPosition;
-    _touchStartTime = DateTime.now().millisecondsSinceEpoch / 1000.0;
-    _touchMoved = false;
-    _lastTouchPos = details.localPosition;
+  /// 按指针分桶记录上次位置，避免多指交替覆盖同一基准导致视角跳变。
+  void handleTouchDown(PointerDownEvent event) {
+    _lastTouchPos[event.pointer] = event.localPosition;
   }
 
-  void handlePanUpdate(DragUpdateDetails details) {
-    if (_touchStartPos != null) {
-      final delta = details.localPosition - _touchStartPos!;
-      if (delta.distance > Constants.tapMoveThreshold) {
-        _touchMoved = true;
-      }
-    }
-
-    if (_lastTouchPos != null) {
-      final delta = details.localPosition - _lastTouchPos!;
-      _lastTouchPos = details.localPosition;
-      player.rotateView(
-        delta.dx * Constants.touchSensitivity,
-        -delta.dy * Constants.touchSensitivity,
-      );
-    }
+  void handleTouchMove(PointerMoveEvent event) {
+    final previous = _lastTouchPos[event.pointer];
+    if (previous == null) return;
+    final delta = event.localPosition - previous;
+    _lastTouchPos[event.pointer] = event.localPosition;
+    player.rotateView(
+      delta.dx * Constants.touchSensitivity,
+      -delta.dy * Constants.touchSensitivity,
+    );
   }
 
-  void handlePanEnd(DragEndDetails details) {
-    _lastTouchPos = null;
+  void handleTouchUp(PointerUpEvent event) {
+    _lastTouchPos.remove(event.pointer);
+  }
 
-    // 未移动 → 点击 → 放置方块
-    if (!_touchMoved && _touchStartPos != null) {
-      final elapsed =
-          DateTime.now().millisecondsSinceEpoch / 1000.0 - _touchStartTime;
-      if (elapsed < Constants.longPressTime) {
-        manager.placeBlock();
-      }
-    }
-
-    // 重置长按状态
-    _isDestroying = false;
-    manager.destroyProgress = 0;
-    _touchStartPos = null;
+  void handleTouchCancel(PointerCancelEvent event) {
+    _lastTouchPos.remove(event.pointer);
   }
 
   void handleLongPressStart(LongPressStartDetails details) {

@@ -161,12 +161,16 @@ class _MinecraftPageState extends State<MinecraftPage> {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () => manager.placeBlock(),
-      onPanStart: cm.handlePanStart,
-      onPanUpdate: cm.handlePanUpdate,
-      onPanEnd: cm.handlePanEnd,
       onLongPressStart: cm.handleLongPressStart,
       onLongPressEnd: cm.handleLongPressEnd,
-      child: Container(color: Colors.transparent),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: cm.handleTouchDown,
+        onPointerMove: cm.handleTouchMove,
+        onPointerUp: cm.handleTouchUp,
+        onPointerCancel: cm.handleTouchCancel,
+        child: Container(color: Colors.transparent),
+      ),
     );
   }
 
