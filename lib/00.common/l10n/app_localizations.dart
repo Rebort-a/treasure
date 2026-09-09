@@ -1202,6 +1202,12 @@ abstract class AppLocalizations {
   /// **'Tower Defense'**
   String get towerDefense;
 
+  /// No description provided for @tank.
+  ///
+  /// In en, this message translates to:
+  /// **'Tank Battle'**
+  String get tank;
+
   /// No description provided for @surrender.
   ///
   /// In en, this message translates to:

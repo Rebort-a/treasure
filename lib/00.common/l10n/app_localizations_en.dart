@@ -601,6 +601,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get towerDefense => 'Tower Defense';
 
   @override
+  String get tank => 'Tank Battle';
+
+  @override
   String get surrender => 'Surrender';
 
   @override

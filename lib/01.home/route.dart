@@ -21,6 +21,8 @@ import '../13.minecraft/upper/page.dart';
 import '../14.tower_defense/page.dart';
 import '../15.memory_card/page.dart';
 import '../16.schulte/page.dart';
+import '../17.tank/local_page.dart';
+import '../17.tank/net_page.dart';
 
 enum LocalItemType {
   animalChess,
@@ -37,6 +39,7 @@ enum LocalItemType {
   towerDefense,
   memoryCard,
   schulte,
+  tank,
 }
 
 enum NetItemType {
@@ -46,6 +49,7 @@ enum NetItemType {
   gobang,
   greedySnake,
   weiqi,
+  tank,
 }
 
 extension NetItemTypeExt on NetItemType {
@@ -83,6 +87,8 @@ extension LocalItemTypeExtension on LocalItemType {
         return MemoryPage();
       case LocalItemType.schulte:
         return SchultePage();
+      case LocalItemType.tank:
+        return LocalTankPage();
     }
   }
 }
@@ -102,6 +108,8 @@ extension NetItemTypeExtension on NetItemType {
         return NetGreedySnakePage(userName: userName, roomInfo: roomInfo);
       case NetItemType.weiqi:
         return GoNetPage(userName: userName, roomInfo: roomInfo);
+      case NetItemType.tank:
+        return NetTankPage(userName: userName, roomInfo: roomInfo);
     }
   }
 }

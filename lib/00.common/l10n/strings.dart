@@ -450,6 +450,8 @@ class S {
         return _l.minecraft;
       case 'towerDefense':
         return _l.towerDefense;
+      case 'tank':
+        return _l.tank;
       default:
         return raw;
     }

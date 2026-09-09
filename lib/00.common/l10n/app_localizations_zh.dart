@@ -598,6 +598,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get towerDefense => '塔防';
 
   @override
+  String get tank => '坦克大战';
+
+  @override
   String get surrender => '投降';
 
   @override
