@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [1.2.2] - 2026-09-09
+13.minecraft voxel game improvements:
+- LRU-evict archived chunk cache to prevent unbounded memory growth
+- Manager self-provides TickerProvider, simplifying page wiring
+- per-pointer touch tracking fixes two-finger view jumping
+- restrict block place/destroy touch to crosshair zone; edge touches no longer misfire
+
+### Added
+- restrict block touch to crosshair zone
+- overhaul world simulation and rendering
+
+### Fixed
+- prevent multitouch view jump by per-pointer tracking
+- randomize minecraft world per entry and fix resting height jitter
+- resolve voxel occlusion artifacts
+
+### Changed
+- LRU-evict archived chunks, self-provide TickerProvider, clean spawn init
+- align test directory structure with lib
+
 ## [1.2.1] - 2026-09-01
 release: Simplify version display in About section
 
