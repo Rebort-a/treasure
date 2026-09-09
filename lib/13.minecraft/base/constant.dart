@@ -188,11 +188,10 @@ class Constants {
   /// 方块放置距离（方块数）
   static const double placeReach = 5.0;
 
-  /// 区分点击和拖拽的像素阈值
-  static const double tapMoveThreshold = 10.0;
-
-  /// 长按触发时间（秒）
-  static const double longPressTime = 0.5;
+  /// 放置/破坏触控有效半径（距屏幕中心十字准星，单位 px）。
+  /// 仅在该半径内的点击/长按才触发方块交互，屏幕边缘的触摸不触发，
+  /// 避免误操作（边缘触摸通常用于转视角或摇杆）。
+  static const double touchActionRadius = 200;
 
   /// 背包栏位数
   static const int hotbarSlotCount = 9;

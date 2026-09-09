@@ -158,19 +158,37 @@ class _MinecraftPageState extends State<MinecraftPage> {
 
   /// 移动端：触摸手势
   Widget _buildMobileGesture(ControlManager cm) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () => manager.placeBlock(),
-      onLongPressStart: cm.handleLongPressStart,
-      onLongPressEnd: cm.handleLongPressEnd,
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: cm.handleTouchDown,
-        onPointerMove: cm.handleTouchMove,
-        onPointerUp: cm.handleTouchUp,
-        onPointerCancel: cm.handleTouchCancel,
-        child: Container(color: Colors.transparent),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final center = Offset(
+          constraints.maxWidth / 2,
+          constraints.maxHeight / 2,
+        );
+        bool nearCrosshair(Offset pos) =>
+            (pos - center).distance <= Constants.touchActionRadius;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTapUp: (details) {
+            if (nearCrosshair(details.localPosition)) manager.placeBlock();
+          },
+          onLongPressStart: (details) {
+            // 仅准星附近的长按才破坏，边缘长按不触发
+            if (nearCrosshair(details.localPosition)) {
+              cm.handleLongPressStart(details);
+            }
+          },
+          onLongPressEnd: cm.handleLongPressEnd,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: cm.handleTouchDown,
+            onPointerMove: cm.handleTouchMove,
+            onPointerUp: cm.handleTouchUp,
+            onPointerCancel: cm.handleTouchCancel,
+            child: Container(color: Colors.transparent),
+          ),
+        );
+      },
     );
   }
 
