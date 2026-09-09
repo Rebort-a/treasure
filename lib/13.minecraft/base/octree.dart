@@ -130,12 +130,28 @@ class OctreeNode {
     return result;
   }
 
+  /// 节点级宽松相交判断，仅用于范围查询的粗筛。
+  ///
+  /// 必须比逐方块 [AABB.contains]（含 epsilon 的包含判断）更宽松：方块中心
+  /// 可能恰好落在节点边界上（边界在两侧子节点都满足包含），此时若用严格
+  /// 相交（要求两侧都留出 epsilon 间隙）会把该方块所在子节点整体误剔除，
+  /// 导致查询丢失本应命中的方块。这里采用「接触即重叠」的包含式判断。
+  bool _queryOverlaps(AABB query) {
+    final n = _aabb;
+    return query.min.x <= n.max.x + Constants.epsilon &&
+        query.max.x >= n.min.x - Constants.epsilon &&
+        query.min.y <= n.max.y + Constants.epsilon &&
+        query.max.y >= n.min.y - Constants.epsilon &&
+        query.min.z <= n.max.z + Constants.epsilon &&
+        query.max.z >= n.min.z - Constants.epsilon;
+  }
+
   /// 范围查询
   List<Block> queryRange(AABB queryAABB) {
     final result = <Block>[];
 
-    // 检查节点与查询范围是否相交
-    if (!queryAABB.intersects(_aabb.toAABB())) return result;
+    // 检查节点与查询范围是否相交（包含式粗筛，见 [_queryOverlaps]）
+    if (!_queryOverlaps(queryAABB)) return result;
 
     // 添加当前节点中的方块
     for (final block in _blocks) {

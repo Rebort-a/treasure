@@ -31,6 +31,10 @@ class ChunkManager {
     return VoxelCoordinates.worldToChunk(worldPos, chunkSize);
   }
 
+  /// 指定 (x, z) 列的地表高度（仅地形，不含结构），用于选择出生点。
+  int surfaceHeightAt(int x, int z) =>
+      _worldGenerator.surfaceHeightAt(x, z);
+
   /// 区块更新
   void updateChunks(Vector3 playerPos) {
     final playerChunk = getChunkCoord(playerPos);

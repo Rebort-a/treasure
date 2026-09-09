@@ -26,6 +26,10 @@ class WorldGenerator {
     _generateStructures(chunk);
   }
 
+  /// 指定 (x, z) 列的地表高度（仅地形，不含树木等结构）。
+  /// 用于在不加载区块的情况下估算出生点高度。
+  int surfaceHeightAt(int x, int z) => _columnInfo(x, z).surfaceY;
+
   void _generateTerrain(Chunk chunk) {
     for (var localX = _half; localX < _chunkSize; localX += _blockSize) {
       for (var localZ = _half; localZ < _chunkSize; localZ += _blockSize) {

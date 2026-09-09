@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../base/block.dart';
 import '../base/constant.dart';
-import 'face_merger.dart';
-import '../base/matrix.dart';
-import 'occlusion_culler.dart';
 import '../base/vector.dart';
-import 'frustum.dart';
+import '../base/matrix.dart';
 import '../middle/common.dart';
+import 'face_merger.dart';
+import 'occlusion_culler.dart';
+import 'frustum.dart';
 
 /// 场景渲染器
 class ScenePainter extends CustomPainter {

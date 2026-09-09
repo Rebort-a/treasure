@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -47,15 +49,46 @@ class Manager with ChangeNotifier {
 
   /// 初始化游戏
   void _initialize() {
-    _player = Player(position: Vector3(24, 64, 24))
+    // 每次进入页面使用随机种子，保证世界各不相同
+    _chunkManager = ChunkManager(seed: math.Random().nextInt(1 << 31));
+    _redstoneManager = RedstoneManager();
+
+    // 在出生列地表上方出生：避免卡进地形，也不会从过高处坠落。
+    // 出生坐标取奇数，使该列正好存在地形方块（地形按奇数坐标生成）。
+    const spawnX = 23;
+    const spawnZ = 23;
+    final surfaceY = _chunkManager.surfaceHeightAt(spawnX, spawnZ);
+    // 先加载出生列所在区块，以便探测含树木在内的真实最高实体方块
+    _chunkManager.updateChunks(
+      Vector3(spawnX.toDouble(), surfaceY.toDouble(), spawnZ.toDouble()),
+    );
+    while (_chunkManager.hasPendingChunks) {
+      _chunkManager.processLoadQueue();
+    }
+    final topY = _highestSolidAt(spawnX, surfaceY, spawnZ);
+
+    _player = Player(
+          position: Vector3(
+        spawnX.toDouble(),
+        topY + 5.25, // 脚部位于 topY+3，落在最高方块顶面(topY+1)之上 2 格
+        spawnZ.toDouble(),
+      ))
       ..rotateView(0, -0.5); // 初始向下看约 29°
     _controlManager = ControlManager(_player, this);
-    _chunkManager = ChunkManager();
-    _redstoneManager = RedstoneManager();
     _chunkManager.updateChunks(_player.position);
     _addStarterInventory();
     _updateVisibleBlocks();
     _startGameLoop();
+  }
+
+  /// 扫描 (x, surfaceY, z) 列，返回最高非穿透方块的中心 y。
+  /// 须在出生列区块已加载后调用，结果含树木、仙人掌等结构。
+  int _highestSolidAt(int x, int surfaceY, int z) {
+    for (var y = surfaceY + 12; y >= surfaceY - 4; y -= Constants.blockSize) {
+      final block = _chunkManager.getBlock(Vector3Int(x, y, z));
+      if (block != null && !block.type.isPenetrate) return y;
+    }
+    return surfaceY;
   }
 
   /// 开始游戏循环
