@@ -14,7 +14,10 @@ class ChunkManager {
   static const int chunkSize = Constants.chunkBlockCount * Constants.blockSize;
   static const int horizontalDistance = Constants.loadChunkHorizontalCount;
   static const int verticalDistance = Constants.loadChunkVerticalCount;
-  final Map<Vector3Int, Chunk> _archivedBlocks = HashMap();
+  /// 已生成区块缓存，按访问顺序排列（队首=最久未访问）。命中或生成时
+  /// 重新插入到队尾以更新 LRU 顺序，超出 [Constants.maxArchivedChunks]
+  /// 后从队首淘汰冷区块。
+  final LinkedHashMap<Vector3Int, Chunk> _archivedBlocks = LinkedHashMap();
   final Map<Vector3Int, Chunk> _loadedChunks = HashMap();
   final Queue<Vector3Int> _chunkLoadQueue = Queue();
   late final WorldGenerator _worldGenerator;
@@ -116,15 +119,44 @@ class ChunkManager {
 
   /// 加载单个区块
   void _loadChunk(Vector3Int chunkCoord) {
-    if (!_loadedChunks.containsKey(chunkCoord)) {
-      if (_archivedBlocks.containsKey(chunkCoord)) {
-        _loadedChunks[chunkCoord] = _archivedBlocks[chunkCoord]!;
-      } else {
-        final chunk = Chunk(chunkCoord);
-        _worldGenerator.generateChunk(chunk);
-        _archivedBlocks[chunkCoord] = chunk;
-        _loadedChunks[chunkCoord] = chunk;
+    if (_loadedChunks.containsKey(chunkCoord)) return;
+
+    final cached = _archivedBlocks.remove(chunkCoord);
+    if (cached != null) {
+      // 命中缓存：已生成，重新插入到队尾以更新 LRU 顺序
+      _archivedBlocks[chunkCoord] = cached;
+      _loadedChunks[chunkCoord] = cached;
+    } else {
+      // 未命中：新建并生成，插入缓存队尾
+      final chunk = Chunk(chunkCoord);
+      _worldGenerator.generateChunk(chunk);
+      _archivedBlocks[chunkCoord] = chunk;
+      _loadedChunks[chunkCoord] = chunk;
+    }
+
+    _evictColdChunks();
+  }
+
+  /// 淘汰超出 [Constants.maxArchivedChunks] 上限的最久未访问区块。
+  ///
+  /// [LinkedHashMap] 按插入序排列，队首为最旧。仅淘汰当前既未加载
+  /// （[_loadedChunks]）也不在待加载集合（[_desiredChunks]）内的冷区块；
+  /// 命中的热区块移到队尾本轮跳过。上限远大于最大同时加载区块数，故总
+  /// 能淘汰到冷区块，guard 仅作兜底防御，避免极端情况下死循环。
+  void _evictColdChunks() {
+    var guard = 0;
+    while (_archivedBlocks.length > Constants.maxArchivedChunks &&
+        guard < _archivedBlocks.length) {
+      guard++;
+      final oldestCoord = _archivedBlocks.keys.first;
+      if (_loadedChunks.containsKey(oldestCoord) ||
+          _desiredChunks.contains(oldestCoord)) {
+        // 热区块不可淘汰，移到队尾稍后处理
+        final chunk = _archivedBlocks.remove(oldestCoord)!;
+        _archivedBlocks[oldestCoord] = chunk;
+        continue;
       }
+      _archivedBlocks.remove(oldestCoord);
     }
   }
 

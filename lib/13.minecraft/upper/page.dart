@@ -18,15 +18,14 @@ class MinecraftPage extends StatefulWidget {
   State<MinecraftPage> createState() => _MinecraftPageState();
 }
 
-class _MinecraftPageState extends State<MinecraftPage>
-    with SingleTickerProviderStateMixin {
+class _MinecraftPageState extends State<MinecraftPage> {
   late final Manager manager;
   final FaceMeshCache _faceMeshCache = FaceMeshCache();
 
   @override
   void initState() {
     super.initState();
-    manager = Manager(vsync: this);
+    manager = Manager();
     manager.addListener(_onManagerUpdate);
     // 确保 widget 挂载后再请求焦点
     WidgetsBinding.instance.addPostFrameCallback((_) {
