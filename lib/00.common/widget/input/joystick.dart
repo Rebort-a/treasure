@@ -9,7 +9,19 @@ class Joystick extends StatefulWidget {
   /// 松手回调函数，当摇杆被释放时调用
   final void Function() onRelease;
 
-  const Joystick({super.key, required this.onDrag, required this.onRelease});
+  /// 摇杆球图标（可选，如开火按钮）
+  final IconData? icon;
+
+  /// 摇杆球颜色（可选）
+  final Color? color;
+
+  const Joystick({
+    super.key,
+    required this.onDrag,
+    required this.onRelease,
+    this.icon,
+    this.color,
+  });
 
   @override
   State<Joystick> createState() => _JoystickState();
@@ -41,10 +53,13 @@ class _JoystickState extends State<Joystick> {
             child: Container(
               width: _stickRadius * 2,
               height: _stickRadius * 2,
-              decoration: const BoxDecoration(
-                color: Colors.grey,
+              decoration: BoxDecoration(
+                color: widget.color ?? Colors.grey,
                 shape: BoxShape.circle,
               ),
+              child: widget.icon != null
+                  ? Icon(widget.icon, color: Colors.white, size: 24)
+                  : null,
             ),
           ),
         ),

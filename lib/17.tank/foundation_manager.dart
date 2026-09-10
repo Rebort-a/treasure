@@ -37,6 +37,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
   bool baseDestroyed = false;
   int score = 0;
   bool _gameOver = false;
+  bool playerAiming = false; // 右摇杆按住持续开火（子类可写）
 
   int _enemyIdSeq = 0; // AI key 递减序列
   int _spawnCursor = 0; // 出生点轮换
@@ -83,6 +84,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
     final dt = deltaTime.clamp(0.004, 0.02);
 
     _updateTanks(dt);
+    _handlePlayerAutoFire();
     _updateBullets(dt);
     _checkBulletWallCollisions();
     _checkTankBulletHits();
@@ -112,28 +114,32 @@ abstract class FoundationalTankManager extends ChangeNotifier
       final speed = tank.isPlayer
           ? tankSpeed
           : (tank.enemyType?.speed ?? tankSpeed);
-      final move = tank.direction.vector * speed * dt;
-      // 先在垂直轴对齐到格子中心（转向后能沿走廊，撞墙时也不会贴墙卡死）
-      final aligned = _alignAxis(tank.position, tank.direction);
-      if (_canMoveTo(aligned, tank)) tank.position = aligned;
-      // 再沿当前方向前进
+      final move = Offset.fromDirection(tank.angle) * speed * dt;
+      // 自由移动：沿当前方向直线行进，撞墙即停（不做轨道吸附）
       final newPos = tank.position + move;
-      if (_canMoveTo(newPos, tank)) tank.position = newPos;
+      if (_canMoveTo(newPos, tank)) {
+        tank.position = newPos;
+      } else {
+        // 贴墙转向辅助：沿垂直轴微调，让坦克贴墙滑行而非卡死
+        final v = Offset.fromDirection(tank.angle);
+        final perp = Offset(-v.dy, v.dx);
+        final step = speed * dt;
+        for (final d in <double>[-step, step, -step * 2, step * 2]) {
+          final tryPos = tank.position + perp * d + move;
+          if (_canMoveTo(tryPos, tank)) {
+            tank.position = tryPos;
+            break;
+          }
+        }
+      }
     }
   }
 
-  /// 格子中心坐标（坦克轨道对齐用）
-  double _snapCenter(double v) =>
-      (((v - tileSize / 2) / tileSize).round()) * tileSize + tileSize / 2;
-
-  /// 将坦克在移动方向的垂直轴对齐到最近格子中心，
-  /// 便于转向后沿走廊行进（经典坦克吸附手感）
-  Offset _alignAxis(Offset pos, Direction dir) {
-    if (dir == Direction.left || dir == Direction.right) {
-      return Offset(pos.dx, _snapCenter(pos.dy));
-    } else {
-      return Offset(_snapCenter(pos.dx), pos.dy);
-    }
+  /// 右摇杆按住时持续开火（受冷却节流）
+  void _handlePlayerAutoFire() {
+    if (!playerAiming) return;
+    final t = tanks[identity];
+    if (t != null && t.canFire) updatePlayerFire();
   }
 
   bool _canMoveTo(Offset newPos, Tank self) {
@@ -148,7 +154,10 @@ abstract class FoundationalTankManager extends ChangeNotifier
     if (_rectBlockedByMap(r)) return false;
     for (final other in tanks.values) {
       if (identical(other, self) || !other.isAlive) continue;
-      if (other.rect.overlaps(r)) return false;
+      if (other.rect.overlaps(r)) {
+        // 已重叠（如重生叠加）允许脱开，仅阻止新进入的重叠
+        if (!other.rect.overlaps(self.rect)) return false;
+      }
     }
     return true;
   }
@@ -287,8 +296,8 @@ abstract class FoundationalTankManager extends ChangeNotifier
   void _respawn(Tank tank) {
     final spawn = playerSpawnPoints[tank.playerId % playerSpawnPoints.length];
     tank.position = spawn;
-    tank.direction = Direction.up;
-    tank.turretDirection = Direction.up;
+    tank.angle = -pi / 2;
+    tank.turretAngle = -pi / 2;
     tank.health = 1;
     tank.isAlive = true;
     tank.invincibleTimer = invincibleTime;
@@ -315,8 +324,8 @@ abstract class FoundationalTankManager extends ChangeNotifier
     final pid = key % playerColors.length;
     tanks[key] = Tank(
       position: playerSpawnPoints[pid],
-      direction: Direction.up,
-      turretDirection: Direction.up,
+      angle: -pi / 2,
+      turretAngle: -pi / 2,
       health: 1,
       playerId: pid,
       color: playerColors[pid],
@@ -332,8 +341,9 @@ abstract class FoundationalTankManager extends ChangeNotifier
     if (!tank.canFire) return;
     tank.reloadTimer = tank.isPlayer ? playerReloadTime : reloadTime;
     final bullet = Bullet(
-      position: tank.position + tank.turretDirection.vector * tankSize * 0.6,
-      direction: tank.turretDirection,
+      position: tank.position +
+          Offset.fromDirection(tank.turretAngle) * tankSize * 0.6,
+      angle: tank.turretAngle,
       ownerId: tank.playerId,
       damage: tank.isPlayer ? (tank.starLevel >= 3 ? 2 : 1) : 1,
     );
@@ -366,8 +376,8 @@ abstract class FoundationalTankManager extends ChangeNotifier
     _spawnCursor++;
     final tank = Tank(
       position: pos,
-      direction: Direction.down,
-      turretDirection: Direction.down,
+      angle: pi / 2,
+      turretAngle: pi / 2,
       health: type.health,
       playerId: -1,
       color: aiColor,
@@ -395,30 +405,32 @@ abstract class FoundationalTankManager extends ChangeNotifier
 
   void _decideAi(int key, Tank tank) {
     // 撞墙或随机概率转向（偏向朝下追击玩家/基地）
-    final ahead = tank.position + tank.direction.vector * tankSize;
+    final ahead = tank.position + Offset.fromDirection(tank.angle) * tankSize;
     final blocked = !_canMoveTo(ahead, tank);
     if (blocked || _random.nextDouble() < 0.3) {
       final dirs = Direction.values;
-      Direction chosen = tank.direction;
+      var chosenAngle = tank.angle;
+      Direction? chosenDir;
       // 偏向向下
       for (int i = 0; i < 4; i++) {
         final d = dirs[_random.nextInt(4)];
         final test = tank.position + d.vector * tankSize;
         if (_canMoveTo(test, tank)) {
-          chosen = d;
+          chosenAngle = d.angle;
+          chosenDir = d;
           if (d == Direction.down || _random.nextDouble() < 0.5) break;
         }
       }
-      if (chosen != tank.direction) {
-        tank.direction = chosen;
-        tank.turretDirection = chosen;
-        broadcastAiTurn(key, chosen);
+      if (chosenDir != null && (chosenAngle - tank.angle).abs() > 0.01) {
+        tank.angle = chosenAngle;
+        tank.turretAngle = chosenAngle;
+        broadcastAiTurn(key, chosenDir);
       }
     }
     // 开火：冷却好则大概率射击
     if (tank.canFire && _random.nextDouble() < 0.5) {
       fire(tank);
-      broadcastAiFire(key, tank.turretDirection);
+      broadcastAiFire(key);
     }
   }
 
@@ -544,10 +556,17 @@ abstract class FoundationalTankManager extends ChangeNotifier
 
   void handleGameOverCallback();
 
-  /// 玩家车身/炮塔方向输入：local 直接改本地，net 发 action 转发
-  void updatePlayerDirection(Direction dir);
+  /// 玩家移动方向输入（弧度）：local 直接改本地，net 发 action 转发。
+  /// 右摇杆未使用时，炮塔跟随车身方向。
+  void updatePlayerMove(double angle);
 
-  /// 玩家开火：local 直接 fire，net 发 action 转发
+  /// 玩家瞄准（弧度）并持续开火（右摇杆按住）：local 改本地，net 转发
+  void updatePlayerAim(double angle);
+
+  /// 玩家停止瞄准（右摇杆松开）
+  void updatePlayerAimStop();
+
+  /// 玩家单次开火：local 直接 fire，net 发 action 转发
   void updatePlayerFire();
 
   /// 玩家停止移动：local 设 moving=false，net 发 action 转发
@@ -560,7 +579,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
 
   // 广播钩子（local 全部空实现；net 发 action）
   void broadcastAiTurn(int tankKey, Direction dir) {}
-  void broadcastAiFire(int tankKey, Direction dir) {}
+  void broadcastAiFire(int tankKey) {}
   void broadcastSpawn(int tankKey, Tank tank) {}
   void broadcastHit(int tankKey, bool isBase) {}
 

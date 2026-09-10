@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -24,24 +22,10 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  /// 当前按下的方向（按按下顺序记录）。
-  /// 多键同按时取最后一个；repeat 不重复入队，避免覆盖最新方向。
+  /// 当前按下的方向（按按下顺序），用于多键同按时取最新方向
   final List<Direction> _pressed = [];
 
   FoundationalTankManager get manager => widget.manager;
-
-  Direction _angleToDirection(double radians) {
-    final deg = (radians * 180 / pi) % 360;
-    if (deg < 0) return _fromDeg(deg + 360);
-    return _fromDeg(deg);
-  }
-
-  Direction _fromDeg(double deg) {
-    if (deg >= 45 && deg < 135) return Direction.down;
-    if (deg >= 135 && deg < 225) return Direction.left;
-    if (deg >= 225 && deg < 315) return Direction.up;
-    return Direction.right;
-  }
 
   KeyEventResult _handleKeyEvent(KeyEvent event) {
     final isDown = event is KeyDownEvent;
@@ -68,12 +52,12 @@ class _GameScreenState extends State<GameScreen> {
     return KeyEventResult.ignored;
   }
 
-  /// 依据当前按下的方向集合应用移动：空则停止，否则取最新按下方向
+  /// 依据按下的方向集合应用移动：空则停止，否则取最新按下方向（车身+炮塔同向）
   void _applyMove() {
     if (_pressed.isEmpty) {
       manager.updatePlayerStop();
     } else {
-      manager.updatePlayerDirection(_pressed.last);
+      manager.updatePlayerMove(_pressed.last.angle);
     }
   }
 
@@ -145,14 +129,13 @@ class _GameScreenState extends State<GameScreen> {
               );
             },
           ),
+          // 左摇杆：移动（无极方向）
           Positioned(
             left: 24,
             bottom: 32,
             child: Joystick(
-              onDrag: (radians) =>
-                  manager.updatePlayerDirection(_angleToDirection(radians)),
+              onDrag: (radians) => manager.updatePlayerMove(radians),
               onRelease: () {
-                // 键盘仍按住时恢复键盘方向，否则停止
                 if (_pressed.isEmpty) {
                   manager.updatePlayerStop();
                 } else {
@@ -161,10 +144,16 @@ class _GameScreenState extends State<GameScreen> {
               },
             ),
           ),
+          // 右摇杆：瞄准 + 按住持续开火（无极方向）
           Positioned(
-            right: 28,
-            bottom: 40,
-            child: _FireButton(onTap: manager.updatePlayerFire),
+            right: 24,
+            bottom: 32,
+            child: Joystick(
+              icon: Icons.local_fire_department,
+              color: Colors.deepOrange.withValues(alpha: 0.85),
+              onDrag: (radians) => manager.updatePlayerAim(radians),
+              onRelease: () => manager.updatePlayerAimStop(),
+            ),
           ),
         ],
       ),
@@ -235,30 +224,6 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// 开火按钮：按下即开火（受冷却限制）
-class _FireButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _FireButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color: Colors.deepOrange.withValues(alpha: 0.8),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white54, width: 3),
-        ),
-        child: const Icon(Icons.local_fire_department, color: Colors.white),
       ),
     );
   }

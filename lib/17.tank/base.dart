@@ -9,7 +9,7 @@ const double tileSize = 40;
 const double mapSize = gridSize * tileSize; // 520
 
 // ---- 坦克/子弹常量 ----
-const double tankSize = tileSize * 0.92;
+const double tankSize = tileSize * 0.8;
 const double bulletSize = tileSize * 0.2;
 const double tankSpeed = 120; // px/s
 const double fastTankSpeed = 200;
@@ -45,7 +45,8 @@ const Color waterColor = Color(0xFF2196F3);
 const Color baseColor = Color(0xFFFFC107);
 const Color baseDestroyedColor = Color(0xFF616161);
 const Color aiColor = Color(0xFFB0BEC5);
-const Color bulletColor = Color(0xFFFFEB3B);
+const Color bulletColor = Color(0xFFFFEB3B); // 玩家子弹
+const Color enemyBulletColor = Color(0xFFFF5252); // 敌方子弹
 const List<Color> playerColors = [
   Color(0xFFFFD600), // P1 黄
   Color(0xFF4CAF50), // P2 绿
@@ -163,8 +164,8 @@ class Tile {
 /// 坦克
 class Tank {
   Offset position; // 中心像素坐标
-  Direction direction; // 车身朝向
-  Direction turretDirection; // 炮塔朝向
+  double angle; // 车身朝向（弧度，0=右，顺时针为正）
+  double turretAngle; // 炮塔朝向（弧度）
   int health;
   double reloadTimer; // 开火冷却剩余
   int starLevel; // 玩家星级 0-3
@@ -178,11 +179,11 @@ class Tank {
 
   Tank({
     required this.position,
-    required this.direction,
+    required this.angle,
     required this.health,
     required this.playerId,
     required this.color,
-    this.turretDirection = Direction.up,
+    this.turretAngle = -pi / 2,
     this.starLevel = 0,
     this.isAlive = true,
     this.reloadTimer = 0,
@@ -206,8 +207,8 @@ class Tank {
 
   Map<String, dynamic> toJson() => {
     'px': ConvertUtils.offsetToJson(position),
-    'dir': direction.name,
-    'tDir': turretDirection.name,
+    'ang': angle,
+    'tAng': turretAngle,
     'hp': health,
     'reload': reloadTimer,
     'star': starLevel,
@@ -222,11 +223,11 @@ class Tank {
 
   static Tank fromJson(Map<String, dynamic> json) => Tank(
     position: ConvertUtils.offsetFromJson(json['px'] as Map<String, dynamic>),
-    direction: Direction.fromName(json['dir'] as String),
+    angle: (json['ang'] as num).toDouble(),
     health: json['hp'] as int,
     playerId: json['pid'] as int,
     color: ConvertUtils.colorFromJson(json['color'] as Map<String, dynamic>),
-    turretDirection: Direction.fromName(json['tDir'] as String),
+    turretAngle: (json['tAng'] as num?)?.toDouble() ?? -pi / 2,
     starLevel: json['star'] as int,
     isAlive: json['alive'] as bool,
     reloadTimer: (json['reload'] as num).toDouble(),
@@ -242,18 +243,18 @@ class Tank {
 /// 子弹
 class Bullet {
   Offset position;
-  Direction direction;
+  double angle; // 飞行方向（弧度）
   int ownerId; // 发射坦克的 playerId（-1 表 AI）
   int damage;
 
   Bullet({
     required this.position,
-    required this.direction,
+    required this.angle,
     required this.ownerId,
     this.damage = 1,
   });
 
-  Offset get velocity => direction.vector * bulletSpeed;
+  Offset get velocity => Offset.fromDirection(angle) * bulletSpeed;
 
   Rect get rect => Rect.fromCenter(
     center: position,
@@ -263,14 +264,14 @@ class Bullet {
 
   Map<String, dynamic> toJson() => {
     'px': ConvertUtils.offsetToJson(position),
-    'dir': direction.name,
+    'ang': angle,
     'owner': ownerId,
     'dmg': damage,
   };
 
   static Bullet fromJson(Map<String, dynamic> json) => Bullet(
     position: ConvertUtils.offsetFromJson(json['px'] as Map<String, dynamic>),
-    direction: Direction.fromName(json['dir'] as String),
+    angle: (json['ang'] as num).toDouble(),
     ownerId: json['owner'] as int,
     damage: json['dmg'] as int,
   );

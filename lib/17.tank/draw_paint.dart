@@ -158,23 +158,18 @@ class TankPainter extends CustomPainter {
     final track = const Color(0xFF37474F).withValues(alpha: alpha);
     final turret = Color.lerp(tank.color, Colors.black, 0.3)!
         .withValues(alpha: alpha);
+    final half = tankSize / 2;
 
+    // 车身（朝移动方向 angle）
     canvas.save();
     canvas.translate(tank.position.dx, tank.position.dy);
-    // 默认绘制朝上，旋转到实际方向
-    canvas.rotate(tank.turretDirection.angle + pi / 2);
-
-    final half = tankSize / 2;
-    final bodyRect = Rect.fromCenter(
-      center: Offset.zero,
-      width: tankSize * 0.8,
-      height: tankSize,
-    );
-    // 履带（左右两竖条）
+    canvas.rotate(tank.angle + pi / 2);
+    // 履带底
     canvas.drawRect(
-      bodyRect,
+      Rect.fromCenter(center: Offset.zero, width: tankSize * 0.8, height: tankSize),
       Paint()..color = track,
     );
+    // 左右履带
     canvas.drawRect(
       Rect.fromLTWH(-half, -half, tankSize * 0.18, tankSize),
       Paint()..color = body,
@@ -188,9 +183,23 @@ class TankPainter extends CustomPainter {
       Rect.fromCenter(center: Offset.zero, width: tankSize * 0.62, height: tankSize * 0.7),
       Paint()..color = body,
     );
-    // 炮塔
+    // 车头标识方块（区分正反，与两侧履带保持间距）
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: Offset(0, -tankSize * 0.2),
+        width: tankSize * 0.24,
+        height: tankSize * 0.16,
+      ),
+      Paint()..color = Colors.black,
+    );
+    canvas.restore();
+
+    // 炮塔（朝瞄准方向 turretAngle）
+    canvas.save();
+    canvas.translate(tank.position.dx, tank.position.dy);
+    canvas.rotate(tank.turretAngle + pi / 2);
     canvas.drawCircle(Offset.zero, tankSize * 0.2, Paint()..color = turret);
-    // 炮管（朝上）
+    // 炮管（朝上，随炮塔旋转）
     canvas.drawRect(
       Rect.fromLTWH(-tankSize * 0.06, -half, tankSize * 0.12, tankSize * 0.5),
       Paint()..color = track,
@@ -200,9 +209,13 @@ class TankPainter extends CustomPainter {
 
   // ---- 子弹 ----
   void _drawBullets(Canvas canvas) {
-    final paint = Paint()..color = bulletColor;
     for (final b in manager.bullets) {
-      canvas.drawCircle(b.position, bulletSize / 2, paint);
+      final isPlayer = b.ownerId >= 0;
+      canvas.drawCircle(
+        b.position,
+        bulletSize / 2,
+        Paint()..color = isPlayer ? bulletColor : enemyBulletColor,
+      );
     }
   }
 

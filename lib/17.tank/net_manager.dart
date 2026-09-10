@@ -80,15 +80,21 @@ class NetTankManager extends FoundationalTankManager {
       case 'move':
         final t = tanks[message.id];
         if (t != null) {
-          final d = Direction.fromName(c['dir'] as String);
-          t.direction = d;
-          t.turretDirection = d;
+          t.angle = (c['ang'] as num).toDouble();
+          t.turretAngle = (c['tAng'] as num).toDouble();
           t.moving = true;
         }
         break;
       case 'stop':
         final t = tanks[message.id];
         if (t != null) t.moving = false;
+        break;
+      case 'aim':
+        final t = tanks[message.id];
+        if (t != null) t.turretAngle = (c['ang'] as num).toDouble();
+        break;
+      case 'aimStop':
+        // 仅 owner 维护 aiming 状态；client 无需处理
         break;
       case 'fire':
         final t = tanks[message.id];
@@ -98,16 +104,13 @@ class NetTankManager extends FoundationalTankManager {
         final t = tanks[c['key'] as int];
         if (t != null) {
           final d = Direction.fromName(c['dir'] as String);
-          t.direction = d;
-          t.turretDirection = d;
+          t.angle = d.angle;
+          t.turretAngle = d.angle;
         }
         break;
       case 'aiFire':
         final t = tanks[c['key'] as int];
-        if (t != null) {
-          t.turretDirection = Direction.fromName(c['dir'] as String);
-          fire(t);
-        }
+        if (t != null) fire(t);
         break;
       case 'spawn':
         final key = c['key'] as int;
@@ -140,16 +143,33 @@ class NetTankManager extends FoundationalTankManager {
   // ---- 玩家输入：本地立即响应 + 广播 ----
 
   @override
-  void updatePlayerDirection(Direction dir) {
+  void updatePlayerMove(double angle) {
     final t = tanks[identity];
     if (t == null || !t.isAlive) return;
-    t.direction = dir;
-    t.turretDirection = dir;
+    t.angle = angle;
+    if (!playerAiming) t.turretAngle = angle;
     t.moving = true;
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'move', 'dir': dir.name}),
+      json.encode({'actionType': 'move', 'ang': angle, 'tAng': t.turretAngle}),
     );
+  }
+
+  @override
+  void updatePlayerAim(double angle) {
+    final t = tanks[identity];
+    if (t == null || !t.isAlive) return;
+    t.turretAngle = angle;
+    playerAiming = true;
+    engine.sendNetworkMessage(
+      MessageType.action,
+      json.encode({'actionType': 'aim', 'ang': angle}),
+    );
+  }
+
+  @override
+  void updatePlayerAimStop() {
+    playerAiming = false;
   }
 
   @override
@@ -184,10 +204,10 @@ class NetTankManager extends FoundationalTankManager {
   }
 
   @override
-  void broadcastAiFire(int tankKey, Direction dir) {
+  void broadcastAiFire(int tankKey) {
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'aiFire', 'key': tankKey, 'dir': dir.name}),
+      json.encode({'actionType': 'aiFire', 'key': tankKey}),
     );
   }
 

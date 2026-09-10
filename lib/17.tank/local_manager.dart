@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'base.dart';
 import 'foundation_manager.dart';
 
 /// 单机模式：权威方，玩家与 AI 均由基类共享逻辑驱动。
@@ -26,12 +25,25 @@ class LocalTankManager extends FoundationalTankManager {
   void handleGameOverCallback() {}
 
   @override
-  void updatePlayerDirection(Direction dir) {
+  void updatePlayerMove(double angle) {
     final tank = tanks[identity];
     if (tank == null || !tank.isAlive) return;
-    tank.direction = dir;
-    tank.turretDirection = dir;
+    tank.angle = angle;
+    if (!playerAiming) tank.turretAngle = angle;
     tank.moving = true;
+  }
+
+  @override
+  void updatePlayerAim(double angle) {
+    final tank = tanks[identity];
+    if (tank == null || !tank.isAlive) return;
+    tank.turretAngle = angle;
+    playerAiming = true;
+  }
+
+  @override
+  void updatePlayerAimStop() {
+    playerAiming = false;
   }
 
   @override
