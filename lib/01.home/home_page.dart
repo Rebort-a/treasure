@@ -11,14 +11,16 @@ import 'route.dart';
 import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final HomeManager? manager;
+
+  const HomePage({super.key, this.manager});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  final _homeManager = HomeManager();
+  late final HomeManager _homeManager;
   List<CreatedRoomInfo> get _createdRooms => _homeManager.createdRooms.value;
   List<RoomInfo> get _othersRooms => _homeManager.othersRooms.value;
 
@@ -29,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _homeManager = widget.manager ?? HomeManager();
     _homeManager.createdRooms.addListener(_onRoomsChanged);
     _homeManager.othersRooms.addListener(_onRoomsChanged);
   }

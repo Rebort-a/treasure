@@ -74,12 +74,7 @@ class StorageService {
 
   Future<void> write(String name, Map<String, dynamic> data) async {
     if (kIsWeb || !_initialized) return;
-    try {
-      final file = File('${_baseDir.path}/$name.json');
-      await file.writeAsString(jsonEncode(data));
-    } catch (e) {
-      debugPrint('[Storage] Write $name failed: $e');
-    }
+    await _writeJson(name, data, operation: 'Write');
   }
 
   Future<List<dynamic>> readList(String name) async {
@@ -97,11 +92,30 @@ class StorageService {
 
   Future<void> writeList(String name, List<dynamic> data) async {
     if (kIsWeb || !_initialized) return;
+    await _writeJson(name, data, operation: 'WriteList');
+  }
+
+  Future<void> _writeJson(
+    String name,
+    Object data, {
+    required String operation,
+  }) async {
+    final file = File('${_baseDir.path}/$name.json');
+    // 唯一临时文件避免同一 key 的并发保存互相覆盖/rename 失败。
+    final nonce = DateTime.now().microsecondsSinceEpoch;
+    final tmp = File('${_baseDir.path}/.$name.$nonce.json.tmp');
     try {
-      final file = File('${_baseDir.path}/$name.json');
-      await file.writeAsString(jsonEncode(data));
+      await tmp.writeAsString(jsonEncode(data));
+      await tmp.rename(file.path);
     } catch (e) {
-      debugPrint('[Storage] WriteList $name failed: $e');
+      debugPrint('[Storage] $operation $name failed: $e');
+    } finally {
+      // rename 成功后 tmp 已不存在；失败时清理残留。
+      if (await tmp.exists()) {
+        try {
+          await tmp.delete();
+        } catch (_) {}
+      }
     }
   }
 

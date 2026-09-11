@@ -10,6 +10,10 @@ const String netmask16 = '255.255.0.0';
 class Broadcast {
   static bool get _enabled => !kIsWeb;
 
+  // 复用长生命周期发送 socket，避免每次 sendMessage 都新建+关闭
+  // （发现广播每秒一次，原来 60 socket/分钟 churn）
+  static RawDatagramSocket? _sendSocket;
+
   static Future<RawDatagramSocket> initSocket() async {
     RawDatagramSocket socket = await RawDatagramSocket.bind(
       InternetAddress.anyIPv4,
@@ -23,7 +27,8 @@ class Broadcast {
 
   static Future<void> sendMessage(List<int> data) async {
     if (!_enabled) return;
-    RawDatagramSocket sendSocket = await initSocket();
+    _sendSocket ??= await initSocket();
+    final sendSocket = _sendSocket!;
     sendSocket.send(data, InternetAddress(multicastAddress), multicastPort);
     final interfaces = await NetworkInterface.list(
       includeLoopback: false,
@@ -35,16 +40,23 @@ class Broadcast {
         sendBroadcast(sendSocket, address, netmask16, multicastPort, data);
       }
     }
-    sendSocket.close();
   }
 
-  static Future<void> sendBroadcast(
+  /// 关闭并释放持久发送 socket（应用退出或不再需要广播时调用）。
+  /// 不在 SocketServer.stop 自动调用：多个房间可能共享此 socket，
+  /// 自动关闭会破坏其他房间的广播。
+  static void dispose() {
+    _sendSocket?.close();
+    _sendSocket = null;
+  }
+
+  static void sendBroadcast(
     RawDatagramSocket socket,
     InternetAddress address,
     String netmask,
     int port,
     List<int> data,
-  ) async {
+  ) {
     if (address.type == InternetAddressType.IPv4) {
       final broadcastAddress = _getBroadcastAddress(address.address, netmask);
       socket.send(data, InternetAddress(broadcastAddress), port);

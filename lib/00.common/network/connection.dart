@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/network_config.dart';
+import 'tcp_frame_codec.dart';
 
 typedef DataCallback = void Function(List<int> data);
 typedef DoneCallback = void Function();
@@ -27,8 +29,18 @@ class Connection {
 
   void listen({required DataCallback onData, required DoneCallback onDone}) {
     if (_impl is Socket) {
+      final decoder = TcpFrameDecoder();
       _impl.listen(
-        onData,
+        (List<int> chunk) {
+          try {
+            for (final payload in decoder.add(chunk)) {
+              onData(payload);
+            }
+          } on FormatException {
+            _impl.destroy();
+            onDone();
+          }
+        },
         onDone: onDone,
         onError: (_) => onDone(),
         cancelOnError: true,
@@ -39,7 +51,7 @@ class Connection {
           if (message is List<int>) {
             onData(message);
           } else if (message is String) {
-            onData(message.codeUnits);
+            onData(utf8.encode(message));
           }
         },
         onDone: onDone,
@@ -50,7 +62,7 @@ class Connection {
 
   void send(List<int> data) {
     if (_impl is Socket) {
-      _impl.add(data);
+      _impl.add(TcpFrameCodec.encode(data));
     } else {
       // Web 端必须用 Uint8List 才能发送二进制帧
       _impl.sink.add(Uint8List.fromList(data));

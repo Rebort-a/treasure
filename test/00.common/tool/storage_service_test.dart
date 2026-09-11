@@ -9,8 +9,8 @@ void main() {
     setUp(() async {
       StorageService.instance.resetForTesting();
       // 独立临时目录，避免污染真实 .treasure/ 数据
-      StorageService.instance.overrideBaseDir =
-          await Directory.systemTemp.createTemp('treasure_storage_');
+      StorageService.instance.overrideBaseDir = await Directory.systemTemp
+          .createTemp('treasure_storage_');
     });
 
     tearDown(() async {
@@ -51,6 +51,16 @@ void main() {
 
         // cleanup
         await StorageService.instance.delete(key);
+      });
+
+      test('overwriting an existing key persists the latest value', () async {
+        await StorageService.instance.init();
+        const key = '__test_overwrite__';
+
+        await StorageService.instance.write(key, {'version': 1});
+        await StorageService.instance.write(key, {'version': 2});
+
+        expect(await StorageService.instance.read(key), {'version': 2});
       });
 
       test('read before init returns empty map', () async {

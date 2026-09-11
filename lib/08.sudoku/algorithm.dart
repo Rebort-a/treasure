@@ -5,10 +5,12 @@ class SudokuGenerator {
   late List<List<int>> _sudoku;
   late List<List<int>> _solution;
   late final int _size;
+  final Random _random;
   final int level;
   int target;
 
-  SudokuGenerator({required this.level, required this.target}) {
+  SudokuGenerator({required this.level, required this.target, Random? random})
+    : _random = random ?? Random() {
     _size = level * level;
     _sudoku = List.generate(_size, (i) => List.filled(_size, 0));
     _solution = List.generate(_size, (i) => List.filled(_size, 0));
@@ -41,8 +43,14 @@ class SudokuGenerator {
 
   /// 生成完整解决方案
   void _generateSolution() {
-    _fillDiagonalBoxes();
-    _fillRemaining(0, level);
+    // 随机对角宫并非每次都可由当前确定性回溯顺序扩展成完整盘面。
+    // 失败时必须重置重试，不能忽略 false 后把半成品当作“完整解”。
+    for (int attempt = 0; attempt < 100; attempt++) {
+      _solution = List.generate(_size, (_) => List.filled(_size, 0));
+      _fillDiagonalBoxes();
+      if (_fillRemaining(0, level)) return;
+    }
+    throw StateError('Unable to generate a complete Sudoku solution');
   }
 
   /// 填充对角线上的宫格
@@ -54,13 +62,12 @@ class SudokuGenerator {
 
   /// 填充指定位置的宫格
   void _fillBox(int row, int col) {
-    final random = Random();
     int num;
 
     for (int i = 0; i < level; i++) {
       for (int j = 0; j < level; j++) {
         do {
-          num = random.nextInt(_size) + 1;
+          num = _random.nextInt(_size) + 1;
         } while (!_isNumberUsedInBox(row, col, num));
 
         _solution[row + i][col + j] = num;
@@ -158,7 +165,7 @@ class SudokuGenerator {
   void _removeNumbers() {
     int removed = 0;
     List<int> allCells = List.generate(_size * _size, (index) => index);
-    allCells.shuffle();
+    allCells.shuffle(_random);
 
     // 默认使用回溯法求解器
     final solver = BacktrackingSolver(level: level);
@@ -219,15 +226,48 @@ class BacktrackingSolver extends SudokuSolver {
 
   @override
   int countSolutions(List<List<int>> sudoku, {int limit = 2}) {
+    if (!_isBoardValid(sudoku)) return 0;
     List<List<int>> copy = List.generate(_size, (i) => List.from(sudoku[i]));
     return _backtrackCount(copy, limit);
   }
 
   @override
   List<List<int>> solve(List<List<int>> sudoku) {
+    if (!_isBoardValid(sudoku)) return [];
     List<List<int>> copy = List.generate(_size, (i) => List.from(sudoku[i]));
-    _backtrackSolve(copy);
-    return copy;
+    return _backtrackSolve(copy) ? copy : [];
+  }
+
+  bool _isBoardValid(List<List<int>> board) {
+    if (board.length != _size || board.any((row) => row.length != _size)) {
+      return false;
+    }
+    for (final row in board) {
+      final seen = <int>{};
+      for (final value in row) {
+        if (value < 0 || value > _size) return false;
+        if (value != 0 && !seen.add(value)) return false;
+      }
+    }
+    for (int col = 0; col < _size; col++) {
+      final seen = <int>{};
+      for (int row = 0; row < _size; row++) {
+        final value = board[row][col];
+        if (value != 0 && !seen.add(value)) return false;
+      }
+    }
+    for (int boxRow = 0; boxRow < _size; boxRow += level) {
+      for (int boxCol = 0; boxCol < _size; boxCol += level) {
+        final seen = <int>{};
+        for (int row = boxRow; row < boxRow + level; row++) {
+          for (int col = boxCol; col < boxCol + level; col++) {
+            final value = board[row][col];
+            if (value != 0 && !seen.add(value)) return false;
+          }
+        }
+      }
+    }
+    return true;
   }
 
   /// 回溯法计算解的数量（带限制）

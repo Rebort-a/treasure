@@ -1,6 +1,6 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 
+import '../00.common/game/search/minimax.dart';
 import 'base.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -18,37 +18,20 @@ abstract final class GoEvalParams {
 /// 围棋 AI 难度
 enum GoAiDifficulty { easy, normal, hard }
 
-/// 难度配置：搜索深度 / 候选半径 / 候选数上限 / 随机性 / 时间预算
-class _DifficultyConfig {
-  final int depth;
-  final int radius;
-  final int topK;
-  final double randomness;
-  final int timeBudgetMs;
-  const _DifficultyConfig(
-    this.depth,
-    this.radius,
-    this.topK,
-    this.randomness,
-    this.timeBudgetMs,
-  );
-
-  static const easy = _DifficultyConfig(1, 1, 12, 0.3, 600);
-  static const normal = _DifficultyConfig(2, 2, 14, 0.0, 1500);
-  static const hard = _DifficultyConfig(3, 2, 16, 0.0, 3000);
-}
-
-_DifficultyConfig _config(GoAiDifficulty d) => switch (d) {
-  GoAiDifficulty.easy => _DifficultyConfig.easy,
-  GoAiDifficulty.normal => _DifficultyConfig.normal,
-  GoAiDifficulty.hard => _DifficultyConfig.hard,
+/// 难度配置（复用通用 DifficultyConfig）
+DifficultyConfig _config(GoAiDifficulty d) => switch (d) {
+  GoAiDifficulty.easy => const DifficultyConfig(1, 1, 12, 0.3, 600),
+  GoAiDifficulty.normal => const DifficultyConfig(2, 2, 14, 0.0, 1500),
+  GoAiDifficulty.hard => const DifficultyConfig(3, 2, 16, 0.0, 3000),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 搜索棋盘 — 纯数据，do/undo 含提子，规则逻辑委托 GoRules
+// 实现 SearchableBoard<StoneState>，搜索算法由通用 Minimax 调度。
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class GoSearchBoard {
+class GoSearchBoard implements SearchableBoard<StoneState> {
+  @override
   final int size;
   final List<StoneState> cells;
 
@@ -57,6 +40,7 @@ class GoSearchBoard {
   bool inBounds(int r, int c) => r >= 0 && r < size && c >= 0 && c < size;
 
   /// do/undo：落子（含提子）→ 跑 fn → 撤回（恢复落子位 + 提子位）
+  @override
   T withMove<T>(int idx, StoneState player, T Function() fn) {
     final result = GoRules.tryPlace(cells, size, idx, player);
     if (!result.ok) return fn(); // 非法着法（generateCandidates 已过滤，兜底）
@@ -126,9 +110,11 @@ class GoSearchBoard {
     if (sort) {
       final enemy = GoRules.opponent(self);
       legal.sort((a, b) {
-        final sa = GoEvaluator.scorePoint(this, b, self) +
+        final sa =
+            GoEvaluator.scorePoint(this, b, self) +
             GoEvaluator.scorePoint(this, b, enemy);
-        final sb = GoEvaluator.scorePoint(this, a, self) +
+        final sb =
+            GoEvaluator.scorePoint(this, a, self) +
             GoEvaluator.scorePoint(this, a, enemy);
         return sa - sb;
       });
@@ -140,7 +126,30 @@ class GoSearchBoard {
     return legal;
   }
 
+  @override
   int evaluate(StoneState self) => GoEvaluator.evaluate(this, self);
+
+  // ── SearchableBoard<StoneState> 实现 ──
+  @override
+  bool isEmptyAt(int idx) => cells[idx] == StoneState.empty;
+
+  @override
+  StoneState opponent(StoneState p) => GoRules.opponent(p);
+
+  /// 统一候选入口（委托 generateCandidates）
+  @override
+  List<int> candidates(
+    StoneState player,
+    StoneState self,
+    DifficultyConfig cfg,
+    bool sort,
+  ) => generateCandidates(
+    player,
+    self,
+    radius: cfg.radius,
+    topK: cfg.topK,
+    sort: sort,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -233,13 +242,11 @@ abstract final class GoEvaluator {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 搜索引擎 — Minimax + Alpha-Beta + 迭代加深 IDS
-// 围棋无连五短路，靠 move ordering（提子/打吃优先）提升剪枝
+// 搜索引擎 — 委托通用 Minimax（IDS/Alpha-Beta/deadline 在 00.common）。
+// 围棋无连五短路，靠 move ordering（提子/打吃优先）提升剪枝。
 // ═══════════════════════════════════════════════════════════════════════════════
 
 abstract final class GoSearchEngine {
-  static final _rng = Random();
-
   static int? search(
     GoSearchBoard board,
     StoneState self,
@@ -247,119 +254,8 @@ abstract final class GoSearchEngine {
     int timeBudgetMs,
   ) {
     final cfg = _config(diff);
-    final deadline = DateTime.now().add(Duration(milliseconds: timeBudgetMs));
-
-    final rootCands = board.generateCandidates(
-      self,
-      self,
-      radius: cfg.radius,
-      topK: cfg.topK,
-      sort: true,
-    );
-
-    // 空盘 → 天元（无候选时避免卡在 AI 回合）
-    if (rootCands.isEmpty) {
-      final c = (board.size ~/ 2) * board.size + board.size ~/ 2;
-      return board.cells[c] == StoneState.empty ? c : null;
-    }
-
-    // 迭代加深：逐层加深至目标深度或超时
-    int? best = rootCands.first;
-    for (int depth = 1; depth <= cfg.depth; depth++) {
-      final (move, score) = _rootSearch(board, depth, self, cfg, deadline);
-      if (move != null) best = move;
-      _GoAiLog.d('depth=$depth best=$best score=$score');
-      if (DateTime.now().isAfter(deadline)) break;
-    }
-
-    // 简单难度：按概率从前 3 候选随机
-    if (cfg.randomness > 0 &&
-        best != null &&
-        _rng.nextDouble() < cfg.randomness) {
-      final pool = rootCands.take(3).where((c) => c != best).toList();
-      if (pool.isNotEmpty) best = pool[_rng.nextInt(pool.length)];
-    }
-    return best;
-  }
-
-  static (int?, int) _rootSearch(
-    GoSearchBoard board,
-    int depth,
-    StoneState self,
-    _DifficultyConfig cfg,
-    DateTime deadline,
-  ) {
-    final cands = board.generateCandidates(
-      self,
-      self,
-      radius: cfg.radius,
-      topK: cfg.topK,
-      sort: true,
-    );
-    if (cands.isEmpty) return (null, board.evaluate(self));
-
-    int? bestMove;
-    int bestScore = -0x7FFFFFFF;
-    int alpha = -0x7FFFFFFF;
-    const beta = 0x7FFFFFFF;
-    for (final c in cands) {
-      final v = board.withMove(
-        c,
-        self,
-        () => _minimax(board, depth - 1, alpha, beta, false, self, cfg, deadline),
-      );
-      if (v > bestScore) {
-        bestScore = v;
-        bestMove = c;
-      }
-      if (v > alpha) alpha = v;
-      if (DateTime.now().isAfter(deadline)) break;
-    }
-    return (bestMove, bestScore);
-  }
-
-  static int _minimax(
-    GoSearchBoard board,
-    int depth,
-    int alpha,
-    int beta,
-    bool isMax,
-    StoneState self,
-    _DifficultyConfig cfg,
-    DateTime deadline,
-  ) {
-    if (depth == 0 || DateTime.now().isAfter(deadline)) {
-      return board.evaluate(self);
-    }
-    final player = isMax ? self : GoRules.opponent(self);
-    final cands = board.generateCandidates(
-      player,
-      self,
-      radius: cfg.radius,
-      topK: cfg.topK,
-      sort: false,
-    );
-    if (cands.isEmpty) return board.evaluate(self);
-
-    int best = isMax ? -0x7FFFFFFF : 0x7FFFFFFF;
-    for (final c in cands) {
-      final v = board.withMove(
-        c,
-        player,
-        () =>
-            _minimax(board, depth - 1, alpha, beta, !isMax, self, cfg, deadline),
-      );
-      if (isMax) {
-        if (v > best) best = v;
-        if (best > alpha) alpha = best;
-      } else {
-        if (v < best) best = v;
-        if (best < beta) beta = best;
-      }
-      if (beta <= alpha) break; // Alpha-Beta 剪枝
-      if (DateTime.now().isAfter(deadline)) break;
-    }
-    return best;
+    // weiqi 无游戏特定短路（无连五概念），直接走通用搜索
+    return Minimax.search(board, self, cfg, timeBudgetMs);
   }
 }
 

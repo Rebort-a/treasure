@@ -250,6 +250,9 @@ jobs:
           # iOS → zip
           cd ios && zip -r "../../treasure-ios-${VERSION}.zip" . && cd ..
 
+          # 生成校验和（供用户验证下载完整性）
+          cd .. && sha256sum treasure-*-${VERSION}.* > checksums-${VERSION}.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -262,6 +265,7 @@ jobs:
             treasure-windows-${{ steps.version.outputs.tag }}.zip
             treasure-macos-${{ steps.version.outputs.tag }}.tar.gz
             treasure-ios-${{ steps.version.outputs.tag }}.zip
+            checksums-${{ steps.version.outputs.tag }}.txt
   # Deploy to GitHub Pages 已迁移至 flutter.yml：
   # release 提交仅改版本号（空提交），web 产物无变化，无需部署 Pages；
   # Pages 由普通提交（push main）在 flutter.yml 中部署。

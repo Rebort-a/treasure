@@ -77,15 +77,38 @@ class NetworkMessage {
     );
   }
 
-  factory NetworkMessage.fromJson(Map<String, dynamic> json) {
+  /// 解析消息；type/id 越界或缺失时返回 null（不抛异常，调用方丢弃）
+  static NetworkMessage? fromJson(Map<String, dynamic> json) {
+    final typeIndex = json['type'];
+    if (typeIndex is! int ||
+        typeIndex < 0 ||
+        typeIndex >= MessageType.values.length) {
+      return null;
+    }
+    final id = json['id'];
+    if (id is! int || id < 0) {
+      return null;
+    }
+    final source = json['source'];
+    final content = json['content'];
+    final messageId = json['messageId'];
+    final timestamp = json['timestamp'];
+    final replyToId = json['replyToId'];
+    if ((source != null && source is! String) ||
+        (content != null && content is! String) ||
+        (messageId != null && messageId is! String) ||
+        (timestamp != null && timestamp is! int) ||
+        (replyToId != null && replyToId is! String)) {
+      return null;
+    }
     return NetworkMessage(
-      id: json['id'] as int,
-      type: MessageType.values[json['type'] as int],
-      source: json['source'] as String,
-      content: json['content'] as String,
-      messageId: json['messageId'] as String?,
-      timestamp: json['timestamp'] as int?,
-      replyToId: json['replyToId'] as String?,
+      id: id,
+      type: MessageType.values[typeIndex],
+      source: source as String? ?? '',
+      content: content as String? ?? '',
+      messageId: messageId as String?,
+      timestamp: timestamp as int?,
+      replyToId: replyToId as String?,
     );
   }
 
@@ -101,21 +124,30 @@ class NetworkMessage {
     };
   }
 
-  factory NetworkMessage.fromJsonString(String data) {
-    return NetworkMessage.fromJson(jsonDecode(data) as Map<String, dynamic>);
+  static NetworkMessage? fromJsonString(String data) {
+    try {
+      final decoded = jsonDecode(data);
+      if (decoded is! Map<String, dynamic>) return null;
+      return NetworkMessage.fromJson(decoded);
+    } catch (_) {
+      return null;
+    }
   }
 
   String toJsonString() {
     return jsonEncode(toJson());
   }
 
-  factory NetworkMessage.fromSocketData(
+  static NetworkMessage? fromSocketData(
     List<int> data, {
     String? encryptionKey,
   }) {
-    final decrypted =
-        encryptionKey != null ? xorCrypt(data, encryptionKey) : data;
-    return NetworkMessage.fromJsonString(utf8.decode(decrypted));
+    final decrypted = encryptionKey != null
+        ? xorCrypt(data, encryptionKey)
+        : data;
+    return NetworkMessage.fromJsonString(
+      utf8.decode(decrypted, allowMalformed: true),
+    );
   }
 
   List<int> toSocketData({String? encryptionKey}) {

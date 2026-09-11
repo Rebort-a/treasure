@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Windows 需安装 Git Bash 运行（不兼容 PowerShell/cmd）
 set -euo pipefail
 
 # ─── 颜色 ───────────────────────────────────────────────
@@ -68,6 +69,7 @@ calc_version() {
     NEW_MINOR=$(echo "$EXPLICIT_VERSION" | cut -d. -f2)
     NEW_PATCH=$(echo "$EXPLICIT_VERSION" | cut -d. -f3)
     [[ -z "$NEW_MAJOR" || -z "$NEW_MINOR" || -z "$NEW_PATCH" ]] && error "版本号格式错误，应为 X.Y.Z"
+    [[ ! "$NEW_MAJOR" =~ ^[0-9]+$ || ! "$NEW_MINOR" =~ ^[0-9]+$ || ! "$NEW_PATCH" =~ ^[0-9]+$ ]] && error "版本号格式错误，各段须为非负整数"
     NEW_VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
     NEW_BUILD=$((BUILD + 1))
     return
@@ -120,6 +122,7 @@ update_changelog() {
 
   # 按 Conventional Commits 类型分类收集提交（feat→Added, fix→Fixed, perf/refactor/ci/chore/build→Changed, 其余→Other）
   # 兼容带 scope 的写法，如 feat(tower_defense): xxx
+  # 保持 Bash 3.2 兼容（macOS 系统 Bash 不支持关联数组）
   local added=() fixed=() changed=() other=()
   local subject type desc
   # 正则存入变量再用 =~ $var，规避 shell 对括号的解析（兼容 bash 3.2+/macOS）
@@ -144,19 +147,23 @@ update_changelog() {
   local body=""
   [[ -n "$msg" ]] && body+=$'\n'"$msg"$'\n'
 
-  local entry title varname items item
-  for entry in "Added:added" "Fixed:fixed" "Changed:changed" "Other:other"; do
-    title="${entry%%:*}"
-    varname="${entry#*:}"
-    items=()
-    eval "items=(\"\${${varname}[@]}\")"
-    if (( ${#items[@]} > 0 )); then
-      body+=$'\n'"### ${title}"$'\n'
-      for item in "${items[@]}"; do
-        body+="${item}"$'\n'
-      done
-    fi
-  done
+  local item
+  if (( ${#added[@]} > 0 )); then
+    body+=$'\n''### Added'$'\n'
+    for item in "${added[@]}"; do body+="$item"$'\n'; done
+  fi
+  if (( ${#fixed[@]} > 0 )); then
+    body+=$'\n''### Fixed'$'\n'
+    for item in "${fixed[@]}"; do body+="$item"$'\n'; done
+  fi
+  if (( ${#changed[@]} > 0 )); then
+    body+=$'\n''### Changed'$'\n'
+    for item in "${changed[@]}"; do body+="$item"$'\n'; done
+  fi
+  if (( ${#other[@]} > 0 )); then
+    body+=$'\n''### Other'$'\n'
+    for item in "${other[@]}"; do body+="$item"$'\n'; done
+  fi
 
   local changelog_entry
   changelog_entry=$'\n'"## [${new_ver}] - ${today}${body}"
@@ -264,6 +271,9 @@ done
 # ─── 检查环境 ──────────────────────────────────────────
 # #1: 确认在项目根目录
 [[ -f "pubspec.yaml" ]] || error "请在项目根目录执行此脚本"
+
+# #1.5: 检查 perl 是否可用（update_pubspec 依赖 perl -i 跨平台替换）
+command -v perl >/dev/null 2>&1 || error "未找到 perl，update_pubspec 依赖 perl 进行跨平台版本号替换，请安装 Perl 后重试"
 
 # #2: 检查分支
 CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD)

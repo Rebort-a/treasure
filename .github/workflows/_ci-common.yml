@@ -28,8 +28,14 @@ jobs:
           restore-keys: pub-${{ runner.os }}-
 
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
-      - run: flutter test
+      - run: flutter analyze
+      - run: flutter test --coverage
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          retention-days: 14
 
   build-web:
     name: Build Web

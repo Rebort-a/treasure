@@ -1,11 +1,11 @@
 {
-    "name": "treasure",
-    "short_name": "treasure",
+    "name": "Treasure",
+    "short_name": "Treasure",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "A cross-platform Flutter app collection",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

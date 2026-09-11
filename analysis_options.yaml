@@ -33,6 +33,7 @@ linter:
     - no_duplicate_case_values
     - use_build_context_synchronously
     - use_key_in_widget_constructors
+    - unawaited_futures
     # Style (low noise)
     - avoid_unnecessary_containers
     - prefer_is_empty

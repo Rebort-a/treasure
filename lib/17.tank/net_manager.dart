@@ -7,6 +7,20 @@ import '../00.common/network/network_room.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
+/// 联机 action 协议类型（收发双方共用，避免裸字符串拼写错误）。
+enum TankAction {
+  move,
+  stop,
+  aim,
+  aimStop,
+  fire,
+  aiTurn,
+  aiFire,
+  spawn,
+  hit,
+  restart,
+}
+
 /// 联机模式：各自模拟 + Host 下发 AI 决策 + 拥有者权威 hit 仲裁。
 /// - host（最小 id）：跑 AI 决策/刷怪/命中判定，经 action 广播
 /// - client：只跑移动/子弹飞行/砖墙销毁，AI 与 hit 由 action 驱动
@@ -75,9 +89,13 @@ class NetTankManager extends FoundationalTankManager {
 
   void _handleAction(NetworkMessage message) {
     final c = json.decode(message.content) as Map<String, dynamic>;
-    final actionType = c['actionType'] as String;
-    switch (actionType) {
-      case 'move':
+    // 安全查表：未知 actionType 返回 null（优雅忽略，不崩溃）
+    final rawAction = c['actionType'];
+    if (rawAction is! String) return;
+    final action = TankAction.values.asNameMap()[rawAction];
+    if (action == null) return;
+    switch (action) {
+      case TankAction.move:
         final t = tanks[message.id];
         if (t != null) {
           t.angle = (c['ang'] as num).toDouble();
@@ -85,22 +103,22 @@ class NetTankManager extends FoundationalTankManager {
           t.moving = true;
         }
         break;
-      case 'stop':
+      case TankAction.stop:
         final t = tanks[message.id];
         if (t != null) t.moving = false;
         break;
-      case 'aim':
+      case TankAction.aim:
         final t = tanks[message.id];
         if (t != null) t.turretAngle = (c['ang'] as num).toDouble();
         break;
-      case 'aimStop':
+      case TankAction.aimStop:
         // 仅 owner 维护 aiming 状态；client 无需处理
         break;
-      case 'fire':
+      case TankAction.fire:
         final t = tanks[message.id];
         if (t != null) fire(t);
         break;
-      case 'aiTurn':
+      case TankAction.aiTurn:
         final t = tanks[c['key'] as int];
         if (t != null) {
           final d = Direction.fromName(c['dir'] as String);
@@ -108,17 +126,17 @@ class NetTankManager extends FoundationalTankManager {
           t.turretAngle = d.angle;
         }
         break;
-      case 'aiFire':
+      case TankAction.aiFire:
         final t = tanks[c['key'] as int];
         if (t != null) fire(t);
         break;
-      case 'spawn':
+      case TankAction.spawn:
         final key = c['key'] as int;
         final tank = Tank.fromJson(c['tank'] as Map<String, dynamic>);
         tanks[key] = tank;
         if (!tank.isPlayer) enemiesOnField++;
         break;
-      case 'hit':
+      case TankAction.hit:
         final key = c['key'] as int;
         final isBase = c['base'] as bool;
         if (isBase) {
@@ -127,7 +145,7 @@ class NetTankManager extends FoundationalTankManager {
           applyHit(key);
         }
         break;
-      case 'restart':
+      case TankAction.restart:
         // client 请求重开，host 重新发牌
         if (isAuthority) _restartMatch();
         break;
@@ -151,7 +169,11 @@ class NetTankManager extends FoundationalTankManager {
     t.moving = true;
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'move', 'ang': angle, 'tAng': t.turretAngle}),
+      json.encode({
+        'actionType': TankAction.move.name,
+        'ang': angle,
+        'tAng': t.turretAngle,
+      }),
     );
   }
 
@@ -163,7 +185,7 @@ class NetTankManager extends FoundationalTankManager {
     playerAiming = true;
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'aim', 'ang': angle}),
+      json.encode({'actionType': TankAction.aim.name, 'ang': angle}),
     );
   }
 
@@ -178,7 +200,7 @@ class NetTankManager extends FoundationalTankManager {
     if (t != null) t.moving = false;
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'stop'}),
+      json.encode({'actionType': TankAction.stop.name}),
     );
   }
 
@@ -189,7 +211,7 @@ class NetTankManager extends FoundationalTankManager {
     fire(t); // 拥有者权威：本地立即开火
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'fire'}),
+      json.encode({'actionType': TankAction.fire.name}),
     );
   }
 
@@ -199,7 +221,11 @@ class NetTankManager extends FoundationalTankManager {
   void broadcastAiTurn(int tankKey, Direction dir) {
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'aiTurn', 'key': tankKey, 'dir': dir.name}),
+      json.encode({
+        'actionType': TankAction.aiTurn.name,
+        'key': tankKey,
+        'dir': dir.name,
+      }),
     );
   }
 
@@ -207,7 +233,7 @@ class NetTankManager extends FoundationalTankManager {
   void broadcastAiFire(int tankKey) {
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'aiFire', 'key': tankKey}),
+      json.encode({'actionType': TankAction.aiFire.name, 'key': tankKey}),
     );
   }
 
@@ -215,7 +241,11 @@ class NetTankManager extends FoundationalTankManager {
   void broadcastSpawn(int tankKey, Tank tank) {
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'spawn', 'key': tankKey, 'tank': tank.toJson()}),
+      json.encode({
+        'actionType': TankAction.spawn.name,
+        'key': tankKey,
+        'tank': tank.toJson(),
+      }),
     );
   }
 
@@ -223,7 +253,11 @@ class NetTankManager extends FoundationalTankManager {
   void broadcastHit(int tankKey, bool isBase) {
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': 'hit', 'key': tankKey, 'base': isBase}),
+      json.encode({
+        'actionType': TankAction.hit.name,
+        'key': tankKey,
+        'base': isBase,
+      }),
     );
   }
 
@@ -243,7 +277,7 @@ class NetTankManager extends FoundationalTankManager {
     } else {
       engine.sendNetworkMessage(
         MessageType.action,
-        json.encode({'actionType': 'restart'}),
+        json.encode({'actionType': TankAction.restart.name}),
       );
     }
   }

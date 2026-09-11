@@ -7,11 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [1.2.2] - 2026-09-09
-13.minecraft voxel game improvements:
-- LRU-evict archived chunk cache to prevent unbounded memory growth
-- Manager self-provides TickerProvider, simplifying page wiring
-- per-pointer touch tracking fixes two-finger view jumping
-- restrict block place/destroy touch to crosshair zone; edge touches no longer misfire
 
 ### Added
 - restrict block touch to crosshair zone
@@ -27,7 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - align test directory structure with lib
 
 ## [1.2.1] - 2026-09-01
-release: Simplify version display in About section
+
+### Changed
+- Simplify version display in About section
 
 ## [1.2.0] - 2026-09-01
 Release: 跨平台游戏合集 1.2 中版本更新：本地化、About 真实版本号、移除庆祝弹窗、CI 修复

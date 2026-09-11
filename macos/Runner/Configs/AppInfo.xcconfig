@@ -8,7 +8,7 @@
 PRODUCT_NAME = treasure
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.treasure
+PRODUCT_BUNDLE_IDENTIFIER = com.rebort.treasure
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.rebort.treasure. All rights reserved.

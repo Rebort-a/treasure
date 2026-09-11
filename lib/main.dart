@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '00.common/l10n/app_localizations.dart';
 
 import '00.common/style/theme.dart';
@@ -22,7 +23,9 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Widget home;
+
+  const MyApp({super.key, this.home = const HomePage()});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +40,7 @@ class MyApp extends StatelessWidget {
           locale: LanguageProvider.instance.flutterLocale,
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const HomePage(),
+          home: home,
         ),
       ),
     );

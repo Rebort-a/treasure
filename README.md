@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/📱_15_Applications-FF6B6B?style=for-the-badge" alt="15 Applications">
+  <img src="https://img.shields.io/badge/📱_16_Applications-FF6B6B?style=for-the-badge" alt="16 Applications">
   <img src="https://img.shields.io/badge/🖥️_Pure_Dart_3D_Engine-9B59B6?style=for-the-badge" alt="Pure Dart 3D Engine">
   <img src="https://img.shields.io/badge/📡_Zero_Config_LAN_Play-2ECC71?style=for-the-badge" alt="Zero Config LAN">
 </p>
@@ -54,7 +54,7 @@ The codebase follows the principle of simplicity and zero dependencies. Whether 
 
 | # | Name | 名称 | Type | Description | 特色 |
 |---|------|------|------|-------------|------|
-| 02 | **LAN Chat** | 局域网聊天 | LAN | 文字/图片/文件聊天，表情面板 | 毛玻璃 UI、BlurHash 渐进加载、XOR 加密传输 |
+| 02 | **LAN Chat** | 局域网聊天 | LAN | 文字/图片/文件聊天，表情面板 | 毛玻璃 UI、BlurHash 渐进加载、XOR 轻量加密传输 |
 | 03 | **Animal Chess** | 斗兽棋 | Local + LAN | 经典斗兽棋，翻棋对战 | AI 对手、回合制联机引擎 |
 | 04 | **Elemental Battle** | 五行之战 | Local + LAN | 五行 RPG，25 种独特技能 | 五行相克、迷宫探索、道具商店、Boss 战 |
 | 05 | **Gobang** | 五子棋 | Local + LAN | 五子连珠，支持悔棋 | AI 对手、联机对战 |
@@ -69,6 +69,7 @@ The codebase follows the principle of simplicity and zero dependencies. Whether 
 | 14 | **Tower Defense** | 塔防 | Local | 合作防守，随机地图 | 7 种防御塔、4 种敌人、20 波次、精灵动画 |
 | 15 | **Memory Match** | 记忆翻牌 | Local | 翻牌配对记忆 | 难度/网格选择、计时挑战 |
 | 16 | **Schulte** | 舒尔特 | Local | 注意力方格训练 | 规则/不规则模式、全屏棋盘、点击反馈 |
+| 17 | **Tank Battle** | 坦克战 | Local + LAN | 合作防守坦克战 | 双摇杆自由瞄准射击、局域网联机防守 |
 
 > `01.home` — Home page router, not listed above.
 
@@ -145,7 +146,8 @@ lib/
 ├── 13.minecraft/    # 3D voxel engine (standard)
 ├── 14.tower_defense/ # Tower defense (flat)
 ├── 15.memory_card/  # Memory match (flat)
-└── 16.schulte/      # Schulte grid (flat)
+├── 16.schulte/      # Schulte grid (flat)
+└── 17.tank/         # Tank battle (flat)
 ```
 
 ---
@@ -178,7 +180,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 - **Room Discovery** — UDP broadcast/multicast (socket) or HTTP scan (WebSocket) | 房间发现
 - **Reliability** — ACK + retry for critical messages | 关键消息确认重试
 - **Reconnection** — Exponential backoff (1s→2s→4s→8s→16s, max 5 attempts) | 指数退避重连
-- **Encryption** — XOR stream encryption with room-shared key | 数据加密传输
+- **Encryption** — XOR stream encryption with room-shared key (lightweight; key exchanged via LAN discovery, not a secure channel — defends against casual snooping only) | 轻量加密传输（密钥经局域网发现交换，非安全信道，仅防偶然嗅探）
 
 ---
 

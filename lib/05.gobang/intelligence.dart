@@ -1,7 +1,7 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../00.common/game/gamer.dart';
+import '../00.common/game/search/minimax.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 评估参数 — 棋型分值与难度配置集中管理
@@ -23,30 +23,11 @@ abstract final class EvalParams {
 /// AI 难度
 enum AiDifficulty { easy, normal, hard }
 
-/// 难度配置：搜索深度 / 候选半径 / 候选数上限 / 随机性 / 时间预算
-class _DifficultyConfig {
-  final int depth;
-  final int radius;
-  final int topK;
-  final double randomness;
-  final int timeBudgetMs;
-  const _DifficultyConfig(
-    this.depth,
-    this.radius,
-    this.topK,
-    this.randomness,
-    this.timeBudgetMs,
-  );
-
-  static const easy = _DifficultyConfig(2, 1, 12, 0.3, 600);
-  static const normal = _DifficultyConfig(4, 2, 10, 0.0, 1500);
-  static const hard = _DifficultyConfig(6, 2, 12, 0.0, 3000);
-}
-
-_DifficultyConfig _config(AiDifficulty d) => switch (d) {
-  AiDifficulty.easy => _DifficultyConfig.easy,
-  AiDifficulty.normal => _DifficultyConfig.normal,
-  AiDifficulty.hard => _DifficultyConfig.hard,
+/// 难度配置（复用通用 DifficultyConfig）
+DifficultyConfig _config(AiDifficulty d) => switch (d) {
+  AiDifficulty.easy => const DifficultyConfig(2, 1, 12, 0.3, 600),
+  AiDifficulty.normal => const DifficultyConfig(4, 2, 10, 0.0, 1500),
+  AiDifficulty.hard => const DifficultyConfig(6, 2, 12, 0.0, 3000),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -158,9 +139,11 @@ abstract final class Evaluator {
 // ═══════════════════════════════════════════════════════════════════════════════
 // 搜索棋盘 — 可变副本，do/undo + 候选生成 + 连五检测
 // 编码：0=空 1=己 2=敌（视角化，构造时由 AiController 转换）
+// 实现 SearchableBoard<int>，候选/评估算法由通用 Minimax 调度。
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class SearchBoard {
+class SearchBoard implements SearchableBoard<int> {
+  @override
   final int size;
   final List<int> cells;
 
@@ -198,6 +181,7 @@ class SearchBoard {
   }
 
   /// do/undo：落子 → 跑 fn → 撤回（五子棋落子单点，undo 仅置空）
+  @override
   T withMove<T>(int idx, int player, T Function() fn) {
     cells[idx] = player;
     final result = fn();
@@ -264,9 +248,11 @@ class SearchBoard {
     final list = set.toList();
     if (sort) {
       list.sort((a, b) {
-        final sa = Evaluator.scorePoint(this, a, self) +
+        final sa =
+            Evaluator.scorePoint(this, a, self) +
             Evaluator.scorePoint(this, a, enemy);
-        final sb = Evaluator.scorePoint(this, b, self) +
+        final sb =
+            Evaluator.scorePoint(this, b, self) +
             Evaluator.scorePoint(this, b, enemy);
         return sb - sa;
       });
@@ -277,17 +263,28 @@ class SearchBoard {
     return list;
   }
 
+  @override
   int evaluate(int self) => Evaluator.evaluate(this, self);
+
+  // ── SearchableBoard<int> 实现 ──
+  @override
+  bool isEmptyAt(int idx) => cells[idx] == 0;
+
+  @override
+  int opponent(int p) => p == 1 ? 2 : 1;
+
+  /// 统一候选入口（委托 generateCandidates；gobang 候选与颜色无关，忽略 player）
+  @override
+  List<int> candidates(int player, int self, DifficultyConfig cfg, bool sort) =>
+      generateCandidates(self, radius: cfg.radius, topK: cfg.topK, sort: sort);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 搜索引擎 — Minimax + Alpha-Beta + 迭代加深 IDS + 必胜必堵短路
-// 完全信息博弈，无翻牌概率分支，较 animal_chess 简单
+// 搜索引擎 — 委托通用 Minimax（IDS/Alpha-Beta/deadline 在 00.common），仅保留
+// 五子棋特有的必胜必堵短路
 // ═══════════════════════════════════════════════════════════════════════════════
 
 abstract final class SearchEngine {
-  static final _rng = Random();
-
   static int? search(
     SearchBoard board,
     int self,
@@ -295,133 +292,26 @@ abstract final class SearchEngine {
     int timeBudgetMs,
   ) {
     final cfg = _config(diff);
-    final enemy = self == 1 ? 2 : 1;
-    final deadline = DateTime.now().add(Duration(milliseconds: timeBudgetMs));
-
-    final rootCands = board.generateCandidates(
+    return Minimax.search(
+      board,
       self,
-      radius: cfg.radius,
-      topK: cfg.topK,
-      sort: true,
+      cfg,
+      timeBudgetMs,
+      shortcuts: (rootCands) => _shortcuts(board, self, rootCands),
     );
+  }
 
-    // 空盘 → 天元（无候选时避免卡在 AI 回合）
-    if (rootCands.isEmpty) {
-      final c = (board.size ~/ 2) * board.size + board.size ~/ 2;
-      return board.cells[c] == 0 ? c : null;
-    }
-
-    // 必胜短路：AI 一步成五
+  /// 必胜必堵短路：AI 一步成五 → 必胜；对方一步成五 → 必堵
+  static int? _shortcuts(SearchBoard board, int self, List<int> rootCands) {
+    final enemy = self == 1 ? 2 : 1;
     for (final c in rootCands) {
-      if (board.canWin(c, self)) {
-        _AiLog.d('必胜 $c');
-        return c;
-      }
+      if (board.canWin(c, self)) return c;
     }
-    // 必堵短路：对方一步成五，必须堵
     for (int i = 0; i < board.cells.length; i++) {
       if (board.cells[i] != 0) continue;
-      if (board.canWin(i, enemy)) {
-        _AiLog.d('必堵 $i');
-        return i;
-      }
+      if (board.canWin(i, enemy)) return i;
     }
-
-    // 迭代加深：逐层加深至目标深度或超时，超时返回当前最佳
-    int? best = rootCands.isEmpty ? null : rootCands.first;
-    for (int depth = 1; depth <= cfg.depth; depth++) {
-      final (move, score) = _rootSearch(board, depth, self, cfg, deadline);
-      if (move != null) best = move;
-      _AiLog.d('depth=$depth best=$best score=$score');
-      if (DateTime.now().isAfter(deadline)) break;
-    }
-
-    // 简单难度：按概率从前 3 候选随机（制造失误）
-    if (cfg.randomness > 0 &&
-        best != null &&
-        _rng.nextDouble() < cfg.randomness) {
-      final pool = rootCands.take(3).where((c) => c != best).toList();
-      if (pool.isNotEmpty) best = pool[_rng.nextInt(pool.length)];
-    }
-    return best;
-  }
-
-  static (int?, int) _rootSearch(
-    SearchBoard board,
-    int depth,
-    int self,
-    _DifficultyConfig cfg,
-    DateTime deadline,
-  ) {
-    final cands = board.generateCandidates(
-      self,
-      radius: cfg.radius,
-      topK: cfg.topK,
-      sort: true,
-    );
-    if (cands.isEmpty) return (null, board.evaluate(self));
-
-    int? bestMove;
-    int bestScore = -0x7FFFFFFF;
-    int alpha = -0x7FFFFFFF;
-    const beta = 0x7FFFFFFF;
-    for (final c in cands) {
-      final v = board.withMove(
-        c,
-        self,
-        () => _minimax(board, depth - 1, alpha, beta, false, self, cfg, deadline),
-      );
-      if (v > bestScore) {
-        bestScore = v;
-        bestMove = c;
-      }
-      if (v > alpha) alpha = v;
-      if (DateTime.now().isAfter(deadline)) break;
-    }
-    return (bestMove, bestScore);
-  }
-
-  static int _minimax(
-    SearchBoard board,
-    int depth,
-    int alpha,
-    int beta,
-    bool isMax,
-    int self,
-    _DifficultyConfig cfg,
-    DateTime deadline,
-  ) {
-    if (depth == 0 || DateTime.now().isAfter(deadline)) {
-      return board.evaluate(self);
-    }
-    final player = isMax ? self : (self == 1 ? 2 : 1);
-    final cands = board.generateCandidates(
-      self,
-      radius: cfg.radius,
-      topK: cfg.topK,
-      sort: false,
-    );
-    if (cands.isEmpty) return board.evaluate(self);
-
-    int best = isMax ? -0x7FFFFFFF : 0x7FFFFFFF;
-    for (final c in cands) {
-      final v = board.withMove(
-        c,
-        player,
-        () =>
-            _minimax(board, depth - 1, alpha, beta, !isMax, self, cfg, deadline),
-      );
-      if (isMax) {
-        if (v > best) best = v;
-        if (best > alpha) alpha = best;
-      } else {
-        if (v < best) best = v;
-        if (best < beta) beta = best;
-      }
-      if (beta <= alpha) break; // Alpha-Beta 剪枝
-      if (DateTime.now().isAfter(deadline)) break;
-    }
-    return best;
+    return null;
   }
 }
 

@@ -8,13 +8,15 @@ import 'package:flutter/foundation.dart';
 import 'broadcast_discovery.dart';
 import 'network_message.dart';
 import 'network_room.dart';
+import 'tcp_frame_codec.dart';
 import '../config/network_config.dart';
 
 class _WsClient {
   final dynamic socket;
   final int id;
+  final TcpFrameDecoder? tcpDecoder;
 
-  _WsClient(this.socket, this.id);
+  _WsClient(this.socket, this.id, {this.tcpDecoder});
 }
 
 class SocketServer {
@@ -30,11 +32,13 @@ class SocketServer {
   final String roomName;
   final int roomType;
   final String? encryptionKey;
+  final int maxClients;
 
   SocketServer({
     required this.roomName,
     required this.roomType,
     this.encryptionKey,
+    this.maxClients = 8,
   });
 
   bool get _useWebSocket => kIsWeb || networkMode == NetworkMode.webSocket;
@@ -60,8 +64,13 @@ class SocketServer {
   }
 
   void _handleTcpConnect(Socket socket) {
+    if (_clients.length >= maxClients) {
+      debugPrint('[Server] 拒绝连接：已达人数上限 $maxClients');
+      socket.destroy();
+      return;
+    }
     _idCounter++;
-    final client = _WsClient(socket, _idCounter);
+    final client = _WsClient(socket, _idCounter, tcpDecoder: TcpFrameDecoder());
     _clients.add(client);
     debugPrint(
       '[Server] TCP client #${client.id} connected. Total: ${_clients.length}',
@@ -70,7 +79,15 @@ class SocketServer {
     socket.listen(
       (data) {
         if (_clients.contains(client)) {
-          _broadcastRaw(data);
+          try {
+            for (final payload in client.tcpDecoder!.add(data)) {
+              _broadcastRaw(payload);
+            }
+          } on FormatException catch (e) {
+            debugPrint('[Server] TCP frame from #${client.id} invalid: $e');
+            socket.destroy();
+            _removeClient(client);
+          }
         }
       },
       onDone: () => _removeClient(client),
@@ -110,6 +127,11 @@ class SocketServer {
   }
 
   void _handleWsConnect(WebSocket ws) {
+    if (_clients.length >= maxClients) {
+      debugPrint('[Server] 拒绝连接：已达人数上限 $maxClients');
+      ws.close();
+      return;
+    }
     _idCounter++;
     final client = _WsClient(ws, _idCounter);
     _clients.add(client);
@@ -199,15 +221,38 @@ class SocketServer {
   void _sendTo(_WsClient client, List<int> data) {
     if (!_clients.contains(client)) return;
     try {
-      client.socket.add(data);
+      if (client.socket is Socket) {
+        client.socket.add(TcpFrameCodec.encode(data));
+      } else {
+        client.socket.add(data);
+      }
     } catch (e) {
       debugPrint('[Server] _sendTo #${client.id} failed: $e');
     }
   }
 
   void _broadcastRaw(List<int> data) {
+    // TCP 已由长度前缀恢复消息边界，WebSocket 原生具有帧边界，两条路径
+    // 均可在广播前安全校验完整消息。
+    if (!_isValidMessage(data)) {
+      debugPrint('[Server] 丢弃畸形消息，不转发');
+      return;
+    }
     for (final client in _clients) {
       _sendTo(client, data);
+    }
+  }
+
+  /// 校验 data 能解密并解析为合法 NetworkMessage
+  bool _isValidMessage(List<int> data) {
+    try {
+      return NetworkMessage.fromSocketData(
+            data,
+            encryptionKey: encryptionKey,
+          ) !=
+          null;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -242,9 +287,7 @@ class SocketServer {
 
     // 发 exit 消息
     for (final client in List.of(_clients)) {
-      try {
-        client.socket.add(exitMsg);
-      } catch (_) {}
+      _sendTo(client, exitMsg);
     }
 
     // 等消息发出后再关 socket
@@ -270,8 +313,8 @@ class SocketServer {
         ),
       ).toSocketData(),
     );
-    _tcpServer?.close();
-    _httpServer?.close();
+    await _tcpServer?.close();
+    await _httpServer?.close();
     _tcpServer = null;
     _httpServer = null;
   }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
 import 'route.dart';
 
 import '../00.common/tool/notifiers.dart';
@@ -31,8 +32,10 @@ class HomeManager {
 
   final Discovery _discovery = Discovery();
 
-  HomeManager() {
-    _discovery.startReceive(_handleReceivedMessage);
+  HomeManager({bool startDiscovery = true}) {
+    if (startDiscovery) {
+      _discovery.startReceive(_handleReceivedMessage);
+    }
   }
 
   void dispose() {
@@ -40,7 +43,11 @@ class HomeManager {
   }
 
   void _handleReceivedMessage(String address, List<int> data) {
-    NetworkMessage message = NetworkMessage.fromSocketData(data);
+    final message = NetworkMessage.fromSocketData(data);
+    if (message == null) {
+      debugPrint('[Home] 丢弃畸形房间广播消息');
+      return;
+    }
     if (message.type == MessageType.broadcast) {
       RoomState operation = RoomInfo.getOperationFromJsonString(
         message.content,

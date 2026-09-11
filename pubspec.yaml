@@ -1,5 +1,5 @@
 name: treasure
-description: "A cross-platform game collection: 14 local games (5 with LAN multiplayer) + 1 LAN chat room. Pure-Dart 3D engine, zero-config LAN play."
+description: "A cross-platform game collection: 15 local games (7 with LAN multiplayer) + 1 LAN chat room. Pure-Dart 3D engine, zero-config LAN play."
 publishing_to: 'none'
 
 version: 1.2.2+7

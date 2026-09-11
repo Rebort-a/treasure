@@ -28,7 +28,7 @@ lib/
 ├── 00.common/       # Shared modules (engine, network, widgets)
 ├── 01.home/         # Home page
 ├── 02.lan_chat/     # LAN chat room
-├── 03~13.*          # Game modules
+├── 03~17.*          # Game modules
 ```
 
 Each game module follows a three-layer architecture:

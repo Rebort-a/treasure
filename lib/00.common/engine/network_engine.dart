@@ -9,6 +9,7 @@ import '../config/network_config.dart';
 import '../widget/dialog/template_dialog.dart';
 import '../tool/notifiers.dart';
 import '../network/network_message.dart';
+import '../network/network_reliability.dart';
 import '../network/network_room.dart';
 import '../network/connection.dart' as conn;
 
@@ -18,7 +19,6 @@ class NetworkEngine {
   final TextEditingController textController = TextEditingController();
 
   late conn.Connection _connection;
-  String _recvBuffer = '';
   final List<NetworkMessage> _sendBuffer = [];
   bool _isSending = false;
   Completer<void>? _sendCompleter;
@@ -37,11 +37,17 @@ class NetworkEngine {
   VoidCallback? onReconnected;
 
   // ==================== 消息确认机制 ====================
-  final Map<String, _PendingAck> _pendingAcks = {};
-  final Set<String> _receivedMessageIds = {};
-  Timer? _ackRetryTimer;
+  static const int _maxReceivedMessageIds = 1000;
   static const int _maxAckRetries = 5;
   static const Duration _ackRetryInterval = Duration(seconds: 2);
+  final AckRetryTracker _pendingAcks = AckRetryTracker(
+    retryInterval: _ackRetryInterval,
+    maxRetries: _maxAckRetries,
+  );
+  final MessageIdCache _receivedMessageIds = MessageIdCache(
+    capacity: _maxReceivedMessageIds,
+  );
+  Timer? _ackRetryTimer;
 
   // ==================== 断线重连 ====================
   bool _isReconnecting = false;
@@ -90,74 +96,15 @@ class NetworkEngine {
 
   void _handleSocketData(List<int> data) {
     if (_isClosed || _isDisposed) return;
-
-    // 先尝试解密（在原始字节上操作，避免 UTF-8 破坏加密数据）
-    final List<int> decrypted;
-    if (encryptionKey != null && encryptionKey!.isNotEmpty) {
-      decrypted = NetworkMessage.xorCrypt(data, encryptionKey!);
-    } else {
-      decrypted = data;
+    final message = NetworkMessage.fromSocketData(
+      data,
+      encryptionKey: encryptionKey,
+    );
+    if (message == null) {
+      debugPrint('[Net] 丢弃畸形消息（${data.length} bytes）');
+      return;
     }
-
-    // 解密后再转字符串
-    final decoded = utf8.decode(decrypted, allowMalformed: true);
-    _recvBuffer += decoded;
-    _extractMessages();
-  }
-
-  void _extractMessages() {
-    int startIndex = 0;
-
-    while (startIndex < _recvBuffer.length) {
-      int openBraceIndex = _recvBuffer.indexOf('{', startIndex);
-      if (openBraceIndex == -1) break;
-
-      int closeBraceIndex = _findMatchingClosingBrace(openBraceIndex);
-      if (closeBraceIndex == -1) break;
-
-      final String jsonStr = _recvBuffer.substring(
-        openBraceIndex,
-        closeBraceIndex + 1,
-      );
-
-      _processNetworkMessage(NetworkMessage.fromJsonString(jsonStr));
-
-      startIndex = closeBraceIndex + 1;
-    }
-
-    if (startIndex > 0) {
-      _recvBuffer = _recvBuffer.substring(startIndex);
-    }
-  }
-
-  int _findMatchingClosingBrace(int startIndex) {
-    int braceCount = 0;
-    bool inString = false;
-
-    for (int i = startIndex; i < _recvBuffer.length; i++) {
-      final char = _recvBuffer[i];
-
-      if (char == '"') {
-        // 统计前面连续反斜杠数量：偶数个 = 非转义引号
-        int backslashes = 0;
-        for (int j = i - 1; j >= startIndex && _recvBuffer[j] == '\\'; j--) {
-          backslashes++;
-        }
-        if (backslashes.isEven) {
-          inString = !inString;
-        }
-      }
-
-      if (!inString) {
-        if (char == '{') {
-          braceCount++;
-        } else if (char == '}') {
-          braceCount--;
-          if (braceCount == 0) return i;
-        }
-      }
-    }
-    return -1;
+    _processNetworkMessage(message);
   }
 
   void _processNetworkMessage(NetworkMessage message) {
@@ -205,10 +152,9 @@ class NetworkEngine {
 
     // 其他成员退出 → 传给游戏引擎处理
 
-    // 消息去重
+    // 消息去重（LRU 淘汰：超出上限移除最旧条目，防长会话内存单调增长）
     if (message.messageId != null) {
-      if (_receivedMessageIds.contains(message.messageId)) return;
-      _receivedMessageIds.add(message.messageId!);
+      if (!_receivedMessageIds.add(message.messageId!)) return;
       if (message.id != identity && ackRequiredTypes.contains(message.type)) {
         _sendAck(message.messageId!);
       }
@@ -241,46 +187,15 @@ class NetworkEngine {
   void _retryPendingAcks() {
     if (_isClosed || _isDisposed || _pendingAcks.isEmpty) return;
 
-    final now = DateTime.now();
-    final toRetry = <String>[];
-    final toRemove = <String>[];
-    bool hasTimeout = false;
-
-    // 迭代副本，避免迭代过程中修改 _pendingAcks
-    for (final entry in _pendingAcks.entries.toList()) {
-      final pending = entry.value;
-      final elapsed = now.difference(pending.sentAt);
-
-      if (elapsed >= _ackRetryInterval) {
-        if (pending.retryCount >= _maxAckRetries) {
-          toRemove.add(entry.key);
-          hasTimeout = true;
-        } else {
-          toRetry.add(entry.key);
-        }
-      }
+    final batch = _pendingAcks.poll(DateTime.now());
+    for (final message in batch.messages) {
+      _rawSend(message);
     }
-
-    // 先重试（此时 _pendingAcks 还未被清空）
-    for (final key in toRetry) {
-      final pending = _pendingAcks[key];
-      if (pending == null) continue;
-      pending.retryCount++;
-      pending.sentAt = now;
-      _rawSend(pending.message);
-    }
-
-    // 再移除过期条目
-    for (final key in toRemove) {
-      _pendingAcks.remove(key);
-    }
-
-    // 最后处理超时（可能清空整个 map）
-    if (hasTimeout) _handleAckTimeout();
+    if (batch.hasTimeout) _handleAckTimeout();
   }
 
   void _handleAck(String messageId) {
-    _pendingAcks.remove(messageId);
+    _pendingAcks.acknowledge(messageId);
   }
 
   void _sendAck(String messageId) {
@@ -320,8 +235,8 @@ class NetworkEngine {
     if (_isDisposed || _isClosing) return;
 
     // 指数退避延迟
-    final delaySeconds = 1 << _reconnectNotifier.value; // 1, 2, 4, 8, 16
-    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
+    final delay = reconnectDelayForAttempt(_reconnectNotifier.value);
+    _reconnectTimer = Timer(delay, () async {
       if (_isDisposed || _isClosing) return;
 
       _reconnectNotifier.value++;
@@ -434,6 +349,8 @@ class NetworkEngine {
       if (rune >= 0x1F300 && rune <= 0x1F5FF) emojiCount++; // 符号
       if (rune >= 0x1F680 && rune <= 0x1F6FF) emojiCount++; // 交通
       if (rune >= 0x1F900 && rune <= 0x1F9FF) emojiCount++; // 补充
+      if (rune >= 0x1FA00 && rune <= 0x1FAFF) emojiCount++; // 补充符号与象形文字
+      if (rune >= 0x1F1E6 && rune <= 0x1F1FF) emojiCount++; // 旗语区域指示符
       if (rune >= 0x2600 && rune <= 0x26FF) emojiCount++; // 杂项
       if (rune >= 0x2700 && rune <= 0x27BF) emojiCount++; // 装饰
     }
@@ -460,7 +377,7 @@ class NetworkEngine {
 
     // 加入待确认队列
     if (message.messageId != null) {
-      _pendingAcks[message.messageId!] = _PendingAck(message: message);
+      _pendingAcks.track(message);
     }
 
     _sendBuffer.add(message);
@@ -478,17 +395,21 @@ class NetworkEngine {
     String? fileName,
     String? blurHash,
   }) {
-    final buf = StringBuffer('{"data":"$base64Image"');
-    if (fileName != null) buf.write(',"name":"$fileName"');
-    if (blurHash != null) buf.write(',"hash":"$blurHash"');
-    buf.write('}');
-    sendNetworkMessage(MessageType.image, buf.toString());
+    final content = jsonEncode({
+      'data': base64Image,
+      if (fileName != null) 'name': fileName,
+      if (blurHash != null) 'hash': blurHash,
+    });
+    sendNetworkMessage(MessageType.image, content);
   }
 
   /// 发送文件消息
   void sendFileMessage(String fileName, int fileSize, String base64Data) {
-    final content =
-        '{"name":"$fileName","size":$fileSize,"data":"$base64Data"}';
+    final content = jsonEncode({
+      'name': fileName,
+      'size': fileSize,
+      'data': base64Data,
+    });
     sendNetworkMessage(MessageType.file, content);
   }
 
@@ -556,7 +477,7 @@ class NetworkEngine {
       await _pushMessage();
 
       _isClosed = true;
-      _connection.close();
+      await _connection.close();
     }
   }
 
@@ -608,15 +529,4 @@ class NetworkEngine {
       return '[$type]';
     }
   }
-}
-
-/// 待确认消息的内部数据
-class _PendingAck {
-  final NetworkMessage message;
-  int retryCount;
-  DateTime sentAt;
-
-  _PendingAck({required this.message})
-    : retryCount = 0,
-      sentAt = DateTime.now();
 }

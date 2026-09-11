@@ -112,6 +112,9 @@ class NetRealGameEngine extends NetworkEngine {
     }
   }
 
+  // 发布者选举：最小 id 胜出（bully 选举简化版）。
+  // 取舍：网络分区时两端可能短暂各自认定不同发布者，依赖 action 层幂等兜底
+  // （如 tank 的拥有者权威模型只信自己模拟结果 + host 仲裁）。
   void _handleMatchMessage(int messageId) {
     if (messageId < _publisherId) {
       _publisherId = messageId;

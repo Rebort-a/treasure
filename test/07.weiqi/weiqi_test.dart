@@ -126,45 +126,27 @@ void main() {
 
     group('劫争', () {
       test('不能立即提回（劫争规则）', () {
-        // 构造劫争局面：
-        //   . B W .
-        //   B . W .
-        //   . B W .
-        // 先让白下一子被提，然后白不能立即提回
+        // 捕获前（Q=(2,2), P=(2,3)）：
+        //   . B W . .
+        //   B Q P W .
+        //   . B W . .
+        // 黑下 P 后仅提掉 Q，P 也仅剩 Q 一口气，形成标准单劫。
+        expect(board.placeStone(idx(1, 2)), isTrue); // B
+        expect(board.placeStone(idx(2, 2)), isTrue); // W: Q
+        expect(board.placeStone(idx(3, 2)), isTrue); // B
+        expect(board.placeStone(idx(1, 3)), isTrue); // W
+        expect(board.placeStone(idx(2, 1)), isTrue); // B
+        expect(board.placeStone(idx(3, 3)), isTrue); // W
+        expect(board.placeStone(idx(8, 8)), isTrue); // B filler
+        expect(board.placeStone(idx(2, 4)), isTrue); // W
 
-        // 布局：黑在 (1,0), (0,1), (2,1)；白在 (0,2), (1,2), (2,2)
-        board.placeStone(idx(1, 0)); // 黑
-        board.placeStone(idx(0, 2)); // 白
-        board.placeStone(idx(0, 1)); // 黑
-        board.placeStone(idx(1, 2)); // 白
-        board.placeStone(idx(2, 1)); // 黑
-        board.placeStone(idx(2, 2)); // 白
+        expect(board.placeStone(idx(2, 3)), isTrue); // B: P，提 Q
+        expect(board.grids.value[idx(2, 2)].value.state, StoneState.empty);
 
-        // 现在黑下 (1,1) 提掉白 (0,2)？不对，(1,1) 周围是黑 (0,1)(1,0)(2,1)
-        // (0,2) 白的邻居是 (0,1) 黑和 (1,2) 白，不会被提
-        // 需要重新构造劫争
-
-        // 简单劫争：黑提白一子，白不能立即提回
-        //   . B . .
-        //   B W B .
-        //   . B . .
-        // 黑先下包围白 (1,1)
-        board = GoBoard(size: 9);
-        board.placeStone(idx(0, 1)); // 黑
-        board.placeStone(idx(0, 0)); // 白
-        board.placeStone(idx(2, 1)); // 黑
-        board.placeStone(idx(0, 2)); // 白
-        board.placeStone(idx(1, 0)); // 黑
-        board.placeStone(idx(0, 3)); // 白
-        board.placeStone(idx(1, 2)); // 黑 提掉白(1,1)
-
-        expect(board.grids.value[idx(1, 1)].value.state, StoneState.empty);
-
-        // 白下 (1,1) 提回 —— 但这是劫争，应该被拒绝
-        // 注意：劫争检查依赖 lastCapture，只在单子提单子时生效
-        // 这里黑提了白 (1,1) 一子，如果白立即下 (1,1) 提黑一子
-        // 但 (1,1) 周围都是黑，白下进去是自杀（不是提子）
-        // 劫争需要更精确的构造，先验证基本逻辑
+        // 白若立即落回 Q 会只提掉 P，并恢复上一局面，应被劫争规则拒绝。
+        expect(board.placeStone(idx(2, 2)), isFalse);
+        expect(board.grids.value[idx(2, 2)].value.state, StoneState.empty);
+        expect(board.grids.value[idx(2, 3)].value.state, StoneState.black);
       });
     });
 
