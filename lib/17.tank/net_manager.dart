@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
+
 import '../00.common/engine/net_real_engine.dart';
 import '../00.common/game/step.dart';
 import '../00.common/network/network_message.dart';
 import '../00.common/network/network_room.dart';
+import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
@@ -17,6 +20,8 @@ enum TankAction {
   aiTurn,
   aiFire,
   spawn,
+  spawnItem,
+  pickup,
   hit,
   restart,
 }
@@ -116,7 +121,18 @@ class NetTankManager extends FoundationalTankManager {
         break;
       case TankAction.fire:
         final t = tanks[message.id];
-        if (t != null) fire(t);
+        if (t == null) break;
+        t.reloadTimer = playerReloadTime;
+        bullets.add(
+          Bullet(
+            position: t.position +
+                Offset.fromDirection(t.turretAngle) * tankSize * 0.6,
+            angle: t.turretAngle,
+            ownerId: message.id,
+            damage: (c['dmg'] as num).toInt(),
+            targetKey: c['tgt'] as int?,
+          ),
+        );
         break;
       case TankAction.aiTurn:
         final t = tanks[c['key'] as int];
@@ -127,14 +143,36 @@ class NetTankManager extends FoundationalTankManager {
         }
         break;
       case TankAction.aiFire:
-        final t = tanks[c['key'] as int];
-        if (t != null) fire(t);
+        final key = c['key'] as int;
+        final t = tanks[key];
+        if (t == null) break;
+        t.reloadTimer = reloadTime;
+        bullets.add(
+          Bullet(
+            position: t.position +
+                Offset.fromDirection(t.turretAngle) * tankSize * 0.6,
+            angle: t.turretAngle,
+            ownerId: key,
+            damage: 1,
+          ),
+        );
         break;
       case TankAction.spawn:
         final key = c['key'] as int;
         final tank = Tank.fromJson(c['tank'] as Map<String, dynamic>);
         tanks[key] = tank;
         if (!tank.isPlayer) enemiesOnField++;
+        break;
+      case TankAction.spawnItem:
+        powerups.add(PowerUp.fromJson(c['item'] as Map<String, dynamic>));
+        break;
+      case TankAction.pickup:
+        final playerKey = c['key'] as int;
+        final type = PowerUpType.fromName(c['type'] as String);
+        final px =
+            ConvertUtils.offsetFromJson(c['px'] as Map<String, dynamic>);
+        powerups.removeWhere((p) => (p.position - px).distance < tileSize / 2);
+        applyPowerUp(playerKey, type);
         break;
       case TankAction.hit:
         final key = c['key'] as int;
@@ -208,10 +246,15 @@ class NetTankManager extends FoundationalTankManager {
   void updatePlayerFire() {
     final t = tanks[identity];
     if (t == null) return;
-    fire(t); // 拥有者权威：本地立即开火
+    final b = fire(identity, t); // 拥有者权威：本地立即开火
+    if (b == null) return;
     engine.sendNetworkMessage(
       MessageType.action,
-      json.encode({'actionType': TankAction.fire.name}),
+      json.encode({
+        'actionType': TankAction.fire.name,
+        'dmg': b.damage,
+        'tgt': b.targetKey,
+      }),
     );
   }
 
@@ -257,6 +300,30 @@ class NetTankManager extends FoundationalTankManager {
         'actionType': TankAction.hit.name,
         'key': tankKey,
         'base': isBase,
+      }),
+    );
+  }
+
+  @override
+  void broadcastSpawnItem(PowerUp p) {
+    engine.sendNetworkMessage(
+      MessageType.action,
+      json.encode({
+        'actionType': TankAction.spawnItem.name,
+        'item': p.toJson(),
+      }),
+    );
+  }
+
+  @override
+  void broadcastPickup(int playerKey, PowerUpType type, Offset position) {
+    engine.sendNetworkMessage(
+      MessageType.action,
+      json.encode({
+        'actionType': TankAction.pickup.name,
+        'key': playerKey,
+        'type': type.name,
+        'px': ConvertUtils.offsetToJson(position),
       }),
     );
   }

@@ -24,12 +24,16 @@ abstract class FoundationalTankManager extends ChangeNotifier
   final List<Explosion> explosions = [];
 
   MapData map = MapData.classic();
+  final List<PowerUp> powerups = [];
 
   final pageNavigator = AlwaysNotifier<void Function(BuildContext)>((_) {});
   final gameState = ValueNotifier<bool>(false);
 
   /// 各玩家剩余命数（key = 玩家坦克 key = identity）
   final Map<int, int> livesByPlayer = {};
+
+  /// 各玩家当前固定出生点索引（被障碍占用时切换，切换后固定）
+  final Map<int, int> playerSpawnUsed = {};
 
   /// 对局进度
   int remainingEnemies = totalEnemyCount;
@@ -38,11 +42,12 @@ abstract class FoundationalTankManager extends ChangeNotifier
   int score = 0;
   bool _gameOver = false;
   bool playerAiming = false; // 右摇杆按住持续开火（子类可写）
+  double shieldTimer = 0; // 基地护盾剩余（>0 一圈为 steel，归零变 brick）
 
   int _enemyIdSeq = 0; // AI key 递减序列
-  int _spawnCursor = 0; // 出生点轮换
   double _spawnTimer = 0;
   double _aiDecisionTimer = 0;
+  double _itemSpawnTimer = 0;
 
   late final Ticker _ticker;
   double _lastElapsed = 0;
@@ -89,8 +94,10 @@ abstract class FoundationalTankManager extends ChangeNotifier
     _checkBulletWallCollisions();
     _checkTankBulletHits();
     _updateExplosions(dt);
+    _checkPowerUpPickup();
+    _updateShield(dt);
 
-    handleTickerCallback(dt); // 权威方：AI 决策 + 刷怪；client 空实现
+    handleTickerCallback(dt); // 权威方：AI 决策 + 刷怪 + 道具刷新；client 空实现
 
     _checkGameOver();
     notifyListeners();
@@ -99,37 +106,47 @@ abstract class FoundationalTankManager extends ChangeNotifier
   // ---- 坦克移动 ----
 
   void _updateTanks(double dt) {
-    for (final tank in tanks.values) {
+    for (final entry in tanks.entries) {
+      final tank = entry.value;
       if (!tank.isAlive) {
         if (tank.respawnTimer > 0) {
           tank.respawnTimer -= dt;
-          if (tank.respawnTimer <= 0) _respawn(tank);
+          if (tank.respawnTimer <= 0) _respawn(entry.key, tank);
         }
         continue;
       }
       if (tank.reloadTimer > 0) tank.reloadTimer -= dt;
       if (tank.invincibleTimer > 0) tank.invincibleTimer -= dt;
+      if (tank.fireBuffTimer > 0) tank.fireBuffTimer -= dt;
+      if (tank.homingBuffTimer > 0) tank.homingBuffTimer -= dt;
+      if (tank.playerShieldTimer > 0) tank.playerShieldTimer -= dt;
       if (!tank.moving) continue;
 
-      final speed = tank.isPlayer
+      var speed = tank.isPlayer
           ? tankSpeed
           : (tank.enemyType?.speed ?? tankSpeed);
+      // 草地减速 50%
+      final cellCol = (tank.position.dx / tileSize).floor();
+      final cellRow = (tank.position.dy / tileSize).floor();
+      if (map.tileAt(cellCol, cellRow).type == TileType.grass) {
+        speed *= 0.5;
+      }
       final move = Offset.fromDirection(tank.angle) * speed * dt;
       // 自由移动：沿当前方向直线行进，撞墙即停（不做轨道吸附）
       final newPos = tank.position + move;
       if (_canMoveTo(newPos, tank)) {
         tank.position = newPos;
       } else {
-        // 贴墙转向辅助：沿垂直轴微调，让坦克贴墙滑行而非卡死
-        final v = Offset.fromDirection(tank.angle);
-        final perp = Offset(-v.dy, v.dx);
-        final step = speed * dt;
-        for (final d in <double>[-step, step, -step * 2, step * 2]) {
-          final tryPos = tank.position + perp * d + move;
-          if (_canMoveTo(tryPos, tank)) {
-            tank.position = tryPos;
-            break;
-          }
+        // 撞墙：轴分离贴墙滑行，单轴位移不超过 speed*dt，杜绝撞墙加速
+        final moveX = Offset(move.dx, 0);
+        final moveY = Offset(0, move.dy);
+        // 先主方向后次方向，尽量保留玩家移动意图
+        final primary = move.dx.abs() >= move.dy.abs() ? moveX : moveY;
+        final secondary = primary == moveX ? moveY : moveX;
+        if (_canMoveTo(tank.position + primary, tank)) {
+          tank.position = tank.position + primary;
+        } else if (_canMoveTo(tank.position + secondary, tank)) {
+          tank.position = tank.position + secondary;
         }
       }
     }
@@ -179,6 +196,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
 
   void _updateBullets(double dt) {
     for (final b in bullets) {
+      if (b.targetKey != null) _steerBullet(b, dt);
       b.position += b.velocity * dt;
     }
     bullets.removeWhere(
@@ -188,6 +206,31 @@ abstract class FoundationalTankManager extends ChangeNotifier
           b.position.dx > mapSize ||
           b.position.dy > mapSize,
     );
+  }
+
+  /// 跟踪子弹：朝目标旋转固定角速率，目标失效则退化为直线
+  void _steerBullet(Bullet b, double dt) {
+    final target = tanks[b.targetKey!];
+    if (target == null || !target.isAlive) {
+      b.targetKey = null;
+      return;
+    }
+    final desired = (target.position - b.position).direction;
+    final diff = _angleDiff(desired, b.angle);
+    const turnRate = 5.0; // rad/s
+    if (diff.abs() <= turnRate * dt) {
+      b.angle = desired;
+    } else {
+      b.angle += turnRate * dt * diff.sign;
+    }
+  }
+
+  /// 角度差 a-b 归一到 [-pi, pi]
+  double _angleDiff(double a, double b) {
+    var d = (a - b) % (2 * pi);
+    if (d > pi) d -= 2 * pi;
+    if (d < -pi) d += 2 * pi;
+    return d;
   }
 
   /// 子弹-墙：销毁砖墙/钢墙挡弹（所有端确定性执行）
@@ -244,8 +287,11 @@ abstract class FoundationalTankManager extends ChangeNotifier
         toRemove.add(b);
         if (_isAuthorityForBullet(b)) {
           if (hitKey != null) {
-            applyHit(hitKey);
+            final killed = applyHit(hitKey);
             broadcastHit(hitKey, false);
+            if (killed && hitKey < 0) {
+              _maybeDropPowerUp(tanks[hitKey]!);
+            }
           } else {
             applyBaseHit();
             broadcastHit(-1, true);
@@ -262,10 +308,15 @@ abstract class FoundationalTankManager extends ChangeNotifier
     return isAuthority; // AI 子弹：host 权威
   }
 
-  /// 应用命中（扣血/销毁/爆炸），纯本地状态变更
-  void applyHit(int tankKey) {
+  /// 应用命中（扣血/销毁/爆炸），返回是否致死；纯本地状态变更
+  bool applyHit(int tankKey) {
     final tank = tanks[tankKey];
-    if (tank == null || !tank.isAlive) return;
+    if (tank == null || !tank.isAlive) return false;
+    // 玩家护盾抵消一次攻击
+    if (tank.playerShieldTimer > 0) {
+      tank.playerShieldTimer = 0;
+      return false;
+    }
     tank.health--;
     if (tank.health <= 0) {
       tank.isAlive = false;
@@ -281,7 +332,20 @@ abstract class FoundationalTankManager extends ChangeNotifier
         score += tank.enemyType?.points ?? 0;
       }
       handleRemoveTankCallback(tankKey);
+      return true;
     }
+    return false;
+  }
+
+  /// AI 死亡掉落道具（仅权威端调用，避免各端重复生成）
+  void _maybeDropPowerUp(Tank enemy) {
+    final rate = enemy.enemyType?.dropRate ?? 0;
+    if (_random.nextDouble() >= rate) return;
+    final type =
+        PowerUpType.values[_random.nextInt(PowerUpType.values.length)];
+    final p = PowerUp(position: enemy.position, type: type);
+    powerups.add(p);
+    broadcastSpawnItem(p);
   }
 
   void applyBaseHit() {
@@ -293,15 +357,18 @@ abstract class FoundationalTankManager extends ChangeNotifier
     _addExplosion(map.baseCenter);
   }
 
-  void _respawn(Tank tank) {
-    final spawn = playerSpawnPoints[tank.playerId % playerSpawnPoints.length];
-    tank.position = spawn;
+  void _respawn(int key, Tank tank) {
+    tank.position = _resolveSpawnPoint(key);
     tank.angle = -pi / 2;
     tank.turretAngle = -pi / 2;
     tank.health = 1;
     tank.isAlive = true;
     tank.invincibleTimer = invincibleTime;
     tank.reloadTimer = 0;
+    // 复活重置个人 buff（基地护盾属 base，不随玩家清除）
+    tank.fireBuffTimer = 0;
+    tank.homingBuffTimer = 0;
+    tank.playerShieldTimer = 0;
   }
 
   // ---- 爆炸 ----
@@ -323,7 +390,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
   void addPlayerTank(int key) {
     final pid = key % playerColors.length;
     tanks[key] = Tank(
-      position: playerSpawnPoints[pid],
+      position: _resolveSpawnPoint(key),
       angle: -pi / 2,
       turretAngle: -pi / 2,
       health: 1,
@@ -335,19 +402,71 @@ abstract class FoundationalTankManager extends ChangeNotifier
     livesByPlayer[key] = playerLives;
   }
 
+  /// 选可用出生点：当前固定点优先，被障碍占用则切换到另一可用点并固定
+  Offset _resolveSpawnPoint(int playerKey) {
+    var idx = playerSpawnUsed[playerKey] ??
+        (playerKey % playerSpawnPoints.length);
+    if (_isSpawnClear(playerSpawnPoints[idx])) return playerSpawnPoints[idx];
+    for (int i = 1; i < playerSpawnPoints.length; i++) {
+      final ni = (idx + i) % playerSpawnPoints.length;
+      if (_isSpawnClear(playerSpawnPoints[ni])) {
+        playerSpawnUsed[playerKey] = ni;
+        return playerSpawnPoints[ni];
+      }
+    }
+    return playerSpawnPoints[idx];
+  }
+
+  /// 出生点是否空闲（不越界/不撞墙/不被其他坦克占用）
+  bool _isSpawnClear(Offset pos, {Tank? ignore}) {
+    final r = Rect.fromCenter(center: pos, width: tankSize, height: tankSize);
+    if (r.left < 0 || r.top < 0 || r.right > mapSize || r.bottom > mapSize) {
+      return false;
+    }
+    if (_rectBlockedByMap(r)) return false;
+    for (final other in tanks.values) {
+      if (identical(other, ignore) || !other.isAlive) continue;
+      if (other.rect.overlaps(r)) return false;
+    }
+    return true;
+  }
+
   // ---- 开火 ----
 
-  void fire(Tank tank) {
-    if (!tank.canFire) return;
+  Bullet? fire(int key, Tank tank) {
+    if (!tank.canFire) return null;
     tank.reloadTimer = tank.isPlayer ? playerReloadTime : reloadTime;
+    var damage = tank.isPlayer ? (tank.starLevel >= 3 ? 2 : 1) : 1;
+    if (tank.fireBuffTimer > 0) damage *= 2;
+    int? target;
+    if (tank.homingBuffTimer > 0) target = _pickHomingTarget(tank);
     final bullet = Bullet(
       position: tank.position +
           Offset.fromDirection(tank.turretAngle) * tankSize * 0.6,
       angle: tank.turretAngle,
-      ownerId: tank.playerId,
-      damage: tank.isPlayer ? (tank.starLevel >= 3 ? 2 : 1) : 1,
+      ownerId: key,
+      damage: damage,
+      targetKey: target,
     );
     bullets.add(bullet);
+    return bullet;
+  }
+
+  /// 跟踪子弹目标：范围内最近的敌方
+  int? _pickHomingTarget(Tank shooter) {
+    final range = tileSize * 4;
+    int? bestKey;
+    var bestDist = range;
+    for (final entry in tanks.entries) {
+      final t = entry.value;
+      if (!t.isAlive || t.isPlayer == shooter.isPlayer) continue;
+      final d = (t.position - shooter.position).distance;
+      if (d <= bestDist) {
+        bestDist = d;
+        bestKey = entry.key;
+      }
+    }
+    return bestKey;
   }
 
   // ---- 权威方调度（local + host 执行；client 因 isAuthority=false 自动跳过） ----
@@ -355,6 +474,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
   void handleTickerCallback(double dt) {
     _updateSpawning(dt);
     _updateAiDecision(dt);
+    _updateItemSpawning(dt);
   }
 
   void _updateSpawning(double dt) {
@@ -372,15 +492,23 @@ abstract class FoundationalTankManager extends ChangeNotifier
     if (remainingEnemies <= 0) return;
     final types = EnemyType.values;
     final type = types[_random.nextInt(types.length)];
-    final pos = enemySpawnPoints[_spawnCursor % enemySpawnPoints.length];
-    _spawnCursor++;
+    // 随机找一个空闲出生点，全占满则放弃本次出生
+    final order = List.of(enemySpawnPoints)..shuffle(_random);
+    Offset? pos;
+    for (final p in order) {
+      if (_isSpawnClear(p)) {
+        pos = p;
+        break;
+      }
+    }
+    if (pos == null) return;
     final tank = Tank(
       position: pos,
       angle: pi / 2,
       turretAngle: pi / 2,
       health: type.health,
       playerId: -1,
-      color: aiColor,
+      color: type.color,
       enemyType: type,
       invincibleTimer: invincibleTime,
     );
@@ -429,8 +557,103 @@ abstract class FoundationalTankManager extends ChangeNotifier
     }
     // 开火：冷却好则大概率射击
     if (tank.canFire && _random.nextDouble() < 0.5) {
-      fire(tank);
+      fire(key, tank);
       broadcastAiFire(key);
+    }
+  }
+
+  // ---- 道具 ----
+
+  void _updateItemSpawning(double dt) {
+    if (!isAuthority) return;
+    _itemSpawnTimer += dt;
+    if (_itemSpawnTimer >= 25 && powerups.length < 2) {
+      _itemSpawnTimer = 0;
+      _spawnRandomItem();
+    }
+  }
+
+  void _spawnRandomItem() {
+    for (int i = 0; i < 50; i++) {
+      final c = _random.nextInt(gridSize);
+      final r = _random.nextInt(gridSize);
+      if (map.tileAt(c, r).type != TileType.empty) continue;
+      final pos = Offset((c + 0.5) * tileSize, (r + 0.5) * tileSize);
+      if (!_isSpawnClear(pos)) continue;
+      final type =
+          PowerUpType.values[_random.nextInt(PowerUpType.values.length)];
+      final p = PowerUp(position: pos, type: type);
+      powerups.add(p);
+      broadcastSpawnItem(p);
+      return;
+    }
+  }
+
+  /// 仅权威方检测拾取并广播，各端收到 pickup 后应用效果
+  void _checkPowerUpPickup() {
+    if (!isAuthority) return;
+    for (final p in powerups.toList()) {
+      for (final entry in tanks.entries) {
+        final t = entry.value;
+        if (!t.isAlive || !t.isPlayer) continue;
+        if (!t.rect.overlaps(p.rect)) continue;
+        broadcastPickup(entry.key, p.type, p.position);
+        applyPowerUp(entry.key, p.type);
+        powerups.remove(p);
+        break;
+      }
+    }
+  }
+
+  void applyPowerUp(int playerKey, PowerUpType type) {
+    final t = tanks[playerKey];
+    switch (type) {
+      case PowerUpType.shield:
+        _activateShield();
+        break;
+      case PowerUpType.fireBullet:
+        if (t != null) t.fireBuffTimer = 8;
+        break;
+      case PowerUpType.homing:
+        if (t != null) t.homingBuffTimer = 5;
+        break;
+      case PowerUpType.playerShield:
+        if (t != null) t.playerShieldTimer = 10;
+        break;
+    }
+  }
+
+  void _activateShield() {
+    shieldTimer = 10;
+    final bc = (map.baseCenter.dx / tileSize).floor();
+    final br = (map.baseCenter.dy / tileSize).floor();
+    for (final dc in <int>[-1, 0, 1]) {
+      for (final dr in <int>[-1, 0, 1]) {
+        if (dc == 0 && dr == 0) continue; // base 本身不动
+        final c = bc + dc, r = br + dr;
+        if (c < 0 || c >= gridSize || r < 0 || r >= gridSize) continue;
+        map.setTileType(c, r, TileType.steel);
+      }
+    }
+  }
+
+  void _updateShield(double dt) {
+    if (shieldTimer <= 0) return;
+    shieldTimer -= dt;
+    if (shieldTimer > 0) return;
+    shieldTimer = 0;
+    // 一圈无条件变 brick（即便原本空地，最终出现一圈砖墙）
+    final bc = (map.baseCenter.dx / tileSize).floor();
+    final br = (map.baseCenter.dy / tileSize).floor();
+    for (final dc in <int>[-1, 0, 1]) {
+      for (final dr in <int>[-1, 0, 1]) {
+        if (dc == 0 && dr == 0) continue;
+        final c = bc + dc, r = br + dr;
+        if (c < 0 || c >= gridSize || r < 0 || r >= gridSize) continue;
+        if (map.tileAt(c, r).type != TileType.base) {
+          map.setTileType(c, r, TileType.brick);
+        }
+      }
     }
   }
 
@@ -460,14 +683,17 @@ abstract class FoundationalTankManager extends ChangeNotifier
     remainingEnemies = totalEnemyCount;
     enemiesOnField = 0;
     _enemyIdSeq = 0;
-    _spawnCursor = 0;
     _spawnTimer = 0;
     _aiDecisionTimer = 0;
+    _itemSpawnTimer = 0;
+    shieldTimer = 0;
     tanks.clear();
     bullets.clear();
     explosions.clear();
+    powerups.clear();
     livesByPlayer.clear();
-    map = MapData.classic();
+    playerSpawnUsed.clear();
+    map = isAuthority ? MapData.random(_random) : MapData.classic();
     _lastElapsed = 0;
   }
 
@@ -516,13 +742,16 @@ abstract class FoundationalTankManager extends ChangeNotifier
     'map': map.toJson(),
     'tanks': tanks.map((k, v) => MapEntry(k.toString(), v.toJson())),
     'bullets': bullets.map((b) => b.toJson()).toList(),
+    'powerups': powerups.map((p) => p.toJson()).toList(),
     'lives': livesByPlayer.map((k, v) => MapEntry(k.toString(), v)),
+    'spawnUsed': playerSpawnUsed.map((k, v) => MapEntry(k.toString(), v)),
     'remaining': remainingEnemies,
     'onField': enemiesOnField,
     'baseDestroyed': baseDestroyed,
     'score': score,
     'enemySeq': _enemyIdSeq,
-    'spawnCursor': _spawnCursor,
+    'shieldTimer': shieldTimer,
+    'itemSpawnTimer': _itemSpawnTimer,
   };
 
   void fromJson(Map<String, dynamic> json) {
@@ -538,16 +767,28 @@ abstract class FoundationalTankManager extends ChangeNotifier
             .map((b) => Bullet.fromJson(b as Map<String, dynamic>))
             .toList(),
       );
+    powerups
+      ..clear()
+      ..addAll(
+        (json['powerups'] as List? ?? const [])
+            .map((p) => PowerUp.fromJson(p as Map<String, dynamic>))
+            .toList(),
+      );
     livesByPlayer.clear();
     (json['lives'] as Map<String, dynamic>).forEach((k, v) {
       livesByPlayer[int.parse(k)] = v as int;
+    });
+    playerSpawnUsed.clear();
+    (json['spawnUsed'] as Map<String, dynamic>?)?.forEach((k, v) {
+      playerSpawnUsed[int.parse(k)] = v as int;
     });
     remainingEnemies = json['remaining'] as int;
     enemiesOnField = json['onField'] as int;
     baseDestroyed = json['baseDestroyed'] as bool;
     score = json['score'] as int;
     _enemyIdSeq = json['enemySeq'] as int;
-    _spawnCursor = json['spawnCursor'] as int;
+    shieldTimer = (json['shieldTimer'] as num?)?.toDouble() ?? 0;
+    _itemSpawnTimer = (json['itemSpawnTimer'] as num?)?.toDouble() ?? 0;
   }
 
   // ---- 抽象钩子 ----
@@ -582,6 +823,8 @@ abstract class FoundationalTankManager extends ChangeNotifier
   void broadcastAiFire(int tankKey) {}
   void broadcastSpawn(int tankKey, Tank tank) {}
   void broadcastHit(int tankKey, bool isBase) {}
+  void broadcastSpawnItem(PowerUp p) {}
+  void broadcastPickup(int playerKey, PowerUpType type, Offset position) {}
 
   @override
   void dispose() {

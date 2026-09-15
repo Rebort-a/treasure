@@ -24,6 +24,7 @@ class TankPainter extends CustomPainter {
     _drawTanks(canvas);
     _drawBullets(canvas);
     _drawGrass(canvas); // 草地遮挡坦克（经典视野）
+    _drawPowerUps(canvas);
     _drawExplosions(canvas);
   }
 
@@ -154,11 +155,30 @@ class TankPainter extends CustomPainter {
   void _drawTank(Canvas canvas, Tank tank) {
     // 无敌时闪烁（半透明）
     final alpha = tank.invincibleTimer > 0 ? 0.5 : 1.0;
-    final body = tank.color.withValues(alpha: alpha);
+    var body = tank.color.withValues(alpha: alpha);
+    // 装甲随血量破损黑化
+    if (tank.enemyType == EnemyType.armor) {
+      final max = tank.enemyType!.maxHealth;
+      final ratio = max > 0 ? tank.health / max : 1.0;
+      body = Color.lerp(body, Colors.black, (1 - ratio) * 0.45)!
+          .withValues(alpha: alpha);
+    }
     final track = const Color(0xFF37474F).withValues(alpha: alpha);
-    final turret = Color.lerp(tank.color, Colors.black, 0.3)!
+    final turret = Color.lerp(body, Colors.black, 0.3)!
         .withValues(alpha: alpha);
     final half = tankSize / 2;
+
+    // 玩家护盾光环（抵消一次攻击；火焰/跟踪子弹 buff 不显示光环）
+    if (tank.isPlayer && tank.playerShieldTimer > 0) {
+      canvas.drawCircle(
+        tank.position,
+        tankSize * 0.62,
+        Paint()
+          ..color = const Color(0xFF26A69A).withValues(alpha: 0.45)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+    }
 
     // 车身（朝移动方向 angle）
     canvas.save();
@@ -211,13 +231,88 @@ class TankPainter extends CustomPainter {
   void _drawBullets(Canvas canvas) {
     for (final b in manager.bullets) {
       final isPlayer = b.ownerId >= 0;
-      canvas.drawCircle(
-        b.position,
-        bulletSize / 2,
-        Paint()..color = isPlayer ? bulletColor : enemyBulletColor,
-      );
+      final Color color;
+      if (b.targetKey != null) {
+        color = const Color(0xFFAB47BC); // 跟踪子弹紫
+      } else if (b.damage >= 2) {
+        color = const Color(0xFFFF6E40); // 火焰子弹橙
+      } else {
+        color = isPlayer ? bulletColor : enemyBulletColor;
+      }
+      canvas.drawCircle(b.position, bulletSize / 2, Paint()..color = color);
     }
   }
+
+  // ---- 道具 ----
+  void _drawPowerUps(Canvas canvas) {
+    for (final p in manager.powerups) {
+      final c = p.rect.center;
+      final r = tileSize * 0.32;
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()..color = _powerUpColor(p.type).withValues(alpha: 0.9),
+      );
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+      final icon = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      switch (p.type) {
+        case PowerUpType.shield:
+          final path = Path()
+            ..moveTo(c.dx, c.dy - r * 0.5)
+            ..lineTo(c.dx + r * 0.4, c.dy)
+            ..lineTo(c.dx + r * 0.3, c.dy + r * 0.4)
+            ..lineTo(c.dx, c.dy + r * 0.6)
+            ..lineTo(c.dx - r * 0.3, c.dy + r * 0.4)
+            ..lineTo(c.dx - r * 0.4, c.dy)
+            ..close();
+          canvas.drawPath(path, icon);
+          break;
+        case PowerUpType.playerShield:
+          // 玩家护盾：双层圆
+          canvas.drawCircle(c, r * 0.55, icon);
+          canvas.drawCircle(c, r * 0.3, icon);
+          break;
+        case PowerUpType.fireBullet:
+          final path = Path()
+            ..moveTo(c.dx, c.dy - r * 0.5)
+            ..lineTo(c.dx + r * 0.4, c.dy + r * 0.4)
+            ..lineTo(c.dx - r * 0.4, c.dy + r * 0.4)
+            ..close();
+          canvas.drawPath(path, icon);
+          break;
+        case PowerUpType.homing:
+          canvas.drawLine(
+            Offset(c.dx - r * 0.5, c.dy),
+            Offset(c.dx + r * 0.5, c.dy),
+            icon,
+          );
+          canvas.drawLine(
+            Offset(c.dx, c.dy - r * 0.5),
+            Offset(c.dx, c.dy + r * 0.5),
+            icon,
+          );
+          canvas.drawCircle(c, r * 0.25, icon);
+          break;
+      }
+    }
+  }
+
+  Color _powerUpColor(PowerUpType t) => switch (t) {
+    PowerUpType.shield => const Color(0xFF29B6F6),
+    PowerUpType.playerShield => const Color(0xFF26A69A),
+    PowerUpType.fireBullet => const Color(0xFFFF6E40),
+    PowerUpType.homing => const Color(0xFFAB47BC),
+  };
 
   // ---- 爆炸 ----
   void _drawExplosions(Canvas canvas) {

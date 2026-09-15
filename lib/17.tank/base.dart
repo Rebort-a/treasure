@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/tool/convert_utils.dart';
@@ -11,8 +12,7 @@ const double mapSize = gridSize * tileSize; // 520
 // ---- 坦克/子弹常量 ----
 const double tankSize = tileSize * 0.8;
 const double bulletSize = tileSize * 0.2;
-const double tankSpeed = 120; // px/s
-const double fastTankSpeed = 200;
+const double tankSpeed = 160; // px/s
 const double bulletSpeed = 300;
 const double reloadTime = 0.8; // AI 开火冷却（秒）
 const double playerReloadTime = 0.3; // 玩家开火冷却（秒）
@@ -30,11 +30,11 @@ const List<Offset> enemySpawnPoints = [
   Offset(12.5 * tileSize, 0.5 * tileSize),
 ];
 const List<Offset> playerSpawnPoints = [
-  // 底部出生点
-  Offset(4 * tileSize, 12 * tileSize),
-  Offset(8 * tileSize, 12 * tileSize),
-  Offset(2 * tileSize, 12 * tileSize),
-  Offset(10 * tileSize, 12 * tileSize),
+  // 底部出生点（中心坐标，避开基地周围一圈砖墙 col 6/7/8 row 12）
+  Offset(4.5 * tileSize, 12.5 * tileSize),
+  Offset(10.5 * tileSize, 12.5 * tileSize),
+  Offset(3.5 * tileSize, 12.5 * tileSize),
+  Offset(9.5 * tileSize, 12.5 * tileSize),
 ];
 
 // ---- 颜色 ----
@@ -44,9 +44,8 @@ const Color grassColor = Color(0xFF4CAF50);
 const Color waterColor = Color(0xFF2196F3);
 const Color baseColor = Color(0xFFFFC107);
 const Color baseDestroyedColor = Color(0xFF616161);
-const Color aiColor = Color(0xFFB0BEC5);
 const Color bulletColor = Color(0xFFFFEB3B); // 玩家子弹
-const Color enemyBulletColor = Color(0xFFFF5252); // 敌方子弹
+const Color enemyBulletColor = Color(0xFFFFFFFF); // 敌方子弹（白）
 const List<Color> playerColors = [
   Color(0xFFFFD600), // P1 黄
   Color(0xFF4CAF50), // P2 绿
@@ -85,10 +84,10 @@ enum Direction {
 enum TileType {
   empty, // 空地
   brick, // 砖墙（可毁）
-  steel, // 钢墙（不可毁，满级子弹可毁）
+  steel, // 钢墙（不可毁）
   grass, // 草地（坦克与子弹均可过，渲染在上层）
   water, // 水（坦克不可过，子弹可过）
-  base, // 基地（被毁即败）
+  base // 基地（被毁即败）
   ;
 
   /// 坦克是否阻挡（不可驶入）
@@ -107,14 +106,14 @@ enum EnemyType {
   basic, // 普通
   fast, // 高速
   power, // 快速子弹
-  armor, // 装甲（多血）
+  armor // 装甲（多血）
   ;
 
   double get speed => switch (this) {
-    basic => 60,
-    fast => 100,
-    power => 60,
-    armor => 60,
+    basic => 100,
+    fast => 180,
+    power => 120,
+    armor => 80,
   };
 
   int get health => switch (this) {
@@ -131,6 +130,25 @@ enum EnemyType {
     armor => 400,
   };
 
+  /// 外观配色（按种类区分）
+  Color get color => switch (this) {
+    basic => const Color(0xFF8D6E63), // 灰褐
+    fast => const Color(0xFFFF7043), // 橙
+    power => const Color(0xFF8E24AA), // 紫
+    armor => const Color(0xFFC62828), // 红
+  };
+
+  /// 满血参照（供渲染算装甲破损度）
+  int get maxHealth => health;
+
+  /// 道具掉落概率
+  double get dropRate => switch (this) {
+    basic => 0.06,
+    fast => 0.09,
+    power => 0.12,
+    armor => 0.18,
+  };
+
   static EnemyType fromName(String name) =>
       values.firstWhere((t) => t.name == name, orElse: () => EnemyType.basic);
 }
@@ -138,27 +156,15 @@ enum EnemyType {
 /// 地图单元
 class Tile {
   TileType type;
-  int hitPoint; // 通用耐久（钢墙等），砖墙改用上下半破碎标志
-  bool topBroken; // 砖墙上半是否破碎
-  bool bottomBroken; // 砖墙下半是否破碎
 
-  Tile(this.type, [this.hitPoint = 1, this.topBroken = false, this.bottomBroken = false]);
+  Tile(this.type);
 
   static Tile empty() => Tile(TileType.empty);
 
-  Map<String, dynamic> toJson() => {
-    'type': type.name,
-    'hp': hitPoint,
-    'tb': topBroken,
-    'bb': bottomBroken,
-  };
+  Map<String, dynamic> toJson() => {'type': type.name};
 
-  static Tile fromJson(Map<String, dynamic> json) => Tile(
-    TileType.fromName(json['type'] as String),
-    json['hp'] as int? ?? 1,
-    json['tb'] as bool? ?? false,
-    json['bb'] as bool? ?? false,
-  );
+  static Tile fromJson(Map<String, dynamic> json) =>
+      Tile(TileType.fromName(json['type'] as String));
 }
 
 /// 坦克
@@ -174,6 +180,9 @@ class Tank {
   bool moving; // 是否正在移动（玩家松开停止，AI 持续）
   double respawnTimer; // 重生倒计时（>0 表示待重生）
   double invincibleTimer; // 无敌剩余
+  double fireBuffTimer; // 火焰子弹剩余（>0 期间伤害翻倍）
+  double homingBuffTimer; // 自动跟踪剩余（>0 期间开火吸附）
+  double playerShieldTimer; // 玩家护盾剩余（>0 抵消一次攻击）
   Color color;
   EnemyType? enemyType; // AI 专属
 
@@ -189,21 +198,19 @@ class Tank {
     this.reloadTimer = 0,
     this.respawnTimer = 0,
     this.invincibleTimer = 0,
+    this.fireBuffTimer = 0,
+    this.homingBuffTimer = 0,
+    this.playerShieldTimer = 0,
     this.moving = true,
     this.enemyType,
   });
 
   bool get isPlayer => playerId >= 0;
 
-  Rect get rect => Rect.fromCenter(
-    center: position,
-    width: tankSize,
-    height: tankSize,
-  );
+  Rect get rect =>
+      Rect.fromCenter(center: position, width: tankSize, height: tankSize);
 
   bool get canFire => isAlive && reloadTimer <= 0;
-
-  void startReload() => reloadTimer = reloadTime;
 
   Map<String, dynamic> toJson() => {
     'px': ConvertUtils.offsetToJson(position),
@@ -216,6 +223,9 @@ class Tank {
     'alive': isAlive,
     'respawn': respawnTimer,
     'invincible': invincibleTimer,
+    'fireBuff': fireBuffTimer,
+    'homingBuff': homingBuffTimer,
+    'playerShield': playerShieldTimer,
     'moving': moving,
     'color': ConvertUtils.colorToJson(color),
     'enemy': enemyType?.name,
@@ -233,6 +243,9 @@ class Tank {
     reloadTimer: (json['reload'] as num).toDouble(),
     respawnTimer: (json['respawn'] as num).toDouble(),
     invincibleTimer: (json['invincible'] as num).toDouble(),
+    fireBuffTimer: (json['fireBuff'] as num?)?.toDouble() ?? 0,
+    homingBuffTimer: (json['homingBuff'] as num?)?.toDouble() ?? 0,
+    playerShieldTimer: (json['playerShield'] as num?)?.toDouble() ?? 0,
     moving: json['moving'] as bool? ?? true,
     enemyType: json['enemy'] == null
         ? null
@@ -244,36 +257,74 @@ class Tank {
 class Bullet {
   Offset position;
   double angle; // 飞行方向（弧度）
-  int ownerId; // 发射坦克的 playerId（-1 表 AI）
+  int ownerId; // 发射坦克的 key（玩家=identity，AI=负数）
   int damage;
+  int? targetKey; // 跟踪目标 tank key（null=直线飞行）
 
   Bullet({
     required this.position,
     required this.angle,
     required this.ownerId,
     this.damage = 1,
+    this.targetKey,
   });
 
   Offset get velocity => Offset.fromDirection(angle) * bulletSpeed;
 
-  Rect get rect => Rect.fromCenter(
-    center: position,
-    width: bulletSize,
-    height: bulletSize,
-  );
+  Rect get rect =>
+      Rect.fromCenter(center: position, width: bulletSize, height: bulletSize);
 
   Map<String, dynamic> toJson() => {
     'px': ConvertUtils.offsetToJson(position),
     'ang': angle,
     'owner': ownerId,
     'dmg': damage,
+    'tgt': targetKey,
   };
 
   static Bullet fromJson(Map<String, dynamic> json) => Bullet(
     position: ConvertUtils.offsetFromJson(json['px'] as Map<String, dynamic>),
     angle: (json['ang'] as num).toDouble(),
     ownerId: json['owner'] as int,
-    damage: json['dmg'] as int,
+    damage: (json['dmg'] as num?)?.toInt() ?? 1,
+    targetKey: json['tgt'] as int?,
+  );
+}
+
+/// 道具类型
+enum PowerUpType {
+  shield, // 基地护盾：基地一圈变 steel，10s 后变 brick
+  fireBullet, // 火焰子弹：8s 内伤害翻倍
+  homing, // 自动跟踪：5s 内子弹吸附敌人
+  playerShield; // 玩家护盾：10s 内抵消一次攻击
+
+  static PowerUpType fromName(String name) => values.firstWhere(
+    (t) => t.name == name,
+    orElse: () => PowerUpType.shield,
+  );
+}
+
+/// 道具
+class PowerUp {
+  final Offset position;
+  final PowerUpType type;
+
+  const PowerUp({required this.position, required this.type});
+
+  Rect get rect => Rect.fromCenter(
+    center: position,
+    width: tileSize * 0.7,
+    height: tileSize * 0.7,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'px': ConvertUtils.offsetToJson(position),
+    'type': type.name,
+  };
+
+  static PowerUp fromJson(Map<String, dynamic> json) => PowerUp(
+    position: ConvertUtils.offsetFromJson(json['px'] as Map<String, dynamic>),
+    type: PowerUpType.fromName(json['type'] as String),
   );
 }
 
@@ -355,13 +406,10 @@ class MapData {
   void setTileType(int col, int row, TileType type) {
     if (col < 0 || col >= cols || row < 0 || row >= rows) return;
     tiles[row][col].type = type;
-    tiles[row][col].topBroken = false;
-    tiles[row][col].bottomBroken = false;
   }
 
   /// 基地中心（col=7, row=12）
-  Offset get baseCenter =>
-      Offset((7 + 0.5) * tileSize, (12 + 0.5) * tileSize);
+  Offset get baseCenter => Offset((7 + 0.5) * tileSize, (12 + 0.5) * tileSize);
 
   /// 经典布局（13×13）
   static const _layout = <String>[
@@ -382,13 +430,62 @@ class MapData {
 
   static MapData classic() => parse(_layout);
 
+  /// 随机地图：基地+周围一圈砖墙与出生点固定，其余按概率散布
+  static MapData random(Random rng) {
+    final tiles = List.generate(
+      gridSize,
+      (_) => List.generate(gridSize, (_) => Tile.empty()),
+    );
+    // 固定区：基地 + 周围一圈砖墙
+    const baseCol = 7, baseRow = 12;
+    for (final dc in <int>[-1, 0, 1]) {
+      for (final dr in <int>[-1, 0, 1]) {
+        final r = baseRow + dr, c = baseCol + dc;
+        if (r < 0 || r >= gridSize || c < 0 || c >= gridSize) continue;
+        tiles[r][c] = Tile(dc == 0 && dr == 0 ? TileType.base : TileType.brick);
+      }
+    }
+    // 固定出生点格（保持空地）：敌方 row0 col 0/6/12，己方 row12 col 3/4/9/10
+    const spawnCells = <List<int>>[
+      [0, 0],
+      [0, 6],
+      [0, 12],
+      [12, 3],
+      [12, 4],
+      [12, 9],
+      [12, 10],
+    ];
+    // 其余格随机散布
+    for (int r = 0; r < gridSize; r++) {
+      for (int c = 0; c < gridSize; c++) {
+        if (tiles[r][c].type != TileType.empty) continue;
+        if (spawnCells.any((sc) => sc[0] == r && sc[1] == c)) continue;
+        final v = rng.nextDouble();
+        TileType type;
+        if (v < 0.40) {
+          type = TileType.brick;
+        } else if (v < 0.50) {
+          type = TileType.steel;
+        } else if (v < 0.62) {
+          type = TileType.grass;
+        } else if (v < 0.70) {
+          type = TileType.water;
+        } else {
+          type = TileType.empty;
+        }
+        tiles[r][c] = Tile(type);
+      }
+    }
+    return MapData(tiles);
+  }
+
   static MapData parse(List<String> layout) {
     final tiles = <List<Tile>>[];
     for (final row in layout) {
       final line = <Tile>[];
       for (final ch in row.split('')) {
         final type = _charToType(ch);
-        line.add(Tile(type, type == TileType.brick ? 2 : 1));
+        line.add(Tile(type));
       }
       tiles.add(line);
     }
@@ -405,9 +502,7 @@ class MapData {
   };
 
   Map<String, dynamic> toJson() => {
-    'tiles': tiles
-        .map((row) => row.map((t) => t.toJson()).toList())
-        .toList(),
+    'tiles': tiles.map((row) => row.map((t) => t.toJson()).toList()).toList(),
   };
 
   static MapData fromJson(Map<String, dynamic> json) {

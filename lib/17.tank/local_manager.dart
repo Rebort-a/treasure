@@ -55,7 +55,7 @@ class LocalTankManager extends FoundationalTankManager {
   @override
   void updatePlayerFire() {
     final tank = tanks[identity];
-    if (tank != null) fire(tank);
+    if (tank != null) fire(identity, tank);
   }
 
   @override
