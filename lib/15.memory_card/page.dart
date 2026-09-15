@@ -69,28 +69,46 @@ class MemoryPage extends StatelessWidget {
   }
 
   /// 棋盘区：Wrap 布局，卡牌固定尺寸，配对成功后该格留空不重排
+  /// 游戏结束后场上无牌，叠加居中的大重开图标
   Widget _buildBoardArea() {
     return ValueListenableBuilder<List<MemoryCardNotifier>>(
       valueListenable: _manager.cards,
-      builder: (_, cards, __) => Center(
-        child: SingleChildScrollView(
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: List.generate(
-              cards.length,
-              (i) => SizedBox(
-                width: 72,
-                height: 72,
-                child: CardView(
-                  card: cards[i],
-                  onTap: () => _manager.flipCard(i),
+      builder: (_, cards, __) => Stack(
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: List.generate(
+                  cards.length,
+                  (i) => SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: CardView(
+                      card: cards[i],
+                      onTap: () => _manager.flipCard(i),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _manager.gameOver,
+            builder: (_, over, __) => over
+                ? Center(
+                    child: IconButton(
+                      iconSize: 96,
+                      onPressed: _manager.resetGame,
+                      icon: const Icon(Icons.replay_circle_filled,
+                          color: Colors.deepPurple),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }

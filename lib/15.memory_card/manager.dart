@@ -12,7 +12,6 @@ class MemoryManager {
   late final TimerCounter _timer;
 
   int _difficulty = 6; // 牌对数
-  bool _isGameOver = false;
 
   final ListNotifier<MemoryCardNotifier> cards = ListNotifier([]);
   final ValueNotifier<int> firstIndex = ValueNotifier(-1);
@@ -20,6 +19,7 @@ class MemoryManager {
   final ValueNotifier<int> matchedCount = ValueNotifier(0);
   final ValueNotifier<int> elapsed = ValueNotifier(0);
   final ValueNotifier<String> displayInfo = ValueNotifier('');
+  final ValueNotifier<bool> gameOver = ValueNotifier(false);
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
@@ -59,7 +59,7 @@ class MemoryManager {
     firstIndex.value = -1;
     isMatching.value = false;
     matchedCount.value = 0;
-    _isGameOver = false;
+    gameOver.value = false;
     displayInfo.value = _displayText;
   }
 
@@ -69,7 +69,7 @@ class MemoryManager {
 
   /// 翻牌主入口（异步时序，isMatching 锁防重入）
   Future<void> flipCard(int i) async {
-    if (_isGameOver || isMatching.value) return;
+    if (gameOver.value || isMatching.value) return;
     if (i < 0 || i >= cards.length) return;
     final card = cards[i];
 
@@ -141,12 +141,12 @@ class MemoryManager {
 
   void _handleGameOver() {
     _timer.stop();
-    _isGameOver = true;
+    gameOver.value = true;
     displayInfo.value = _displayText;
   }
 
   String get _displayText =>
-      _isGameOver ? S.timeTaken(_timer.tick) : S.remainingPairs(_difficulty - matchedCount.value);
+      gameOver.value ? S.timeTaken(_timer.tick) : S.remainingPairs(_difficulty - matchedCount.value);
 
   /// 难度设置对话框（牌对数 4~16）
   void showSelector() {
