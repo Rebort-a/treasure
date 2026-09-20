@@ -126,7 +126,7 @@ class NetTankManager extends FoundationalTankManager {
         bullets.add(
           Bullet(
             position: t.position +
-                Offset.fromDirection(t.turretAngle) * tankSize * 0.6,
+                Offset.fromDirection(t.turretAngle) * t.size * 0.6,
             angle: t.turretAngle,
             ownerId: message.id,
             damage: (c['dmg'] as num).toInt(),
@@ -150,7 +150,7 @@ class NetTankManager extends FoundationalTankManager {
         bullets.add(
           Bullet(
             position: t.position +
-                Offset.fromDirection(t.turretAngle) * tankSize * 0.6,
+                Offset.fromDirection(t.turretAngle) * t.size * 0.6,
             angle: t.turretAngle,
             ownerId: key,
             damage: 1,

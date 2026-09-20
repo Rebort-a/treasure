@@ -162,8 +162,8 @@ abstract class FoundationalTankManager extends ChangeNotifier
   bool _canMoveTo(Offset newPos, Tank self) {
     final r = Rect.fromCenter(
       center: newPos,
-      width: tankSize,
-      height: tankSize,
+      width: self.size,
+      height: self.size,
     );
     if (r.left < 0 || r.top < 0 || r.right > mapSize || r.bottom > mapSize) {
       return false;
@@ -442,7 +442,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
     if (tank.homingBuffTimer > 0) target = _pickHomingTarget(tank);
     final bullet = Bullet(
       position: tank.position +
-          Offset.fromDirection(tank.turretAngle) * tankSize * 0.6,
+          Offset.fromDirection(tank.turretAngle) * tank.size * 0.6,
       angle: tank.turretAngle,
       ownerId: key,
       damage: damage,
@@ -533,7 +533,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
 
   void _decideAi(int key, Tank tank) {
     // 撞墙或随机概率转向（偏向朝下追击玩家/基地）
-    final ahead = tank.position + Offset.fromDirection(tank.angle) * tankSize;
+    final ahead = tank.position + Offset.fromDirection(tank.angle) * tank.size;
     final blocked = !_canMoveTo(ahead, tank);
     if (blocked || _random.nextDouble() < 0.3) {
       final dirs = Direction.values;
@@ -542,7 +542,7 @@ abstract class FoundationalTankManager extends ChangeNotifier
       // 偏向向下
       for (int i = 0; i < 4; i++) {
         final d = dirs[_random.nextInt(4)];
-        final test = tank.position + d.vector * tankSize;
+        final test = tank.position + d.vector * tank.size;
         if (_canMoveTo(test, tank)) {
           chosenAngle = d.angle;
           chosenDir = d;

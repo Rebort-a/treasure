@@ -110,10 +110,10 @@ enum EnemyType {
   ;
 
   double get speed => switch (this) {
-    basic => 100,
-    fast => 180,
-    power => 120,
-    armor => 80,
+    basic => 80,
+    fast => 160,
+    power => 100,
+    armor => 60,
   };
 
   int get health => switch (this) {
@@ -128,6 +128,14 @@ enum EnemyType {
     fast => 200,
     power => 300,
     armor => 400,
+  };
+
+  /// 体型系数（相对标准 tankSize）：fast 小巧，armor 庞大
+  double get sizeFactor => switch (this) {
+    basic => 1.0,
+    fast => 0.8,
+    power => 1.0,
+    armor => 1.25,
   };
 
   /// 外观配色（按种类区分）
@@ -207,8 +215,11 @@ class Tank {
 
   bool get isPlayer => playerId >= 0;
 
+  /// 实际体型（敌方按类型差异化，玩家为标准体型）
+  double get size => tankSize * (enemyType?.sizeFactor ?? 1.0);
+
   Rect get rect =>
-      Rect.fromCenter(center: position, width: tankSize, height: tankSize);
+      Rect.fromCenter(center: position, width: size, height: size);
 
   bool get canFire => isAlive && reloadTimer <= 0;
 

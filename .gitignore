@@ -52,6 +52,7 @@ app.*.map.json
 # AI related
 .claude/
 .mcp.json
+AGENTS.md
 CLAUDE.md
 TASK_QUEUE.md
 NIGHT_SHIFT.md

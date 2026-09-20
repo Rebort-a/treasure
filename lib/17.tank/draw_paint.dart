@@ -153,8 +153,9 @@ class TankPainter extends CustomPainter {
   }
 
   void _drawTank(Canvas canvas, Tank tank) {
-    // 无敌时闪烁（半透明）
-    final alpha = tank.invincibleTimer > 0 ? 0.5 : 1.0;
+    // 无敌时不再变暗，仅以护盾环标识（与装甲受击黑化区分）
+    final invincible = tank.invincibleTimer > 0;
+    const alpha = 1.0;
     var body = tank.color.withValues(alpha: alpha);
     // 装甲随血量破损黑化
     if (tank.enemyType == EnemyType.armor) {
@@ -166,13 +167,26 @@ class TankPainter extends CustomPainter {
     final track = const Color(0xFF37474F).withValues(alpha: alpha);
     final turret = Color.lerp(body, Colors.black, 0.3)!
         .withValues(alpha: alpha);
-    final half = tankSize / 2;
+    final size = tank.size; // 体型随敌方类型差异化
+    final half = size / 2;
+
+    // 无敌护盾环（白色，与玩家护盾的青色光环区分）
+    if (invincible) {
+      canvas.drawCircle(
+        tank.position,
+        size * 0.62,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.45)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+    }
 
     // 玩家护盾光环（抵消一次攻击；火焰/跟踪子弹 buff 不显示光环）
     if (tank.isPlayer && tank.playerShieldTimer > 0) {
       canvas.drawCircle(
         tank.position,
-        tankSize * 0.62,
+        size * 0.62,
         Paint()
           ..color = const Color(0xFF26A69A).withValues(alpha: 0.45)
           ..style = PaintingStyle.stroke
@@ -186,29 +200,29 @@ class TankPainter extends CustomPainter {
     canvas.rotate(tank.angle + pi / 2);
     // 履带底
     canvas.drawRect(
-      Rect.fromCenter(center: Offset.zero, width: tankSize * 0.8, height: tankSize),
+      Rect.fromCenter(center: Offset.zero, width: size * 0.8, height: size),
       Paint()..color = track,
     );
     // 左右履带
     canvas.drawRect(
-      Rect.fromLTWH(-half, -half, tankSize * 0.18, tankSize),
+      Rect.fromLTWH(-half, -half, size * 0.18, size),
       Paint()..color = body,
     );
     canvas.drawRect(
-      Rect.fromLTWH(half - tankSize * 0.18, -half, tankSize * 0.18, tankSize),
+      Rect.fromLTWH(half - size * 0.18, -half, size * 0.18, size),
       Paint()..color = body,
     );
     // 车身主体
     canvas.drawRect(
-      Rect.fromCenter(center: Offset.zero, width: tankSize * 0.62, height: tankSize * 0.7),
+      Rect.fromCenter(center: Offset.zero, width: size * 0.62, height: size * 0.7),
       Paint()..color = body,
     );
     // 车头标识方块（区分正反，与两侧履带保持间距）
     canvas.drawRect(
       Rect.fromCenter(
-        center: Offset(0, -tankSize * 0.2),
-        width: tankSize * 0.24,
-        height: tankSize * 0.16,
+        center: Offset(0, -size * 0.2),
+        width: size * 0.24,
+        height: size * 0.16,
       ),
       Paint()..color = Colors.black,
     );
@@ -218,10 +232,10 @@ class TankPainter extends CustomPainter {
     canvas.save();
     canvas.translate(tank.position.dx, tank.position.dy);
     canvas.rotate(tank.turretAngle + pi / 2);
-    canvas.drawCircle(Offset.zero, tankSize * 0.2, Paint()..color = turret);
+    canvas.drawCircle(Offset.zero, size * 0.2, Paint()..color = turret);
     // 炮管（朝上，随炮塔旋转）
     canvas.drawRect(
-      Rect.fromLTWH(-tankSize * 0.06, -half, tankSize * 0.12, tankSize * 0.5),
+      Rect.fromLTWH(-size * 0.06, -half, size * 0.12, size * 0.5),
       Paint()..color = track,
     );
     canvas.restore();
