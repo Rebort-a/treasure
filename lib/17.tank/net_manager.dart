@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../00.common/engine/net_real_engine.dart';
+import '../00.common/game/map.dart';
 import '../00.common/game/step.dart';
 import '../00.common/network/network_message.dart';
 import '../00.common/network/network_room.dart';
@@ -10,14 +11,13 @@ import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
-/// 联机 action 协议类型（收发双方共用，避免裸字符串拼写错误）。
 enum TankAction {
   move,
   stop,
   aim,
   aimStop,
   fire,
-  aiTurn,
+  aiPlan,
   aiFire,
   spawn,
   spawnItem,
@@ -26,14 +26,23 @@ enum TankAction {
   restart,
 }
 
-/// 联机模式：各自模拟 + Host 下发 AI 决策 + 拥有者权威 hit 仲裁。
-/// - host（最小 id）：跑 AI 决策/刷怪/命中判定，经 action 广播
-/// - client：只跑移动/子弹飞行/砖墙销毁，AI 与 hit 由 action 驱动
-class NetTankManager extends FoundationalTankManager {
+/// 联机玩家输入只发送 action，等待服务器回传后再应用。
+///
+/// 新玩家加入或重开时，所有端重新加载同一份 resource 并完成同步屏障。
+/// AI、生成、道具和命中由权威方产生，但包括权威方自己在内，所有端都要
+/// 等服务器回环后才应用事件。
+class NetTankManager extends TankGameManager {
   late final NetRealGameEngine engine;
 
-  int _pendingSync = 0; // host 等待就绪的 client 数
-  final List<int> _playerIds = []; // 其他玩家 identity（重开重建用）
+  final Set<int> _pendingSyncIds = {};
+  final Set<int> _pendingEnemySpawns = {};
+  final Set<int> _pendingAiPlans = {};
+  final Set<int> _pendingAiFires = {};
+  final Set<Offset> _pendingPowerUpSpawns = {};
+  final Set<Offset> _pendingPowerUpPickups = {};
+  int _matchId = 0;
+  int _syncId = 0;
+  bool _fireRequestPending = false;
 
   NetTankManager({required String userName, required RoomInfo roomInfo}) {
     engine = NetRealGameEngine(
@@ -52,322 +61,403 @@ class NetTankManager extends FoundationalTankManager {
   @override
   int get identity => engine.identity;
 
-  /// host = 玩家坦克 key 的最小值（与引擎 _publisherId 一致）
-  @override
-  bool get isAuthority {
-    final keys = tanks.entries
-        .where((e) => e.value.isPlayer)
-        .map((e) => e.key)
-        .toList();
-    if (keys.isEmpty) return false;
-    keys.sort();
-    return identity == keys.first;
+  int? get authorityId {
+    final keys =
+        tanks.entries
+            .where((entry) => entry.value.isPlayer)
+            .map((entry) => entry.key)
+            .toList()
+          ..sort();
+    return keys.isEmpty ? null : keys.first;
   }
 
-  // ---- 握手 ----
+  @override
+  bool get isAuthority => identity == authorityId;
+
+  @override
+  bool get deferAuthorityActions => true;
+
+  @override
+  int get pendingEnemySpawnCount => _pendingEnemySpawns.length;
+
+  @override
+  int get pendingPowerUpSpawnCount => _pendingPowerUpSpawns.length;
+
+  @override
+  bool isAiPlanPending(int tankKey) => _pendingAiPlans.contains(tankKey);
+
+  @override
+  bool isAiFirePending(int tankKey) => _pendingAiFires.contains(tankKey);
+
+  @override
+  bool isPowerUpSpawnPending(Offset position) =>
+      _pendingPowerUpSpawns.contains(position);
+
+  @override
+  bool isPowerUpPickupPending(Offset position) =>
+      _pendingPowerUpPickups.contains(position);
+
+  // ---- 全员资源同步 ----
 
   void _handleSearch(int id) {
-    // 仅 host 触发：确保双方玩家存在，发全量快照
     if (!tanks.containsKey(identity)) addPlayerTank(identity);
     if (!tanks.containsKey(id)) addPlayerTank(id);
-    if (!_playerIds.contains(id)) _playerIds.add(id);
-    _pendingSync++;
-    engine.sendNetworkMessage(MessageType.resource, json.encode(toJson()));
+    _syncId++;
+    _sendSnapshot();
   }
 
   void _handleResource(NetworkMessage message) {
-    fromJson(json.decode(message.content) as Map<String, dynamic>);
-    resumeGame(); // client 开始模拟（玩家 idle，AI 等 host 决策）
-    engine.sendNetworkMessage(MessageType.sync, 'ready');
-  }
+    try {
+      final knownHostId = authorityId;
+      if (knownHostId != null && message.id != knownHostId) return;
 
-  void _handleSync(int id) {
-    if (_pendingSync <= 0) return;
-    _pendingSync--;
-    if (_pendingSync == 0) {
-      engine.gameStep.value = GameStep.action; // host 进入游戏阶段
-      resumeGame(); // host 开始跑 AI/刷怪
+      final envelope = json.decode(message.content) as Map<String, dynamic>;
+      final incomingMatch = (envelope['match'] as num?)?.toInt() ?? 0;
+      if (incomingMatch < _matchId) return;
+      final incomingSync = (envelope['sync'] as num?)?.toInt() ?? 0;
+      if (incomingMatch == _matchId && incomingSync < _syncId) return;
+      final state = envelope['state'];
+      if (state is! Map<String, dynamic>) return;
+
+      suspendGame();
+      _matchId = incomingMatch;
+      _syncId = incomingSync;
+      _fireRequestPending = false;
+      _clearPendingWorldEvents();
+      fromJson(state);
+      _pendingSyncIds
+        ..clear()
+        ..addAll(
+          tanks.entries
+              .where((entry) => entry.value.isPlayer)
+              .map((entry) => entry.key),
+        );
+      engine.sendNetworkMessage(
+        MessageType.sync,
+        json.encode({'match': _matchId, 'sync': _syncId}),
+      );
+    } on Object catch (error) {
+      debugPrint('[Tank] ignored invalid resource: $error');
     }
   }
 
-  // ---- 远端 action 分发 ----
+  void _handleSync(NetworkMessage message) {
+    try {
+      final content = json.decode(message.content) as Map<String, dynamic>;
+      final matchId = (content['match'] as num?)?.toInt() ?? -1;
+      final syncId = (content['sync'] as num?)?.toInt() ?? -1;
+      if (matchId != _matchId || syncId != _syncId) return;
+      if (!_pendingSyncIds.remove(message.id)) return;
+      _resumeWhenSynchronized();
+    } on Object catch (error) {
+      debugPrint('[Tank] ignored invalid sync: $error');
+    }
+  }
+
+  void _resumeWhenSynchronized() {
+    if (_pendingSyncIds.isNotEmpty) return;
+    engine.gameStep.value = GameStep.action;
+    resumeGame();
+  }
+
+  // ---- 服务器回环 action 分发 ----
 
   void _handleAction(NetworkMessage message) {
-    final c = json.decode(message.content) as Map<String, dynamic>;
-    // 安全查表：未知 actionType 返回 null（优雅忽略，不崩溃）
-    final rawAction = c['actionType'];
-    if (rawAction is! String) return;
-    final action = TankAction.values.asNameMap()[rawAction];
-    if (action == null) return;
-    switch (action) {
-      case TankAction.move:
-        final t = tanks[message.id];
-        if (t != null) {
-          t.angle = (c['ang'] as num).toDouble();
-          t.turretAngle = (c['tAng'] as num).toDouble();
-          t.moving = true;
-        }
-        break;
-      case TankAction.stop:
-        final t = tanks[message.id];
-        if (t != null) t.moving = false;
-        break;
-      case TankAction.aim:
-        final t = tanks[message.id];
-        if (t != null) t.turretAngle = (c['ang'] as num).toDouble();
-        break;
-      case TankAction.aimStop:
-        // 仅 owner 维护 aiming 状态；client 无需处理
-        break;
-      case TankAction.fire:
-        final t = tanks[message.id];
-        if (t == null) break;
-        t.reloadTimer = playerReloadTime;
-        bullets.add(
-          Bullet(
-            position: t.position +
-                Offset.fromDirection(t.turretAngle) * t.size * 0.6,
-            angle: t.turretAngle,
-            ownerId: message.id,
-            damage: (c['dmg'] as num).toInt(),
-            targetKey: c['tgt'] as int?,
-          ),
-        );
-        break;
-      case TankAction.aiTurn:
-        final t = tanks[c['key'] as int];
-        if (t != null) {
-          final d = Direction.fromName(c['dir'] as String);
-          t.angle = d.angle;
-          t.turretAngle = d.angle;
-        }
-        break;
-      case TankAction.aiFire:
-        final key = c['key'] as int;
-        final t = tanks[key];
-        if (t == null) break;
-        t.reloadTimer = reloadTime;
-        bullets.add(
-          Bullet(
-            position: t.position +
-                Offset.fromDirection(t.turretAngle) * t.size * 0.6,
-            angle: t.turretAngle,
-            ownerId: key,
-            damage: 1,
-          ),
-        );
-        break;
-      case TankAction.spawn:
-        final key = c['key'] as int;
-        final tank = Tank.fromJson(c['tank'] as Map<String, dynamic>);
-        tanks[key] = tank;
-        if (!tank.isPlayer) enemiesOnField++;
-        break;
-      case TankAction.spawnItem:
-        powerups.add(PowerUp.fromJson(c['item'] as Map<String, dynamic>));
-        break;
-      case TankAction.pickup:
-        final playerKey = c['key'] as int;
-        final type = PowerUpType.fromName(c['type'] as String);
-        final px =
-            ConvertUtils.offsetFromJson(c['px'] as Map<String, dynamic>);
-        powerups.removeWhere((p) => (p.position - px).distance < tileSize / 2);
-        applyPowerUp(playerKey, type);
-        break;
-      case TankAction.hit:
-        final key = c['key'] as int;
-        final isBase = c['base'] as bool;
-        if (isBase) {
-          applyBaseHit();
-        } else {
-          applyHit(key);
-        }
-        break;
-      case TankAction.restart:
-        // client 请求重开，host 重新发牌
-        if (isAuthority) _restartMatch();
-        break;
+    try {
+      final content = json.decode(message.content) as Map<String, dynamic>;
+      final incomingMatch = (content['match'] as num?)?.toInt() ?? 0;
+      final incomingSync = (content['sync'] as num?)?.toInt() ?? 0;
+      if (incomingMatch != _matchId || incomingSync != _syncId) return;
+
+      final rawAction = content['actionType'];
+      if (rawAction is! String) return;
+      final action = TankAction.values.asNameMap()[rawAction];
+      if (action == null) return;
+
+      final hostId = authorityId;
+      switch (action) {
+        case TankAction.move:
+          final tank = tanks[message.id];
+          if (tank == null || !tank.isPlayer || !tank.isAlive) return;
+          tank
+            ..angle = (content['ang'] as num).toDouble()
+            ..turretAngle = (content['tAng'] as num).toDouble()
+            ..moving = true;
+          break;
+        case TankAction.stop:
+          final tank = tanks[message.id];
+          if (tank == null || !tank.isPlayer) return;
+          tank.moving = false;
+          break;
+        case TankAction.aim:
+          final tank = tanks[message.id];
+          if (tank == null || !tank.isPlayer || !tank.isAlive) return;
+          tank.turretAngle = (content['ang'] as num).toDouble();
+          if (message.id == identity) playerAiming = true;
+          break;
+        case TankAction.aimStop:
+          if (message.id == identity) playerAiming = false;
+          break;
+        case TankAction.fire:
+          final tank = tanks[message.id];
+          final rawBullet = content['bullet'];
+          if (tank == null ||
+              !tank.isPlayer ||
+              !tank.isAlive ||
+              rawBullet is! Map<String, dynamic>) {
+            return;
+          }
+          final bullet = Bullet.fromJson(rawBullet);
+          if (bullet.ownerId != message.id) return;
+          applyFire(message.id, bullet);
+          if (message.id == identity) _fireRequestPending = false;
+          break;
+        case TankAction.aiPlan:
+          if (message.id != hostId) return;
+          final key = (content['key'] as num).toInt();
+          final destination = ConvertUtils.offsetFromJson(
+            content['dest'] as Map<String, dynamic>,
+          );
+          final direction = Direction.fromName(content['dir'] as String);
+          final firing = content['firing'] as bool;
+          final duration = (content['duration'] as num).toDouble();
+          _pendingAiPlans.remove(key);
+          applyAiPlan(key, destination, direction, firing, duration);
+          break;
+        case TankAction.aiFire:
+          if (message.id != hostId) return;
+          final key = (content['key'] as num).toInt();
+          final tank = tanks[key];
+          final rawBullet = content['bullet'];
+          if (tank == null ||
+              tank.isPlayer ||
+              rawBullet is! Map<String, dynamic>) {
+            return;
+          }
+          final bullet = Bullet.fromJson(rawBullet);
+          if (bullet.ownerId != key) return;
+          _pendingAiFires.remove(key);
+          applyFire(key, bullet);
+          break;
+        case TankAction.spawn:
+          if (message.id != hostId) return;
+          final key = (content['key'] as num).toInt();
+          final tank = Tank.fromJson(content['tank'] as Map<String, dynamic>);
+          _pendingEnemySpawns.remove(key);
+          applyEnemySpawn(key, tank);
+          break;
+        case TankAction.spawnItem:
+          if (message.id != hostId) return;
+          final item = PowerUp.fromJson(
+            content['item'] as Map<String, dynamic>,
+          );
+          _pendingPowerUpSpawns.remove(item.position);
+          applySpawnItem(item);
+          break;
+        case TankAction.pickup:
+          if (message.id != hostId) return;
+          final playerKey = (content['key'] as num).toInt();
+          final type = PowerUpType.fromName(content['type'] as String);
+          final position = ConvertUtils.offsetFromJson(
+            content['px'] as Map<String, dynamic>,
+          );
+          _pendingPowerUpPickups.remove(position);
+          applyConfirmedPickup(playerKey, type, position);
+          break;
+        case TankAction.hit:
+          final ownerId = (content['owner'] as num).toInt();
+          final expectedSender = ownerId >= 0 ? ownerId : hostId;
+          if (message.id != expectedSender) return;
+          final key = (content['key'] as num).toInt();
+          if (content['base'] as bool) {
+            applyBaseHit();
+          } else {
+            applyConfirmedHit(
+              key,
+              (content['dmg'] as num?)?.toInt() ?? Bullet.baseDamage,
+            );
+          }
+          break;
+        case TankAction.restart:
+          if (isAuthority && message.id != identity) _restartMatch();
+          break;
+      }
+    } on Object catch (error) {
+      debugPrint('[Tank] ignored invalid action: $error');
     }
   }
 
   void _handleEnd(int id) {
     tanks.remove(id);
     livesByPlayer.remove(id);
-    _playerIds.remove(id);
+    playerSpawnUsed.remove(id);
+    if (_pendingSyncIds.remove(id)) _resumeWhenSynchronized();
   }
 
-  // ---- 玩家输入：本地立即响应 + 广播 ----
+  // ---- 玩家输入：只发送，等待服务器回环后应用 ----
 
   @override
   void updatePlayerMove(double angle) {
-    final t = tanks[identity];
-    if (t == null || !t.isAlive) return;
-    t.angle = angle;
-    if (!playerAiming) t.turretAngle = angle;
-    t.moving = true;
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.move.name,
-        'ang': angle,
-        'tAng': t.turretAngle,
-      }),
-    );
+    final tank = tanks[identity];
+    if (tank == null || !tank.isAlive) return;
+    _sendAction(TankAction.move, {
+      'ang': angle,
+      'tAng': playerAiming ? tank.turretAngle : angle,
+    });
   }
 
   @override
   void updatePlayerAim(double angle) {
-    final t = tanks[identity];
-    if (t == null || !t.isAlive) return;
-    t.turretAngle = angle;
-    playerAiming = true;
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({'actionType': TankAction.aim.name, 'ang': angle}),
-    );
+    final tank = tanks[identity];
+    if (tank == null || !tank.isAlive) return;
+    _sendAction(TankAction.aim, {'ang': angle});
   }
 
   @override
   void updatePlayerAimStop() {
-    playerAiming = false;
+    _sendAction(TankAction.aimStop);
   }
 
   @override
   void updatePlayerStop() {
-    final t = tanks[identity];
-    if (t != null) t.moving = false;
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({'actionType': TankAction.stop.name}),
-    );
+    if (!tanks.containsKey(identity)) return;
+    _sendAction(TankAction.stop);
   }
 
   @override
   void updatePlayerFire() {
-    final t = tanks[identity];
-    if (t == null) return;
-    final b = fire(identity, t); // 拥有者权威：本地立即开火
-    if (b == null) return;
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.fire.name,
-        'dmg': b.damage,
-        'tgt': b.targetKey,
-      }),
-    );
+    final tank = tanks[identity];
+    if (tank == null || !tank.canFire || _fireRequestPending || !tank.isAlive) {
+      return;
+    }
+    final bullet = buildBullet(identity, tank);
+    if (bullet == null) return;
+    _fireRequestPending = true;
+    _sendAction(TankAction.fire, {'bullet': bullet.toJson()});
   }
 
-  // ---- 广播钩子（host 发 action） ----
+  // ---- 权威方只生成并广播，等待服务器回环后统一应用 ----
 
   @override
-  void broadcastAiTurn(int tankKey, Direction dir) {
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.aiTurn.name,
-        'key': tankKey,
-        'dir': dir.name,
-      }),
-    );
+  void broadcastAiPlan(
+    int tankKey,
+    Offset destination,
+    Direction direction,
+    bool firing,
+    double duration,
+  ) {
+    _pendingAiPlans.add(tankKey);
+    _sendAction(TankAction.aiPlan, {
+      'key': tankKey,
+      'dest': ConvertUtils.offsetToJson(destination),
+      'dir': direction.name,
+      'firing': firing,
+      'duration': duration,
+    });
   }
 
   @override
-  void broadcastAiFire(int tankKey) {
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({'actionType': TankAction.aiFire.name, 'key': tankKey}),
-    );
+  void broadcastAiFire(int tankKey, Bullet bullet) {
+    _pendingAiFires.add(tankKey);
+    _sendAction(TankAction.aiFire, {'key': tankKey, 'bullet': bullet.toJson()});
   }
 
   @override
   void broadcastSpawn(int tankKey, Tank tank) {
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.spawn.name,
-        'key': tankKey,
-        'tank': tank.toJson(),
-      }),
-    );
+    _pendingEnemySpawns.add(tankKey);
+    _sendAction(TankAction.spawn, {'key': tankKey, 'tank': tank.toJson()});
   }
 
   @override
-  void broadcastHit(int tankKey, bool isBase) {
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.hit.name,
-        'key': tankKey,
-        'base': isBase,
-      }),
-    );
+  void broadcastHit(int tankKey, bool isBase, int damage, int ownerId) {
+    _sendAction(TankAction.hit, {
+      'key': tankKey,
+      'base': isBase,
+      'dmg': damage,
+      'owner': ownerId,
+    });
   }
 
   @override
   void broadcastSpawnItem(PowerUp p) {
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.spawnItem.name,
-        'item': p.toJson(),
-      }),
-    );
+    _pendingPowerUpSpawns.add(p.position);
+    _sendAction(TankAction.spawnItem, {'item': p.toJson()});
   }
 
   @override
   void broadcastPickup(int playerKey, PowerUpType type, Offset position) {
-    engine.sendNetworkMessage(
-      MessageType.action,
-      json.encode({
-        'actionType': TankAction.pickup.name,
-        'key': playerKey,
-        'type': type.name,
-        'px': ConvertUtils.offsetToJson(position),
-      }),
-    );
+    _pendingPowerUpPickups.add(position);
+    _sendAction(TankAction.pickup, {
+      'key': playerKey,
+      'type': type.name,
+      'px': ConvertUtils.offsetToJson(position),
+    });
   }
 
-  @override
-  void handleRemoveTankCallback(int tankKey) {}
-
-  @override
-  void handleGameOverCallback() {
-    // 不关闭连接，保留 socket 供重开使用；真正退出由 leavePage 处理
-  }
-
-  /// 联机重开：host 重置并发 resource 重新握手；client 请求 host 重开
   @override
   void requestRestart() {
     if (isAuthority) {
       _restartMatch();
     } else {
-      engine.sendNetworkMessage(
-        MessageType.action,
-        json.encode({'actionType': TankAction.restart.name}),
-      );
+      _sendAction(TankAction.restart);
     }
   }
 
   void _restartMatch() {
     if (!isAuthority) return;
+    final playerIds = tanks.entries
+        .where((entry) => entry.value.isPlayer)
+        .map((entry) => entry.key)
+        .toList();
     suspendGame();
+    _clearPendingWorldEvents();
+    _matchId++;
+    _syncId++;
     resetState();
-    addPlayerTank(identity);
-    for (final id in _playerIds) {
+    for (final id in playerIds) {
       addPlayerTank(id);
     }
-    engine.gameStep.value = GameStep.action;
-    if (_playerIds.isEmpty) {
-      resumeGame();
-      return;
-    }
-    _pendingSync = _playerIds.length;
-    engine.sendNetworkMessage(MessageType.resource, json.encode(toJson()));
+    _sendSnapshot();
+  }
+
+  void _clearPendingWorldEvents() {
+    _pendingEnemySpawns.clear();
+    _pendingAiPlans.clear();
+    _pendingAiFires.clear();
+    _pendingPowerUpSpawns.clear();
+    _pendingPowerUpPickups.clear();
+  }
+
+  void _sendAction(
+    TankAction action, [
+    Map<String, dynamic> payload = const {},
+  ]) {
+    engine.sendNetworkMessage(
+      MessageType.action,
+      json.encode({
+        'actionType': action.name,
+        'match': _matchId,
+        'sync': _syncId,
+        ...payload,
+      }),
+    );
+  }
+
+  void _sendSnapshot() {
+    engine.sendNetworkMessage(
+      MessageType.resource,
+      json.encode({'match': _matchId, 'sync': _syncId, 'state': toJson()}),
+    );
   }
 
   @override
   void leavePage() {
     engine.leavePage();
+  }
+
+  @override
+  void dispose() {
+    engine.closeSocket();
+    super.dispose();
   }
 }

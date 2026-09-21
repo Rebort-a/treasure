@@ -1,31 +1,94 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../00.common/game/map.dart';
+import '../00.common/l10n/strings.dart';
 import '../00.common/widget/input/joystick.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import 'base.dart';
 import 'draw_paint.dart';
 import 'foundation_manager.dart';
 
-class GameScreen extends StatefulWidget {
-  final FoundationalTankManager manager;
+class TankGameScreen extends StatefulWidget {
+  final TankGameManager manager;
   final bool showStateButton;
 
-  const GameScreen({
+  const TankGameScreen({
     super.key,
     required this.manager,
     required this.showStateButton,
   });
 
   @override
-  State<GameScreen> createState() => _GameScreenState();
+  State<TankGameScreen> createState() => _TankGameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _TankGameScreenState extends State<TankGameScreen> {
   /// 当前按下的方向（按按下顺序），用于多键同按时取最新方向
   final List<Direction> _pressed = [];
 
-  FoundationalTankManager get manager => widget.manager;
+  TankGameManager get manager => widget.manager;
+  TankGameResult? _shownResult;
+
+  @override
+  void initState() {
+    super.initState();
+    manager.gameResult.addListener(_handleGameResult);
+  }
+
+  @override
+  void didUpdateWidget(covariant TankGameScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.manager == manager) return;
+    oldWidget.manager.gameResult.removeListener(_handleGameResult);
+    manager.gameResult.addListener(_handleGameResult);
+    _shownResult = null;
+  }
+
+  @override
+  void dispose() {
+    manager.gameResult.removeListener(_handleGameResult);
+    super.dispose();
+  }
+
+  void _handleGameResult() {
+    final result = manager.gameResult.value;
+    if (result == null || identical(result, _shownResult)) return;
+    _shownResult = result;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || manager.gameResult.value != result) return;
+      _showGameResult(result);
+    });
+  }
+
+  Future<void> _showGameResult(TankGameResult result) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(S.gameOver),
+        content: Text(
+          '${result.victory ? S.victory : S.defeat}  ${result.score}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              manager.leavePage();
+            },
+            child: Text(S.exit),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              manager.requestRestart();
+            },
+            child: Text(S.restart),
+          ),
+        ],
+      ),
+    );
+  }
 
   KeyEventResult _handleKeyEvent(KeyEvent event) {
     final isDown = event is KeyDownEvent;
@@ -65,12 +128,10 @@ class _GameScreenState extends State<GameScreen> {
     if (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.keyW) {
       return Direction.up;
     }
-    if (key == LogicalKeyboardKey.arrowDown ||
-        key == LogicalKeyboardKey.keyS) {
+    if (key == LogicalKeyboardKey.arrowDown || key == LogicalKeyboardKey.keyS) {
       return Direction.down;
     }
-    if (key == LogicalKeyboardKey.arrowLeft ||
-        key == LogicalKeyboardKey.keyA) {
+    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.keyA) {
       return Direction.left;
     }
     if (key == LogicalKeyboardKey.arrowRight ||
@@ -82,80 +143,78 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (_, event) => _handleKeyEvent(event),
-      child: Stack(
-        children: [
-          const ColoredBox(color: Colors.black, child: SizedBox.expand()),
-          NotifierNavigator(navigatorHandler: manager.pageNavigator),
-          AnimatedBuilder(
-            animation: manager,
-            builder: (context, _) {
-              return Stack(
-                children: [
-                  SizedBox.expand(
-                    child: CustomPaint(painter: TankPainter(manager: manager)),
-                  ),
-                  Positioned(
-                    top: 16,
-                    left: 16,
-                    child: _buildIconButton(
-                      icon: Icons.arrow_back,
-                      onPressed: manager.leavePage,
-                    ),
-                  ),
-                  if (widget.showStateButton)
-                    ValueListenableBuilder(
-                      valueListenable: manager.gameState,
-                      builder: (context, state, child) {
-                        return Positioned(
-                          top: 16,
-                          right: 16,
-                          child: _buildIconButton(
-                            icon: state ? Icons.pause : Icons.play_arrow,
-                            onPressed: () => manager.toggleState(),
-                          ),
-                        );
-                      },
-                    ),
-                  Positioned(
-                    top: 16,
-                    left: 0,
-                    right: 0,
-                    child: _buildHud(),
-                  ),
-                ],
-              );
-            },
-          ),
-          // 左摇杆：移动（无极方向）
-          Positioned(
-            left: 24,
-            bottom: 32,
-            child: Joystick(
-              onDrag: (radians) => manager.updatePlayerMove(radians),
-              onRelease: () {
-                if (_pressed.isEmpty) {
-                  manager.updatePlayerStop();
-                } else {
-                  _applyMove();
-                }
-              },
+    return Material(
+      color: Colors.black,
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (_, event) => _handleKeyEvent(event),
+        onFocusChange: (hasFocus) {
+          if (hasFocus || _pressed.isEmpty) return;
+          _pressed.clear();
+          manager.updatePlayerStop();
+        },
+        child: Stack(
+          children: [
+            NotifierNavigator(navigatorHandler: manager.pageNavigator),
+            SizedBox.expand(
+              child: CustomPaint(painter: TankPainter(manager: manager)),
             ),
-          ),
-          // 右摇杆：瞄准 + 按住持续开火（无极方向）
-          Positioned(
-            right: 24,
-            bottom: 32,
-            child: Joystick(
-              icon: Icons.local_fire_department,
-              color: Colors.deepOrange.withValues(alpha: 0.85),
-              onDrag: (radians) => manager.updatePlayerAim(radians),
-              onRelease: () => manager.updatePlayerAimStop(),
+            Positioned(
+              top: 16,
+              left: 16,
+              child: _buildIconButton(
+                icon: Icons.arrow_back,
+                onPressed: manager.leavePage,
+              ),
             ),
-          ),
-        ],
+            if (widget.showStateButton)
+              ValueListenableBuilder(
+                valueListenable: manager.isRunning,
+                builder: (context, state, child) => Positioned(
+                  top: 16,
+                  right: 16,
+                  child: _buildIconButton(
+                    icon: state ? Icons.pause : Icons.play_arrow,
+                    onPressed: manager.toggleState,
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 64,
+              left: 12,
+              child: AnimatedBuilder(
+                animation: manager,
+                builder: (_, _) => _buildHud(),
+              ),
+            ),
+            // 左摇杆：移动（无极方向）
+            Positioned(
+              left: 24,
+              bottom: 32,
+              child: Joystick(
+                onDrag: (radians) => manager.updatePlayerMove(radians),
+                onRelease: () {
+                  if (_pressed.isEmpty) {
+                    manager.updatePlayerStop();
+                  } else {
+                    _applyMove();
+                  }
+                },
+              ),
+            ),
+            // 右摇杆：瞄准 + 按住持续开火（无极方向）
+            Positioned(
+              right: 24,
+              bottom: 32,
+              child: Joystick(
+                icon: Icons.local_fire_department,
+                color: Colors.deepOrange.withValues(alpha: 0.85),
+                onDrag: (radians) => manager.updatePlayerAim(radians),
+                onRelease: () => manager.updatePlayerAimStop(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -183,47 +242,79 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildHud() {
     final lives = manager.livesByPlayer[manager.identity] ?? 0;
     final enemiesLeft = manager.remainingEnemies + manager.enemiesOnField;
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(16),
+    final me = manager.tanks[manager.identity];
+
+    // 每行一个信息项（图标 + 数值）
+    final rows = <Widget>[
+      _hudRow(Icons.star, Colors.amber, '${manager.score}'),
+      _hudRow(Icons.military_tech, Colors.redAccent, '$enemiesLeft'),
+      _hudRow(Icons.favorite, Colors.pinkAccent, '$lives'),
+    ];
+    if (manager.shieldTimer > 0) {
+      rows.add(
+        _hudRow(
+          Icons.shield,
+          Colors.lightBlue,
+          manager.shieldTimer.toStringAsFixed(1),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.star, color: Colors.amber, size: 18),
-            const SizedBox(width: 4),
-            Text(
-              '${manager.score}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(width: 16),
-            const Icon(Icons.military_tech, color: Colors.redAccent, size: 18),
-            const SizedBox(width: 4),
-            Text(
-              '$enemiesLeft',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(width: 16),
-            const Icon(Icons.favorite, color: Colors.pinkAccent, size: 18),
-            const SizedBox(width: 4),
-            Text(
-              '$lives',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+      );
+    }
+    if (me != null) {
+      if (me.fireBuffTimer > 0) {
+        rows.add(
+          _hudRow(
+            Icons.local_fire_department,
+            Colors.orange,
+            me.fireBuffTimer.toStringAsFixed(1),
+          ),
+        );
+      }
+      if (me.homingBuffTimer > 0) {
+        rows.add(
+          _hudRow(
+            Icons.gps_fixed,
+            Colors.purpleAccent,
+            me.homingBuffTimer.toStringAsFixed(1),
+          ),
+        );
+      }
+      if (me.playerShieldTimer > 0) {
+        rows.add(
+          _hudRow(
+            Icons.security,
+            Colors.tealAccent,
+            me.playerShieldTimer.toStringAsFixed(1),
+          ),
+        );
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rows,
+      ),
+    );
+  }
+
+  /// 单行信息：小图标 + 数值。
+  Widget _hudRow(IconData icon, Color color, String value) {
+    const style = TextStyle(color: Colors.white, fontSize: 11, height: 1.3);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(value, style: style.copyWith(fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }

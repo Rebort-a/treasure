@@ -11,7 +11,7 @@ class NetRealGameEngine extends NetworkEngine {
 
   final void Function(int) searchHandler;
   final void Function(NetworkMessage) resourceHandler;
-  final void Function(int) syncHandler;
+  final void Function(NetworkMessage) syncHandler;
   final void Function(NetworkMessage) actionHandler;
   final void Function(int) exitHandler;
 
@@ -91,7 +91,7 @@ class NetRealGameEngine extends NetworkEngine {
 
   void _handleSyncMessage(NetworkMessage message) {
     _handleMatchMessage(message.id);
-    syncHandler(message.id);
+    syncHandler(message);
   }
 
   void _handleActionMessage(NetworkMessage message) {

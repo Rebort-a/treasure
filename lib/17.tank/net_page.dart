@@ -7,14 +7,37 @@ import '../00.common/widget/navigator/notifier_navigator.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
-class NetTankPage extends StatelessWidget {
-  final NetTankManager manager;
+class NetTankPage extends StatefulWidget {
+  final RoomInfo roomInfo;
+  final String userName;
 
-  NetTankPage({
+  const NetTankPage({
     super.key,
-    required RoomInfo roomInfo,
-    required String userName,
-  }) : manager = NetTankManager(roomInfo: roomInfo, userName: userName);
+    required this.roomInfo,
+    required this.userName,
+  });
+
+  @override
+  State<NetTankPage> createState() => _NetTankPageState();
+}
+
+class _NetTankPageState extends State<NetTankPage> {
+  late final NetTankManager manager;
+
+  @override
+  void initState() {
+    super.initState();
+    manager = NetTankManager(
+      roomInfo: widget.roomInfo,
+      userName: widget.userName,
+    );
+  }
+
+  @override
+  void dispose() {
+    manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) =>
@@ -25,7 +48,7 @@ class NetTankPage extends StatelessWidget {
       valueListenable: manager.engine.gameStep,
       builder: (_, step, __) {
         return step == GameStep.action
-            ? GameScreen(manager: manager, showStateButton: false)
+            ? TankGameScreen(manager: manager, showStateButton: false)
             : _buildPrepare(step);
       },
     );

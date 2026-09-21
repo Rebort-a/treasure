@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'foundation_manager.dart';
 
 /// 单机模式：权威方，玩家与 AI 均由基类共享逻辑驱动。
-class LocalTankManager extends FoundationalTankManager {
+class LocalTankManager extends TankGameManager {
   @override
   int get identity => 0;
 
@@ -15,14 +15,6 @@ class LocalTankManager extends FoundationalTankManager {
     addPlayerTank(identity);
     resumeGame();
   }
-
-  @override
-  void handleRemoveTankCallback(int tankKey) {
-    // AI 销毁后由 _updateSpawning 继续补充（remainingEnemies > 0 时自动）
-  }
-
-  @override
-  void handleGameOverCallback() {}
 
   @override
   void updatePlayerMove(double angle) {

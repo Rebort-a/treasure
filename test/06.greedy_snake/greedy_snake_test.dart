@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/06.greedy_snake/base.dart';
+import 'package:treasure/06.greedy_snake/local_page.dart';
 
 void main() {
   const style = SnakeStyle(
@@ -43,12 +44,51 @@ void main() {
 
       final restored = Snake.fromJson(original.toJson());
 
+      expect(original.toJson(), isNot(contains('body')));
+      expect(original.toJson(), isNot(contains('currentLength')));
       expect(restored.head, original.head);
       expect(restored.length, 88);
       expect(restored.angle, 0.75);
       expect(restored.currentSpeed, Snake.fastSpeed);
+      expect(restored.body, isEmpty);
+      expect(restored.currentLength, 0);
       expect(restored.style.bodySize, style.bodySize);
       expect(restored.style.bodyColor.toARGB32(), style.bodyColor.toARGB32());
+    });
+
+    test('普通和加速状态下尾端都连续移动', () {
+      for (final speed in [Snake.initialSpeed, Snake.fastSpeed]) {
+        final snake = Snake(
+          head: Offset.zero,
+          length: 40,
+          angle: 0,
+          style: style,
+        )..currentSpeed = speed;
+        const deltaTime = 1 / 120;
+        final moveDistance = speed * deltaTime;
+        double? previousTailX;
+
+        for (var i = 0; i < 120; i++) {
+          final previousHead = snake.head;
+          snake.head += Offset(moveDistance, 0);
+          snake.updateTrail(previousHead, moveDistance);
+
+          if (snake.currentLength == snake.length && snake.body.length > 2) {
+            final tailX = snake.body.last.dx;
+            if (previousTailX != null) {
+              expect(
+                tailX - previousTailX,
+                closeTo(moveDistance, 1e-7),
+                reason: 'speed=$speed 时尾端不应整段跳动',
+              );
+            }
+            previousTailX = tailX;
+          }
+        }
+
+        expect(snake.currentLength, snake.length);
+        expect(previousTailX, isNotNull);
+      }
     });
   });
 
@@ -75,5 +115,13 @@ void main() {
         const Offset(-5, 7),
       );
     });
+  });
+
+  testWidgets('Stateless 页面移除后释放 manager 资源', (tester) async {
+    final page = LocalGreedySnakePage();
+    await tester.pumpWidget(MaterialApp(home: page));
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    expect(() => page.manager.gameState.addListener(() {}), throwsFlutterError);
   });
 }

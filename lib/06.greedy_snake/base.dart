@@ -87,10 +87,16 @@ class SnakeStyle {
   static SnakeStyle fromJson(Map<String, dynamic> json) {
     return SnakeStyle(
       headSize: (json['headSize'] as num).toDouble(),
-      headColor: ConvertUtils.colorFromJson(json['headColor'] as Map<String, dynamic>),
-      eyeColor: ConvertUtils.colorFromJson(json['eyeColor'] as Map<String, dynamic>),
+      headColor: ConvertUtils.colorFromJson(
+        json['headColor'] as Map<String, dynamic>,
+      ),
+      eyeColor: ConvertUtils.colorFromJson(
+        json['eyeColor'] as Map<String, dynamic>,
+      ),
       bodySize: (json['bodySize'] as num).toDouble(),
-      bodyColor: ConvertUtils.colorFromJson(json['bodyColor'] as Map<String, dynamic>),
+      bodyColor: ConvertUtils.colorFromJson(
+        json['bodyColor'] as Map<String, dynamic>,
+      ),
     );
   }
 }
@@ -98,6 +104,7 @@ class SnakeStyle {
 class Snake {
   static const double initialSpeed = 200;
   static const double fastSpeed = 400;
+  static const double bodySampleDistance = 4;
 
   List<Offset> body = [];
   double currentSpeed = initialSpeed;
@@ -123,6 +130,49 @@ class Snake {
   void updateSpeed(bool isFaster) =>
       currentSpeed = isFaster ? fastSpeed : initialSpeed;
   void updateLength(int step) => length += step;
+
+  /// 记录移动轨迹，并让尾端连续地收缩到目标长度。
+  ///
+  /// 身体采样点可以稀疏插入，但尾端不能直接整段删除，否则采样周期和
+  /// 移动步长不同步时，尾巴会在两个采样点之间反复跳动。
+  void updateTrail(Offset previousHead, double moveDistance) {
+    if (body.isEmpty ||
+        (previousHead - body.first).distance >= bodySampleDistance) {
+      body.insert(0, previousHead);
+    }
+    currentLength += moveDistance;
+    _trimTail();
+  }
+
+  void _trimTail() {
+    const epsilon = 1e-9;
+    var excess = currentLength - length;
+    while (excess > epsilon && body.length > 2) {
+      final tailIndex = body.length - 1;
+      final tail = body[tailIndex];
+      final previous = body[tailIndex - 1];
+      final segmentLength = (previous - tail).distance;
+
+      if (segmentLength <= epsilon) {
+        body.removeLast();
+        continue;
+      }
+      if (excess >= segmentLength - epsilon) {
+        body.removeLast();
+        currentLength -= segmentLength;
+        excess -= segmentLength;
+        continue;
+      }
+
+      body[tailIndex] = Offset.lerp(tail, previous, excess / segmentLength)!;
+      currentLength -= excess;
+      excess = 0;
+    }
+
+    if ((currentLength - length).abs() <= epsilon) {
+      currentLength = length.toDouble();
+    }
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -181,6 +231,7 @@ class SpatialGrid {
 
     // 查找并移除匹配的条目（位置和大小都相同）
     entries.removeWhere((entry) => entry.position == position);
+    if (entries.isEmpty) grid.remove(cell);
   }
 
   Offset? checkCollision(Offset position, double radius) {
@@ -224,8 +275,15 @@ class SpatialGrid {
 
   // 使用ConvertUtils的JSON反序列化方法
   void fromJson(Map<String, dynamic> json) {
-    for (var entryData in (json['entries'] as List)) {
-      final position = ConvertUtils.offsetFromJson(entryData['position'] as Map<String, dynamic>);
+    final entries = json['entries'];
+    if (entries is! List) throw const FormatException('invalid grid entries');
+    for (final entryData in entries) {
+      if (entryData is! Map<String, dynamic>) {
+        throw const FormatException('invalid grid entry');
+      }
+      final position = ConvertUtils.offsetFromJson(
+        entryData['position'] as Map<String, dynamic>,
+      );
       final radius = (entryData['radius'] as num).toDouble();
       insert(GridEntry(position, radius));
     }

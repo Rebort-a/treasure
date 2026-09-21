@@ -6,6 +6,38 @@ import '../00.common/widget/button/circle_button.dart';
 import 'draw_paint.dart';
 import 'foundation_manager.dart';
 
+/// 页面本身保持 StatelessWidget，由这个内部生命周期节点负责释放 manager。
+class ManagerLifecycle extends StatefulWidget {
+  final FoundationalManager manager;
+  final Widget child;
+
+  const ManagerLifecycle({
+    super.key,
+    required this.manager,
+    required this.child,
+  });
+
+  @override
+  State<ManagerLifecycle> createState() => _ManagerLifecycleState();
+}
+
+class _ManagerLifecycleState extends State<ManagerLifecycle> {
+  @override
+  void didUpdateWidget(covariant ManagerLifecycle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.manager != widget.manager) oldWidget.manager.dispose();
+  }
+
+  @override
+  void dispose() {
+    widget.manager.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class GameScreen extends StatelessWidget {
   final FoundationalManager manager;
   final bool showStateButton;

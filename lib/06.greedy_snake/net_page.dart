@@ -17,8 +17,10 @@ class NetGreedySnakePage extends StatelessWidget {
   }) : manager = NetManager(roomInfo: roomInfo, userName: userName);
 
   @override
-  Widget build(BuildContext context) =>
-      PopScope(canPop: false, child: _buildPage());
+  Widget build(BuildContext context) => ManagerLifecycle(
+    manager: manager,
+    child: PopScope(canPop: false, child: _buildPage()),
+  );
 
   Widget _buildPage() {
     return ValueListenableBuilder<GameStep>(

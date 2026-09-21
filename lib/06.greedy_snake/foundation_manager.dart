@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -9,6 +10,9 @@ import 'base.dart';
 abstract class FoundationalManager extends ChangeNotifier
     implements TickerProvider {
   static const int initialLength = 100;
+  static const double simulationStep = 1 / 120;
+  static const double maxFrameTime = 0.1;
+  static const int maxCatchUpSteps = 12;
   final Random _random = Random();
 
   final Map<int, Snake> snakes = {};
@@ -16,6 +20,7 @@ abstract class FoundationalManager extends ChangeNotifier
 
   late final Ticker _ticker;
   double _lastElapsed = 0;
+  double _accumulator = 0;
 
   final pageNavigator = AlwaysNotifier<void Function(BuildContext)>((_) {});
   final gameState = ValueNotifier<bool>(false);
@@ -70,7 +75,11 @@ abstract class FoundationalManager extends ChangeNotifier
 
   void resumeGame() {
     gameState.value = true;
-    _ticker.start();
+    if (!_ticker.isActive) {
+      _lastElapsed = 0;
+      _accumulator = 0;
+      _ticker.start();
+    }
   }
 
   void suspendGame() {
@@ -91,25 +100,37 @@ abstract class FoundationalManager extends ChangeNotifier
   void _gameLoop(Duration elapsed) {
     if (!gameState.value) return;
 
-    final currentTime = elapsed.inMilliseconds;
-
-    final currentElapsed = currentTime / 1000.0;
-    final deltaTime = currentElapsed - _lastElapsed;
+    final currentElapsed =
+        elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final deltaTime = max(0.0, currentElapsed - _lastElapsed);
     _lastElapsed = currentElapsed;
+    _accumulator += min(deltaTime, maxFrameTime);
 
-    final clampedDeltaTime = deltaTime.clamp(0.004, 0.02);
+    var steps = 0;
+    while (_accumulator >= simulationStep &&
+        steps < maxCatchUpSteps &&
+        gameState.value) {
+      _simulateStep(simulationStep);
+      _accumulator -= simulationStep;
+      steps++;
+    }
+    if (steps == maxCatchUpSteps) {
+      _accumulator = min(_accumulator, simulationStep);
+    }
+    if (steps > 0) notifyListeners();
+  }
 
-    _updateSnakes(clampedDeltaTime);
+  void _simulateStep(double deltaTime) {
+    _updateSnakes(deltaTime);
     _checkDangerousCollisions();
     _checkFoodCollisions();
     handleTickerCallback(deltaTime);
-    notifyListeners();
   }
 
   void _updateSnakes(double deltaTime) {
     for (final entry in snakes.entries) {
       final snake = entry.value;
-      snake.body.insert(0, snake.head);
+      final previousHead = snake.head;
 
       final moveDistance = snake.currentSpeed * deltaTime;
       snake.head = Offset(
@@ -117,28 +138,26 @@ abstract class FoundationalManager extends ChangeNotifier
         snake.head.dy + sin(snake.angle) * moveDistance,
       );
 
-      snake.currentLength += moveDistance;
-
-      while (snake.body.length > 2 && snake.currentLength > snake.length) {
-        final last = snake.body.removeLast();
-        final secondLast = snake.body.last;
-        final segmentLength = (last - secondLast).distance;
-        if (segmentLength > 0) {
-          snake.currentLength -= segmentLength;
-        } else {
-          break;
-        }
-      }
+      snake.updateTrail(previousHead, moveDistance);
     }
   }
 
   void _checkDangerousCollisions() {
     final snakesToRemove = <int>[];
+    final bodyGrids = <int, SpatialGrid>{};
+    for (final entry in snakes.entries) {
+      final grid = SpatialGrid();
+      for (final point in entry.value.body) {
+        grid.insert(GridEntry(point, entry.value.style.bodySize));
+      }
+      bodyGrids[entry.key] = grid;
+    }
+
     for (final entry in snakes.entries) {
       final id = entry.key;
       final snake = entry.value;
 
-      if (_checkWallCollision(snake.head)) {
+      if (_checkWallCollision(snake)) {
         if (id == identity) {
           _handleGameOver(snake.length);
           return;
@@ -148,17 +167,13 @@ abstract class FoundationalManager extends ChangeNotifier
         }
       }
 
-      SpatialGrid snakeGrid = SpatialGrid();
-      for (final otherEntry in snakes.entries) {
-        if (otherEntry.key != id) {
-          final otherSnake = otherEntry.value;
-          for (final point in otherSnake.body) {
-            snakeGrid.insert(GridEntry(point, otherSnake.style.bodySize));
-          }
-        }
-      }
-
-      if (snakeGrid.checkCollision(snake.head, snake.style.headSize) != null) {
+      final collided = bodyGrids.entries.any(
+        (gridEntry) =>
+            gridEntry.key != id &&
+            gridEntry.value.checkCollision(snake.head, snake.style.headSize) !=
+                null,
+      );
+      if (collided) {
         if (id == identity) {
           _handleGameOver(snake.length);
           return;
@@ -180,11 +195,13 @@ abstract class FoundationalManager extends ChangeNotifier
     }
   }
 
-  static bool _checkWallCollision(Offset head) {
-    return head.dx < 0 ||
-        head.dx > mapWidth ||
-        head.dy < 0 ||
-        head.dy > mapHeight;
+  static bool _checkWallCollision(Snake snake) {
+    final head = snake.head;
+    final radius = snake.style.headSize;
+    return head.dx - radius < 0 ||
+        head.dx + radius > mapWidth ||
+        head.dy - radius < 0 ||
+        head.dy + radius > mapHeight;
   }
 
   void _checkFoodCollisions() {
@@ -244,6 +261,8 @@ abstract class FoundationalManager extends ChangeNotifier
   @override
   void dispose() {
     _ticker.dispose();
+    gameState.dispose();
+    pageNavigator.dispose();
     super.dispose();
   }
 }
