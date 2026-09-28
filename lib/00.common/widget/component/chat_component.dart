@@ -9,14 +9,14 @@ import 'package:flutter/material.dart';
 import '../../model/chat_message.dart';
 import '../../style/chat_theme.dart';
 import '../../l10n/strings.dart';
-import '../../engine/network_engine.dart';
+import '../../chat/chat_channel.dart';
 import '../../network/network_message.dart';
 
 import '../image/blur_hash_image.dart';
 
 /// 现代化消息列表
 class MessageList extends StatefulWidget {
-  final NetworkEngine networkEngine;
+  final ChatChannel networkEngine;
   final ChatTheme theme;
   final double topPadding;
 
@@ -63,6 +63,12 @@ class _MessageListState extends State<MessageList> {
         setState(() => _showScrollToBottom = !atBottom);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    widget.networkEngine.scrollController.removeListener(_onScroll);
+    super.dispose();
   }
 
   void _scheduleScrollToBottomIfNeeded() {
@@ -591,7 +597,7 @@ class _MessageListState extends State<MessageList> {
 
 /// 现代化消息输入组件
 class MessageInput extends StatefulWidget {
-  final NetworkEngine networkEngine;
+  final ChatChannel networkEngine;
   final ChatTheme theme;
   final VoidCallback? onAttachmentTap;
 
@@ -618,6 +624,12 @@ class _MessageInputState extends State<MessageInput> {
   void _onTextChanged() {
     final hasText = widget.networkEngine.textController.text.trim().isNotEmpty;
     if (hasText != _hasText) setState(() => _hasText = hasText);
+  }
+
+  @override
+  void dispose() {
+    widget.networkEngine.textController.removeListener(_onTextChanged);
+    super.dispose();
   }
 
   @override
@@ -650,7 +662,8 @@ class _MessageInputState extends State<MessageInput> {
                       controller: widget.networkEngine.textController,
                       style: widget.theme.inputTextStyle,
                       maxLines: null,
-                      textInputAction: TextInputAction.newline,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => widget.networkEngine.sendInputText(),
                       decoration: InputDecoration(
                         hintText: S.typeMessage,
                         hintStyle: widget.theme.inputHintStyle,

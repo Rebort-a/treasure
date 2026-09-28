@@ -60,7 +60,7 @@ class ChatMessage {
     }
 
     return ChatMessage(
-      id: message.messageId ?? '${message.id}_${message.timestamp ?? 0}',
+      id: '${message.id}_${message.timestamp ?? 0}',
       senderName: message.source,
       senderId: message.id,
       type: type,

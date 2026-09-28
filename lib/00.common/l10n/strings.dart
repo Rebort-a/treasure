@@ -32,6 +32,22 @@ class S {
   // ==================== 首页 ====================
   static String get roomList => _l.roomList;
   static String get local => _l.local;
+  static String get network => _l.network;
+  static String get roomPassword => _l.roomPassword;
+  static String get passwordOptional => _l.passwordOptional;
+  static String get passwordIfNeeded => _l.passwordIfNeeded;
+  static String get incorrectRoomPassword => _l.incorrectRoomPassword;
+  static String get defaultPlayerName => _l.defaultPlayerName;
+  static String get defaultPlayerNameHint => _l.defaultPlayerNameHint;
+  static String get searchApps => _l.searchApps;
+  static String get recentApps => _l.recentApps;
+  static String get allApps => _l.allApps;
+  static String get noAppsFound => _l.noAppsFound;
+  static String get noRooms => _l.noRooms;
+  static String get joinGame => _l.joinGame;
+  static String get matchingPlayers => _l.matchingPlayers;
+  static String get joinedRoom => _l.joinedRoom;
+  static String get leftGame => _l.leftGame;
   static String get createdRooms => _l.createdRooms;
   static String get otherRooms => _l.otherRooms;
   static String get createRoom => _l.createRoom;
@@ -104,8 +120,6 @@ class S {
   static String get emojiSymbol => _l.emojiSymbol;
 
   // ==================== 游戏步骤 ====================
-  static String get stepDisconnect => _l.stepDisconnect;
-  static String get stepConnected => _l.stepConnected;
   static String get stepFrontConfig => _l.stepFrontConfig;
   static String get stepRearWait => _l.stepRearWait;
   static String get stepFrontWait => _l.stepFrontWait;

@@ -1,19 +1,9 @@
 import 'dart:convert';
-import 'dart:math';
 
 enum MessageType {
   // 系统信息
   broadcast,
   accept,
-  ack,
-
-  // 游戏信息
-  search,
-  match,
-  resource,
-  sync,
-  action,
-  exit,
 
   // 聊天信息
   notify,
@@ -22,60 +12,41 @@ enum MessageType {
   file,
   emoji,
   typing,
-}
+  roomControl,
 
-/// 需要 ACK 确认的游戏关键消息类型
-const Set<MessageType> ackRequiredTypes = {
-  MessageType.search,
-  MessageType.match,
-  MessageType.resource,
-  MessageType.sync,
-  MessageType.action,
-  MessageType.exit,
-};
+  // 游戏信息
+  search,
+  match,
+  resource,
+  sync,
+  action,
+  exit,
+}
 
 class NetworkMessage {
   int id;
   MessageType type;
   String source;
   String content;
-  String? messageId;
   int? timestamp;
   String? replyToId;
+
+  /// 服务器转发的目标客户端；为空时广播，由接收方按会话标识区分消息。
+  int? targetId;
+
+  /// 标识一次游戏会话，而非单条消息或回执；为空时表示房间消息。
+  String? sessionId;
 
   NetworkMessage({
     required this.id,
     required this.type,
     required this.source,
     required this.content,
-    this.messageId,
     this.timestamp,
     this.replyToId,
+    this.targetId,
+    this.sessionId,
   });
-
-  /// 为需要 ACK 的消息自动生成唯一 ID
-  void ensureMessageId() {
-    if (messageId == null && ackRequiredTypes.contains(type)) {
-      messageId = _generateId();
-    }
-  }
-
-  static String _generateId() {
-    final random = Random();
-    final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final randomPart = random.nextInt(0xFFFFFF).toRadixString(36);
-    return '$timestamp-$randomPart';
-  }
-
-  /// 创建 ACK 回复消息
-  factory NetworkMessage.ack(String originalMessageId, int clientId) {
-    return NetworkMessage(
-      id: clientId,
-      type: MessageType.ack,
-      source: '',
-      content: originalMessageId,
-    );
-  }
 
   /// 解析消息；type/id 越界或缺失时返回 null（不抛异常，调用方丢弃）
   static NetworkMessage? fromJson(Map<String, dynamic> json) {
@@ -91,14 +62,16 @@ class NetworkMessage {
     }
     final source = json['source'];
     final content = json['content'];
-    final messageId = json['messageId'];
     final timestamp = json['timestamp'];
     final replyToId = json['replyToId'];
+    final targetId = json['targetId'];
+    final sessionId = json['sessionId'];
     if ((source != null && source is! String) ||
         (content != null && content is! String) ||
-        (messageId != null && messageId is! String) ||
         (timestamp != null && timestamp is! int) ||
-        (replyToId != null && replyToId is! String)) {
+        (replyToId != null && replyToId is! String) ||
+        (sessionId != null && sessionId is! String) ||
+        (targetId != null && (targetId is! int || targetId <= 0))) {
       return null;
     }
     return NetworkMessage(
@@ -106,9 +79,10 @@ class NetworkMessage {
       type: MessageType.values[typeIndex],
       source: source as String? ?? '',
       content: content as String? ?? '',
-      messageId: messageId as String?,
       timestamp: timestamp as int?,
       replyToId: replyToId as String?,
+      targetId: targetId as int?,
+      sessionId: sessionId as String?,
     );
   }
 
@@ -118,9 +92,10 @@ class NetworkMessage {
       'type': type.index,
       'source': source,
       'content': content,
-      if (messageId != null) 'messageId': messageId,
       if (timestamp != null) 'timestamp': timestamp,
       if (replyToId != null) 'replyToId': replyToId,
+      if (targetId != null) 'targetId': targetId,
+      if (sessionId != null) 'sessionId': sessionId,
     };
   }
 

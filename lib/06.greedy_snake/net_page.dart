@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/game/step.dart';
-import '../00.common/network/network_room.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
@@ -10,16 +9,15 @@ import 'foundation_widget.dart';
 class NetGreedySnakePage extends StatelessWidget {
   final NetManager manager;
 
-  NetGreedySnakePage({
-    super.key,
-    required RoomInfo roomInfo,
-    required String userName,
-  }) : manager = NetManager(roomInfo: roomInfo, userName: userName);
+  const NetGreedySnakePage({super.key, required this.manager});
 
   @override
-  Widget build(BuildContext context) => ManagerLifecycle(
-    manager: manager,
-    child: PopScope(canPop: false, child: _buildPage()),
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) manager.leavePage();
+    },
+    child: _buildPage(),
   );
 
   Widget _buildPage() {

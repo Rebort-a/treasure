@@ -60,6 +60,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String get local => 'Local';
 
   @override
+  String get network => 'Network';
+
+  @override
+  String get roomPassword => 'Room password';
+
+  @override
+  String get passwordOptional => 'Leave blank for a public room';
+
+  @override
+  String get passwordIfNeeded => 'Enter if the room is password-protected';
+
+  @override
+  String get incorrectRoomPassword => 'Incorrect room password';
+
+  @override
+  String get defaultPlayerName => 'Default player name';
+
+  @override
+  String get defaultPlayerNameHint => 'Leave blank to enter a name each time';
+
+  @override
+  String get searchApps => 'Search apps';
+
+  @override
+  String get recentApps => 'Recently opened';
+
+  @override
+  String get allApps => 'All apps';
+
+  @override
+  String get noAppsFound => 'No apps found';
+
+  @override
+  String get noRooms => 'No rooms yet';
+
+  @override
+  String get joinGame => 'Click to play';
+
+  @override
+  String get matchingPlayers => 'Matching players';
+
+  @override
+  String get joinedRoom => 'Joined the room';
+
+  @override
+  String get leftGame => 'Left the game';
+
+  @override
   String get createdRooms => 'The rooms you created';
 
   @override
@@ -253,12 +301,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get emojiSymbol => 'Symbols';
-
-  @override
-  String get stepDisconnect => 'Waiting to connect';
-
-  @override
-  String get stepConnected => 'Connected, waiting for opponent...';
 
   @override
   String get stepFrontConfig => 'Please configure';

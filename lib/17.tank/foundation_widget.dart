@@ -12,11 +12,13 @@ import 'foundation_manager.dart';
 class TankGameScreen extends StatefulWidget {
   final TankGameManager manager;
   final bool showStateButton;
+  final VoidCallback? onRestart;
 
   const TankGameScreen({
     super.key,
     required this.manager,
     required this.showStateButton,
+    this.onRestart,
   });
 
   @override
@@ -78,13 +80,14 @@ class _TankGameScreenState extends State<TankGameScreen> {
             },
             child: Text(S.exit),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              manager.requestRestart();
-            },
-            child: Text(S.restart),
-          ),
+          if (widget.onRestart != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                widget.onRestart!();
+              },
+              child: Text(S.restart),
+            ),
         ],
       ),
     );

@@ -194,6 +194,102 @@ abstract class AppLocalizations {
   /// **'Local'**
   String get local;
 
+  /// No description provided for @network.
+  ///
+  /// In en, this message translates to:
+  /// **'Network'**
+  String get network;
+
+  /// No description provided for @roomPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Room password'**
+  String get roomPassword;
+
+  /// No description provided for @passwordOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave blank for a public room'**
+  String get passwordOptional;
+
+  /// No description provided for @passwordIfNeeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter if the room is password-protected'**
+  String get passwordIfNeeded;
+
+  /// No description provided for @incorrectRoomPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect room password'**
+  String get incorrectRoomPassword;
+
+  /// No description provided for @defaultPlayerName.
+  ///
+  /// In en, this message translates to:
+  /// **'Default player name'**
+  String get defaultPlayerName;
+
+  /// No description provided for @defaultPlayerNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave blank to enter a name each time'**
+  String get defaultPlayerNameHint;
+
+  /// No description provided for @searchApps.
+  ///
+  /// In en, this message translates to:
+  /// **'Search apps'**
+  String get searchApps;
+
+  /// No description provided for @recentApps.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently opened'**
+  String get recentApps;
+
+  /// No description provided for @allApps.
+  ///
+  /// In en, this message translates to:
+  /// **'All apps'**
+  String get allApps;
+
+  /// No description provided for @noAppsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No apps found'**
+  String get noAppsFound;
+
+  /// No description provided for @noRooms.
+  ///
+  /// In en, this message translates to:
+  /// **'No rooms yet'**
+  String get noRooms;
+
+  /// No description provided for @joinGame.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to play'**
+  String get joinGame;
+
+  /// No description provided for @matchingPlayers.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching players'**
+  String get matchingPlayers;
+
+  /// No description provided for @joinedRoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Joined the room'**
+  String get joinedRoom;
+
+  /// No description provided for @leftGame.
+  ///
+  /// In en, this message translates to:
+  /// **'Left the game'**
+  String get leftGame;
+
   /// No description provided for @createdRooms.
   ///
   /// In en, this message translates to:
@@ -577,18 +673,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Symbols'**
   String get emojiSymbol;
-
-  /// No description provided for @stepDisconnect.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting to connect'**
-  String get stepDisconnect;
-
-  /// No description provided for @stepConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Connected, waiting for opponent...'**
-  String get stepConnected;
 
   /// No description provided for @stepFrontConfig.
   ///

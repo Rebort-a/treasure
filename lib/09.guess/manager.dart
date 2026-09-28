@@ -120,6 +120,7 @@ class GuessManager {
   }
 
   void leavePage() {
+    _timer.stop();
     pageNavigator.value = (context) {
       Navigator.pop(context);
     };

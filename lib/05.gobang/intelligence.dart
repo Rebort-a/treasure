@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../00.common/game/gamer.dart';
-import '../00.common/game/search/minimax.dart';
+import '../00.common/game/minimax.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 评估参数 — 棋型分值与难度配置集中管理

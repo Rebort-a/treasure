@@ -4,11 +4,17 @@ import 'dart:math';
 enum RoomState { start, stop }
 
 class RoomInfo {
+  static const int chatType = 0;
   final String name;
   final int type;
   final String address;
   final int port;
   final String? encryptionKey;
+  final bool hasPassword;
+
+  /// 仅用于连接握手，不参与房间信息的序列化或广播。
+  final String? password;
+  final int count;
 
   RoomInfo({
     required this.name,
@@ -16,7 +22,21 @@ class RoomInfo {
     required this.address,
     required this.port,
     this.encryptionKey,
+    this.hasPassword = false,
+    this.password,
+    this.count = 0,
   });
+
+  RoomInfo withPassword(String? value) => RoomInfo(
+    name: name,
+    type: type,
+    address: address,
+    port: port,
+    encryptionKey: encryptionKey,
+    hasPassword: hasPassword,
+    password: value,
+    count: count,
+  );
 
   Map<String, dynamic> toJson() {
     return {
@@ -25,6 +45,8 @@ class RoomInfo {
       'address': address,
       'port': port,
       if (encryptionKey != null) 'key': encryptionKey,
+      'hasPassword': hasPassword,
+      'count': count,
     };
   }
 
@@ -55,6 +77,8 @@ class RoomInfo {
       address: getAddressFromJson(json),
       port: getPortFromJson(json),
       encryptionKey: getKeyFromJson(json),
+      hasPassword: json['hasPassword'] == true,
+      count: (json['count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -67,12 +91,16 @@ class RoomInfo {
     int type,
     RoomState operation, {
     String? encryptionKey,
+    bool hasPassword = false,
+    int count = 0,
   }) {
     return {
       'port': port,
       'type': type,
       'operation': operation.index,
       if (encryptionKey != null) 'key': encryptionKey,
+      'hasPassword': hasPassword,
+      'count': count,
     };
   }
 
@@ -81,26 +109,19 @@ class RoomInfo {
     int type,
     RoomState operation, {
     String? encryptionKey,
+    bool hasPassword = false,
+    int count = 0,
   }) {
     return jsonEncode(
-      configToJson(port, type, operation, encryptionKey: encryptionKey),
+      configToJson(
+        port,
+        type,
+        operation,
+        encryptionKey: encryptionKey,
+        hasPassword: hasPassword,
+        count: count,
+      ),
     );
-  }
-
-  static RoomState getOperationFromJsonString(String data) {
-    return getOperationFromJson(jsonDecode(data) as Map<String, dynamic>);
-  }
-
-  static int getPortFromJsonString(String data) {
-    return getPortFromJson(jsonDecode(data) as Map<String, dynamic>);
-  }
-
-  static int getTypeFromJsonString(String data) {
-    return getTypeFromJson(jsonDecode(data) as Map<String, dynamic>);
-  }
-
-  static String? getKeyFromJsonString(String data) {
-    return getKeyFromJson(jsonDecode(data) as Map<String, dynamic>);
   }
 
   /// 生成 16 字节随机加密密钥（hex 编码为 32 字符）

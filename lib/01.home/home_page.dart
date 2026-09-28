@@ -2,17 +2,17 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../00.common/config/network_config.dart';
-import '../00.common/network/network_room.dart';
-import '../00.common/style/theme.dart';
-import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
+import '../00.common/network/network_room.dart';
+import '../00.common/tool/storage_service.dart';
+import '../00.common/widget/navigator/notifier_navigator.dart';
+import 'floating_navigation_bar.dart';
 import 'home_manager.dart';
 import 'route.dart';
 import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   final HomeManager? manager;
-
   const HomePage({super.key, this.manager});
 
   @override
@@ -20,231 +20,260 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late final HomeManager _homeManager;
-  List<CreatedRoomInfo> get _createdRooms => _homeManager.createdRooms.value;
-  List<RoomInfo> get _othersRooms => _homeManager.othersRooms.value;
-
-  bool _createdExpanded = true;
-  bool _othersExpanded = true;
-  bool _localExpanded = true;
+  late final HomeManager _manager;
+  int _tab = 0;
+  String _query = '';
+  List<LocalItemType> _recent = [];
 
   @override
   void initState() {
     super.initState();
-    _homeManager = widget.manager ?? HomeManager();
-    _homeManager.createdRooms.addListener(_onRoomsChanged);
-    _homeManager.othersRooms.addListener(_onRoomsChanged);
+    _manager = widget.manager ?? HomeManager();
+    _loadRecent();
+  }
+
+  Future<void> _loadRecent() async {
+    final list = await StorageService.instance.readList('recent_apps');
+    if (!mounted) return;
+    setState(() {
+      _recent = list
+          .whereType<String>()
+          .map((key) {
+            for (final item in LocalItemType.values) {
+              if (item.name == key) return item;
+            }
+            return null;
+          })
+          .whereType<LocalItemType>()
+          .take(3)
+          .toList();
+    });
+  }
+
+  void _openLocal(LocalItemType item) {
+    setState(() {
+      _recent = [
+        item,
+        ..._recent.where((other) => other != item),
+      ].take(3).toList();
+    });
+    StorageService.instance.writeList(
+      'recent_apps',
+      _recent.map((item) => item.name).toList(),
+    );
+    _manager.routeLocal(item);
   }
 
   @override
   void dispose() {
-    _homeManager.createdRooms.removeListener(_onRoomsChanged);
-    _homeManager.othersRooms.removeListener(_onRoomsChanged);
-    _homeManager.dispose();
+    _manager.dispose();
     super.dispose();
   }
 
-  void _onRoomsChanged() {
-    setState(() {});
-  }
-
   @override
-  Widget build(BuildContext context) =>
-      Scaffold(appBar: _buildAppBar(), body: _buildBody());
-
-  AppBar _buildAppBar() {
-    return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.settings_outlined),
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SettingsPage()),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: Text([S.local, S.network, S.settings][_tab])),
+      // 读取 Scaffold 为延伸内容提供的底部避让高度，包含胶囊导航和安全区。
+      // 将留白放在各自的滚动视图内部，让内容能够从毛玻璃后方滚过。
+      body: Builder(
+        builder: (bodyContext) => Column(
+          children: [
+            NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: [
+                  _localPage(MediaQuery.paddingOf(bodyContext).bottom),
+                  _networkPage(MediaQuery.paddingOf(bodyContext).bottom),
+                  const SettingsPage(embedded: true),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        if (!kIsWeb || networkMode == NetworkMode.webSocket)
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: S.joinByIp,
-            onPressed: _homeManager.showJoinByIpDialog,
-          ),
-        if (!kIsWeb)
-          IconButton(
-            icon: const Icon(Icons.add_home_rounded),
-            tooltip: S.createRoom,
-            onPressed: _homeManager.showCreateRoomDialog,
-          ),
-      ],
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+          ? null
+          : FloatingNavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: (index) => setState(() => _tab = index),
+              destinations: [
+                NavigationDestination(
+                  icon: const Icon(Icons.widgets_outlined),
+                  selectedIcon: const Icon(Icons.widgets),
+                  label: S.local,
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.lan_outlined),
+                  selectedIcon: const Icon(Icons.lan),
+                  label: S.network,
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.settings_outlined),
+                  selectedIcon: const Icon(Icons.settings),
+                  label: S.settings,
+                ),
+              ],
+            ),
     );
   }
 
-  Widget _buildBody() {
-    return CustomScrollView(
-      slivers: [
-        // 导航通知器
-        SliverToBoxAdapter(
-          child: NotifierNavigator(
-            navigatorHandler: _homeManager.pageNavigator,
+  Widget _localPage(double bottomInset) {
+    final all = LocalItemType.values
+        .where(
+          (item) => S
+              .roomTypeString(item.name)
+              .toLowerCase()
+              .contains(_query.toLowerCase()),
+        )
+        .toList();
+    final recent = _recent.where(all.contains).toList();
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+      children: [
+        TextField(
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            hintText: S.searchApps,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: const OutlineInputBorder(),
           ),
+          onChanged: (value) => setState(() => _query = value.trim()),
         ),
-
-        // ---- 创建的房间 ----
-        ..._buildSection<CreatedRoomInfo>(
-          list: _createdRooms,
-          expanded: _createdExpanded,
-          toggle: () => setState(() => _createdExpanded = !_createdExpanded),
-          title: S.createdRooms,
-          trailing: _createdRooms.length > 1
-              ? TextButton(
-                  onPressed: _homeManager.stopAllCreatedRooms,
-                  child: Text(S.stopAll),
-                )
-              : null,
-          buildItem: (room, idx) => _buildRoomCard(
-            room: room,
-            actions: [
-              TextButton(
-                onPressed: () => _homeManager.showJoinRoomDialog(room),
-                child: Text(S.join),
-              ),
-              TextButton(
-                onPressed: () => _homeManager.stopCreatedRoom(idx),
-                child: Text(S.stop),
-              ),
-            ],
-          ),
-        ),
-
-        // ---- 其他房间 ----
-        ..._buildSection<RoomInfo>(
-          list: _othersRooms,
-          expanded: _othersExpanded,
-          toggle: () => setState(() => _othersExpanded = !_othersExpanded),
-          title: S.otherRooms,
-          buildItem: (room, _) => _buildRoomCard(
-            room: room,
-            actions: [
-              TextButton(
-                onPressed: () => _homeManager.showJoinRoomDialog(room),
-                child: Text(S.join),
-              ),
-            ],
-          ),
-        ),
-
-        // ---- 本地应用 ----
-        ..._buildSection<LocalItemType>(
-          list: LocalItemType.values.toList(),
-          expanded: _localExpanded,
-          toggle: () => setState(() => _localExpanded = !_localExpanded),
-          title: S.local,
-          isLocalStatic: true,
-          buildLocalItem: (type, _) => Card(
-            child: ListTile(
-              leading: const Icon(Icons.gamepad),
-              title: Text(S.roomTypeString(type.toString().split('.').last)),
-              onTap: () => _homeManager.routeLocal(type),
+        if (recent.isNotEmpty) ...[
+          _heading(S.recentApps),
+          ...recent.map(_appCard),
+        ],
+        _heading('${S.allApps} (${all.length})'),
+        ...all.map(_appCard),
+        if (all.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(S.noAppsFound),
             ),
           ),
-        ),
       ],
     );
   }
 
-  Widget _buildRoomCard({
-    required RoomInfo room,
-    required List<Widget> actions,
-  }) {
+  Widget _appCard(LocalItemType item) => Card(
+    child: ListTile(
+      leading: const Icon(Icons.sports_esports_outlined),
+      title: Text(S.roomTypeString(item.name)),
+      trailing: NetItemType.values.any((net) => net.name == item.name)
+          ? const Icon(Icons.wifi_tethering)
+          : null,
+      onTap: () => _openLocal(item),
+    ),
+  );
+
+  Widget _heading(String title, {Widget? trailing}) => Padding(
+    padding: const EdgeInsets.only(top: 20, bottom: 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        if (trailing != null) trailing,
+      ],
+    ),
+  );
+
+  Widget _networkPage(double bottomInset) => ListView(
+    padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+    children: [
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (!kIsWeb)
+            FilledButton.icon(
+              onPressed: _manager.showCreateRoomDialog,
+              icon: const Icon(Icons.add_home_outlined),
+              label: Text(S.createRoom),
+            ),
+          if (!kIsWeb || networkMode == NetworkMode.webSocket)
+            OutlinedButton.icon(
+              onPressed: _manager.showJoinByIpDialog,
+              icon: const Icon(Icons.add_link),
+              label: Text(S.joinByIp),
+            ),
+        ],
+      ),
+      ValueListenableBuilder<List<CreatedRoomInfo>>(
+        valueListenable: _manager.createdRooms,
+        builder: (_, rooms, __) => Column(
+          children: [
+            _heading(
+              S.createdRooms,
+              trailing: rooms.length > 1
+                  ? TextButton(
+                      onPressed: _manager.stopAllCreatedRooms,
+                      child: Text(S.stopAll),
+                    )
+                  : null,
+            ),
+            if (rooms.isEmpty) ListTile(title: Text(S.noRooms)),
+            for (var index = 0; index < rooms.length; index++)
+              _roomCard(
+                rooms[index],
+                onStop: () => _manager.stopCreatedRoom(index),
+              ),
+          ],
+        ),
+      ),
+      ValueListenableBuilder<List<RoomInfo>>(
+        valueListenable: _manager.othersRooms,
+        builder: (_, rooms, __) => Column(
+          children: [
+            _heading(S.otherRooms),
+            if (rooms.isEmpty) ListTile(title: Text(S.noRooms)),
+            ...rooms.map((room) => _roomCard(room)),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget _roomCard(RoomInfo room, {VoidCallback? onStop}) {
+    final type = room is CreatedRoomInfo ? room.server.roomType : room.type;
+    final count = room is CreatedRoomInfo
+        ? room.server.session.count
+        : room.count;
+    final isGame = type > RoomInfo.chatType && type < NetItemType.values.length;
     return Card(
       child: ListTile(
-        leading: const Icon(Icons.home),
-        title: Text(
-          "${room.name} ${S.roomTypeString(NetItemType.values[room.type].name)}",
+        leading: Icon(
+          isGame ? Icons.sports_esports_outlined : Icons.forum_outlined,
         ),
-        subtitle: Text('${room.address}:${room.port}'),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: actions),
+        title: Row(
+          children: [
+            if (room.hasPassword) ...[
+              const Icon(Icons.lock_outline, size: 16),
+              const SizedBox(width: 6),
+            ],
+            Expanded(child: Text('${room.name} ($count)')),
+          ],
+        ),
+        subtitle: Text(
+          [
+            if (isGame) S.roomTypeString(NetItemType.values[type].name),
+            '${room.address}:${room.port}',
+          ].join(' · '),
+        ),
+        onTap: () => _manager.showJoinRoomDialog(room),
+        trailing: onStop == null
+            ? const Icon(Icons.chevron_right)
+            : IconButton(
+                icon: const Icon(Icons.stop_circle_outlined),
+                tooltip: S.stop,
+                onPressed: onStop,
+              ),
       ),
     );
-  }
-
-  List<Widget> _buildSection<T>({
-    required List<T> list,
-    required bool expanded,
-    required VoidCallback toggle,
-    required String title,
-    Widget? trailing,
-    Widget Function(T item, int index)? buildItem,
-    Widget Function(T item, int index)? buildLocalItem,
-    bool isLocalStatic = false,
-  }) {
-    if (list.isEmpty && !isLocalStatic) return const [];
-
-    return [
-      SliverPersistentHeader(
-        pinned: true,
-        delegate: _PinnedHeaderDelegate(
-          height: 48,
-          child: _buildHeader(
-            expanded: expanded,
-            toggle: toggle,
-            title: title,
-            trailing: trailing,
-          ),
-        ),
-      ),
-      if (expanded)
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (ctx, idx) => isLocalStatic
-                ? buildLocalItem!(list[idx], idx)
-                : buildItem!(list[idx], idx),
-            childCount: list.length,
-          ),
-        ),
-    ];
-  }
-
-  Widget _buildHeader({
-    required bool expanded,
-    required VoidCallback toggle,
-    required String title,
-    Widget? trailing,
-  }) {
-    return Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: ListTile(
-        dense: true,
-        leading: ExpandIcon(isExpanded: expanded, onPressed: (_) => toggle()),
-        title: Text(title, style: globalTheme.textTheme.titleLarge),
-        trailing: trailing,
-      ),
-    );
-  }
-}
-
-class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double height;
-  final Widget child;
-
-  _PinnedHeaderDelegate({required this.height, required this.child});
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return SizedBox.expand(child: child);
-  }
-
-  @override
-  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
-    return oldDelegate.child != child || oldDelegate.height != height;
   }
 }

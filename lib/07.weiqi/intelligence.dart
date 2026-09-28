@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../00.common/game/search/minimax.dart';
+import '../00.common/game/minimax.dart';
 import 'base.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════

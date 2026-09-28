@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../00.common/engine/net_real_engine.dart';
-import '../00.common/game/step.dart';
 import '../00.common/network/network_message.dart';
-import '../00.common/network/network_room.dart';
+import '../00.common/engine/network_engine.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
@@ -23,11 +22,9 @@ class NetManager extends FoundationalManager {
   final Set<int> _pendingSyncIds = {};
   int _syncId = 0;
 
-  NetManager({required String userName, required RoomInfo roomInfo}) {
+  NetManager({required NetworkEngine room}) {
     engine = NetRealGameEngine(
-      userName: userName,
-      roomInfo: roomInfo,
-      navigatorHandler: pageNavigator,
+      room: room,
       searchHandler: _handleSearch,
       resourceHandler: _handleResource,
       syncHandler: _handleSync,
@@ -35,6 +32,7 @@ class NetManager extends FoundationalManager {
       exitHandler: _handleEnd,
     );
     initTicker();
+    engine.ended.addListener(suspendGame);
   }
 
   @override
@@ -123,7 +121,7 @@ class NetManager extends FoundationalManager {
 
   void _resumeWhenSynchronized() {
     if (_pendingSyncIds.isNotEmpty) return;
-    engine.gameStep.value = GameStep.action;
+    if (!engine.completeSynchronization()) return;
     resumeGame();
   }
 
@@ -188,9 +186,10 @@ class NetManager extends FoundationalManager {
   void handleRemoveSnakeCallback(int index) {}
 
   @override
-  void handleGameOverCallback() {
-    engine.closeSocket();
-  }
+  void handleGameOverCallback() {}
+
+  @override
+  bool get showGameOverDialog => false;
 
   @override
   void leavePage() {
@@ -199,7 +198,7 @@ class NetManager extends FoundationalManager {
 
   @override
   void dispose() {
-    engine.closeSocket();
+    engine.dispose();
     super.dispose();
   }
 }

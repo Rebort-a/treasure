@@ -17,8 +17,9 @@ class SudokuPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) =>
-        _manager.leavePage(),
+    onPopInvokedWithResult: (bool didPop, Object? result) {
+      if (!didPop) _manager.leavePage();
+    },
     child: _buildPage(),
   );
 

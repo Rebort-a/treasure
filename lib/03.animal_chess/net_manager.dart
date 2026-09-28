@@ -1,25 +1,21 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
-
 import '../00.common/engine/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
 import '../00.common/network/network_message.dart';
-import '../00.common/network/network_room.dart';
+import '../00.common/engine/network_engine.dart';
 
-import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
 class NetManager extends FoundationalManager {
   late final NetTurnGameEngine netTurnEngine;
 
-  NetManager({required String userName, required RoomInfo roomInfo}) {
+  NetManager({required NetworkEngine room}) {
     netTurnEngine = NetTurnGameEngine(
-      userName: userName,
-      roomInfo: roomInfo,
-      navigatorHandler: pageNavigator,
+      room: room,
+      resourceMode: TurnResourceMode.frontOnly,
       searchHandler: _onSearch,
       resourceHandler: _onResource,
       actionHandler: _onAction,
@@ -33,10 +29,9 @@ class NetManager extends FoundationalManager {
   }
 
   void _onResource(GameStep step, NetworkMessage message) {
-    if (step == GameStep.connected || step == GameStep.rearWait) {
+    if (step == GameStep.rearWait) {
       _stringToMap(message.content);
       resetGameState();
-      netTurnEngine.sendNetworkMessage(MessageType.resource, "ok");
     }
   }
 
@@ -53,60 +48,12 @@ class NetManager extends FoundationalManager {
     }
   }
 
-  void _onExit() {
-    if (netTurnEngine.gameStep.value != GameStep.action) return;
-    _showSurrenderDialog(S.opponentSurrendered);
-  }
+  void _onExit() {}
 
-  void surrender() {
-    if (netTurnEngine.gameStep.value != GameStep.action) return;
-    netTurnEngine.sendNetworkMessage(MessageType.exit, 'surrender');
-    _showSurrenderDialog(S.youSurrendered);
-  }
+  void surrender() => netTurnEngine.finish();
 
-  void _showSurrenderDialog(String content) {
-    netTurnEngine.gameStep.value = GameStep.gameOver;
-    pageNavigator.value = (context) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text(S.gameOver),
-            content: Text(content),
-            actions: _buildDialogActions(context),
-          );
-        },
-      );
-    };
-  }
-
-  List<Widget> _buildDialogActions(BuildContext context) {
-    return [
-      TextButton(
-        child: Text(S.exit),
-        onPressed: () {
-          Navigator.pop(context);
-          netTurnEngine.leavePage();
-        },
-      ),
-      TextButton(
-        child: Text(S.restart),
-        onPressed: () {
-          Navigator.pop(context);
-          _playAgain();
-        },
-      ),
-    ];
-  }
-
-  void _playAgain() {
-    resetGameState();
-    netTurnEngine.resetForRematch();
-    netTurnEngine.sendNetworkMessage(
-      MessageType.search,
-      'Searching for opponent',
-    );
-  }
+  @override
+  void handleGameOver(TurnGamerType winner) => netTurnEngine.finish();
 
   String _mapToString() {
     List<List<int>> animalDistribution = displayMap.value

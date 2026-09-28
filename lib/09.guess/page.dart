@@ -13,7 +13,7 @@ class GuessPage extends StatelessWidget {
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (bool didPop, Object? result) {
-      _manager.leavePage();
+      if (!didPop) _manager.leavePage();
     },
     child: _buildPage(),
   );

@@ -4,9 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../00.common/engine/net_real_engine.dart';
 import '../00.common/game/map.dart';
-import '../00.common/game/step.dart';
 import '../00.common/network/network_message.dart';
-import '../00.common/network/network_room.dart';
+import '../00.common/engine/network_engine.dart';
 import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -23,12 +22,11 @@ enum TankAction {
   spawnItem,
   pickup,
   hit,
-  restart,
 }
 
 /// 联机玩家输入只发送 action，等待服务器回传后再应用。
 ///
-/// 新玩家加入或重开时，所有端重新加载同一份 resource 并完成同步屏障。
+/// 新玩家加入时，所有端重新加载同一份 resource 并完成同步屏障。
 /// AI、生成、道具和命中由权威方产生，但包括权威方自己在内，所有端都要
 /// 等服务器回环后才应用事件。
 class NetTankManager extends TankGameManager {
@@ -44,11 +42,10 @@ class NetTankManager extends TankGameManager {
   int _syncId = 0;
   bool _fireRequestPending = false;
 
-  NetTankManager({required String userName, required RoomInfo roomInfo}) {
+  NetTankManager({required NetworkEngine room}) {
     engine = NetRealGameEngine(
-      userName: userName,
-      roomInfo: roomInfo,
-      navigatorHandler: pageNavigator,
+      room: room,
+      maxPlayers: 4,
       searchHandler: _handleSearch,
       resourceHandler: _handleResource,
       syncHandler: _handleSync,
@@ -56,20 +53,13 @@ class NetTankManager extends TankGameManager {
       exitHandler: _handleEnd,
     );
     initTicker();
+    engine.ended.addListener(suspendGame);
   }
 
   @override
   int get identity => engine.identity;
 
-  int? get authorityId {
-    final keys =
-        tanks.entries
-            .where((entry) => entry.value.isPlayer)
-            .map((entry) => entry.key)
-            .toList()
-          ..sort();
-    return keys.isEmpty ? null : keys.first;
-  }
+  int? get authorityId => engine.publisherId;
 
   @override
   bool get isAuthority => identity == authorityId;
@@ -156,7 +146,7 @@ class NetTankManager extends TankGameManager {
 
   void _resumeWhenSynchronized() {
     if (_pendingSyncIds.isNotEmpty) return;
-    engine.gameStep.value = GameStep.action;
+    if (!engine.completeSynchronization()) return;
     resumeGame();
   }
 
@@ -278,9 +268,6 @@ class NetTankManager extends TankGameManager {
             );
           }
           break;
-        case TankAction.restart:
-          if (isAuthority && message.id != identity) _restartMatch();
-          break;
       }
     } on Object catch (error) {
       debugPrint('[Tank] ignored invalid action: $error');
@@ -394,32 +381,6 @@ class NetTankManager extends TankGameManager {
     });
   }
 
-  @override
-  void requestRestart() {
-    if (isAuthority) {
-      _restartMatch();
-    } else {
-      _sendAction(TankAction.restart);
-    }
-  }
-
-  void _restartMatch() {
-    if (!isAuthority) return;
-    final playerIds = tanks.entries
-        .where((entry) => entry.value.isPlayer)
-        .map((entry) => entry.key)
-        .toList();
-    suspendGame();
-    _clearPendingWorldEvents();
-    _matchId++;
-    _syncId++;
-    resetState();
-    for (final id in playerIds) {
-      addPlayerTank(id);
-    }
-    _sendSnapshot();
-  }
-
   void _clearPendingWorldEvents() {
     _pendingEnemySpawns.clear();
     _pendingAiPlans.clear();
@@ -457,7 +418,7 @@ class NetTankManager extends TankGameManager {
 
   @override
   void dispose() {
-    engine.closeSocket();
+    engine.dispose();
     super.dispose();
   }
 }

@@ -19,4 +19,9 @@ class NetManager {
   void leavePage() {
     networkEngine.leavePage();
   }
+
+  void dispose() {
+    networkEngine.dispose();
+    pageNavigator.dispose();
+  }
 }

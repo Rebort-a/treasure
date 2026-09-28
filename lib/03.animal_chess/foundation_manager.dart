@@ -236,9 +236,9 @@ abstract class FoundationalManager {
   void _checkGameEnd() {
     if (_hiddenCount <= 0) {
       if (_redAnimalsCount <= 0) {
-        _handleGameOver(TurnGamerType.rear);
+        handleGameOver(TurnGamerType.rear);
       } else if (_blueAnimalsCount <= 0) {
-        _handleGameOver(TurnGamerType.front);
+        handleGameOver(TurnGamerType.front);
       }
     }
   }
@@ -279,10 +279,10 @@ abstract class FoundationalManager {
   }
 
   void handleSurrender() {
-    _handleGameOver(currentGamer.value.opponent);
+    handleGameOver(currentGamer.value.opponent);
   }
 
-  void _handleGameOver(TurnGamerType winner) {
+  void handleGameOver(TurnGamerType winner) {
     pageNavigator.value = (context) {
       showDialog(
         context: context,

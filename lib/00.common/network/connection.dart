@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +13,8 @@ typedef DoneCallback = void Function();
 
 class Connection {
   final dynamic _impl;
+  StreamSubscription<dynamic>? _subscription;
+  Future<void>? _closeFuture;
 
   Connection._(this._impl);
 
@@ -30,7 +33,7 @@ class Connection {
   void listen({required DataCallback onData, required DoneCallback onDone}) {
     if (_impl is Socket) {
       final decoder = TcpFrameDecoder();
-      _impl.listen(
+      _subscription = _impl.listen(
         (List<int> chunk) {
           try {
             for (final payload in decoder.add(chunk)) {
@@ -46,7 +49,7 @@ class Connection {
         cancelOnError: true,
       );
     } else {
-      _impl.stream.listen(
+      _subscription = (_impl as WebSocketChannel).stream.listen(
         (dynamic message) {
           if (message is List<int>) {
             onData(message);
@@ -75,13 +78,19 @@ class Connection {
     }
   }
 
-  Future<void> close() async {
-    if (_impl is Socket) {
-      try {
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
+    try {
+      if (_impl is Socket) {
         await _impl.close();
-      } catch (_) {}
-    } else {
-      await _impl.sink.close();
+      } else {
+        await _impl.sink.close();
+      }
+    } finally {
+      // Socket.close 只关闭发送端，仍需释放接收订阅和底层连接。
+      await _subscription?.cancel();
+      if (_impl is Socket) _impl.destroy();
     }
   }
 }

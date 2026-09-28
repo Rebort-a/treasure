@@ -2,23 +2,27 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../chat/chat_channel.dart';
 import '../l10n/strings.dart';
-import '../config/network_config.dart';
 import '../widget/dialog/template_dialog.dart';
 import '../tool/notifiers.dart';
 import '../network/network_message.dart';
-import '../network/network_reliability.dart';
+import '../network/reconnect_policy.dart';
 import '../network/network_room.dart';
+import '../network/room_session.dart';
 import '../network/connection.dart' as conn;
 
-class NetworkEngine {
+class NetworkEngine implements ChatChannel {
+  @override
   final ListNotifier<NetworkMessage> messageList = ListNotifier([]);
+  @override
   final ScrollController scrollController = ScrollController();
+  @override
   final TextEditingController textController = TextEditingController();
 
   late conn.Connection _connection;
+  bool _hasConnection = false;
   final List<NetworkMessage> _sendBuffer = [];
   bool _isSending = false;
   Completer<void>? _sendCompleter;
@@ -26,28 +30,31 @@ class NetworkEngine {
   bool _isDisposed = false;
   bool _isClosing = false;
   bool _isClosed = true;
+  bool _exitRequested = false;
+  Completer<void>? _closeCompleter;
 
+  @override
   int identity = 0;
   final ValueNotifier<int> identityNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<RoomSession> roomSession = ValueNotifier(
+    const RoomSession(),
+  );
 
+  @override
   final String userName;
+  late String roomName = roomInfo.name;
   final RoomInfo roomInfo;
   final AlwaysNotifier<void Function(BuildContext)> navigatorHandler;
-  void Function(NetworkMessage message) messageHandler = (_) {};
-  VoidCallback? onReconnected;
-
-  // ==================== 消息确认机制 ====================
-  static const int _maxReceivedMessageIds = 1000;
-  static const int _maxAckRetries = 5;
-  static const Duration _ackRetryInterval = Duration(seconds: 2);
-  final AckRetryTracker _pendingAcks = AckRetryTracker(
-    retryInterval: _ackRetryInterval,
-    maxRetries: _maxAckRetries,
-  );
-  final MessageIdCache _receivedMessageIds = MessageIdCache(
-    capacity: _maxReceivedMessageIds,
-  );
-  Timer? _ackRetryTimer;
+  final Set<void Function(NetworkMessage)> _listeners = {};
+  void addMessageListener(void Function(NetworkMessage) listener) =>
+      _listeners.add(listener);
+  void removeMessageListener(void Function(NetworkMessage) listener) =>
+      _listeners.remove(listener);
+  void _dispatch(NetworkMessage message) {
+    for (final listener in List.of(_listeners)) {
+      if (_listeners.contains(listener)) listener(message);
+    }
+  }
 
   // ==================== 断线重连 ====================
   bool _isReconnecting = false;
@@ -55,9 +62,10 @@ class NetworkEngine {
   static const int _maxReconnectAttempts = 5;
   Timer? _reconnectTimer;
   bool _reconnectDialogShown = false;
+  bool _reconnectDialogVisible = false;
 
   // ==================== 加密 ====================
-  final String? encryptionKey;
+  String? encryptionKey;
 
   NetworkEngine({
     required this.userName,
@@ -66,13 +74,11 @@ class NetworkEngine {
   }) : encryptionKey = roomInfo.encryptionKey {
     messageList.addCallBack(_scrollToBottom);
     _connectToServer();
-    _startKeyboard();
-    _startAckRetry();
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients) {
+      if (!_isDisposed && scrollController.hasClients) {
         scrollController.jumpTo(scrollController.position.maxScrollExtent);
       }
     });
@@ -81,24 +87,44 @@ class NetworkEngine {
   // ==================== 连接管理 ====================
 
   Future<void> _connectToServer() async {
-    _connection = await conn.Connection.connect(
-      roomInfo.address,
-      roomInfo.port,
-    );
+    try {
+      final connection = await conn.Connection.connect(
+        roomInfo.address,
+        roomInfo.port,
+      );
+      if (_isClosing || _isDisposed) {
+        await connection.close();
+        return;
+      }
+      _connection = connection;
+      _hasConnection = true;
+    } catch (_) {
+      _attemptReconnect();
+      return;
+    }
     _isClosed = false;
     _connection.listen(onData: _handleSocketData, onDone: _handleSocketDone);
 
-    // scheme 2: 发送 connect 请求触发服务器回复 accept
-    if (networkMode == NetworkMode.webSocket) {
-      _connection.send(utf8.encode('{"connect":true}'));
-    }
+    _sendHandshake();
+  }
+
+  void _sendHandshake() {
+    _connection.send(
+      utf8.encode(
+        jsonEncode({
+          'connect': true,
+          'password': roomInfo.password ?? '',
+          'name': userName,
+        }),
+      ),
+    );
   }
 
   void _handleSocketData(List<int> data) {
-    if (_isClosed || _isDisposed) return;
+    if (_isClosed || _isClosing || _isDisposed) return;
     final message = NetworkMessage.fromSocketData(
       data,
-      encryptionKey: encryptionKey,
+      encryptionKey: identity == 0 ? null : encryptionKey,
     );
     if (message == null) {
       debugPrint('[Net] 丢弃畸形消息（${data.length} bytes）');
@@ -111,33 +137,27 @@ class NetworkEngine {
     final summary = switch (message.type) {
       MessageType.image => _summarizeMedia(message.content, 'image'),
       MessageType.file => _summarizeMedia(message.content, 'file'),
+      MessageType.resource => '[resource, ${message.content.length} chars]',
       MessageType.emoji ||
       MessageType.typing ||
       MessageType.broadcast ||
       MessageType.accept ||
-      MessageType.ack ||
       MessageType.search ||
       MessageType.match ||
-      MessageType.resource ||
       MessageType.sync ||
       MessageType.action ||
       MessageType.exit ||
       MessageType.notify ||
       MessageType.text => message.content,
+      MessageType.roomControl => message.content,
     };
     debugPrint('${message.source} ${message.id} ${message.type} $summary');
-
-    // 收到 ACK → 从待确认队列移除
-    if (message.type == MessageType.ack) {
-      _handleAck(message.content);
-      return;
-    }
 
     // 服务器关闭房间（id==0）→ 弹窗并退出
     if (message.type == MessageType.exit && message.id == 0) {
       _isClosing = true;
-      _pendingAcks.clear();
-      _reconnectTimer?.cancel();
+      _dispatch(message);
+      unawaited(closeSocket());
       navigatorHandler.value = (context) {
         DialogTemplate.promptDialog(
           context: context,
@@ -152,62 +172,59 @@ class NetworkEngine {
 
     // 其他成员退出 → 传给游戏引擎处理
 
-    // 消息去重（LRU 淘汰：超出上限移除最旧条目，防长会话内存单调增长）
-    if (message.messageId != null) {
-      if (!_receivedMessageIds.add(message.messageId!)) return;
-      if (message.id != identity && ackRequiredTypes.contains(message.type)) {
-        _sendAck(message.messageId!);
+    if (message.type == MessageType.accept &&
+        message.id == 0 &&
+        identity == 0) {
+      final accepted = jsonDecode(message.content) as Map<String, dynamic>;
+      identity = accepted['clientId'] as int;
+      encryptionKey = accepted['key'] as String?;
+      roomName = message.source;
+      roomSession.value = RoomSession(game: accepted['roomType'] as int);
+      identityNotifier.value = identity;
+      sendNetworkMessage(MessageType.notify, S.joinedRoom);
+      return;
+    }
+
+    if (message.type == MessageType.roomControl) {
+      if (message.id == 0) {
+        try {
+          final control = jsonDecode(message.content) as Map<String, dynamic>;
+          if (control['error'] == 'invalidPassword') {
+            _isClosing = true;
+            unawaited(closeSocket());
+            navigatorHandler.value = (context) {
+              DialogTemplate.promptDialog(
+                context: context,
+                title: S.joinRoom,
+                content: S.incorrectRoomPassword,
+                before: () => true,
+                after: _navigateToBack,
+              );
+            };
+            return;
+          }
+          final next = RoomSession.fromJson(message.content);
+          roomSession.value = next;
+        } catch (_) {
+          debugPrint('[Net] Invalid room snapshot');
+        }
       }
+      return;
     }
 
-    if ((message.type == MessageType.accept) && (identity == 0)) {
-      identity = message.id;
-      identityNotifier.value = message.id;
-      sendNetworkMessage(MessageType.notify, "join in room");
+    _dispatch(message);
+    if (!_isDisposed &&
+        !_isClosing &&
+        message.sessionId == null &&
+        const {
+          MessageType.notify,
+          MessageType.text,
+          MessageType.emoji,
+          MessageType.image,
+          MessageType.file,
+        }.contains(message.type)) {
+      messageList.add(message);
     }
-
-    if (message.type.index < MessageType.notify.index) {
-      messageHandler(message);
-    } else if (message.type.index >= MessageType.notify.index) {
-      // typing 消息不加入消息列表，仅用于 UI 提示
-      if (message.type != MessageType.typing) {
-        messageList.add(message);
-      }
-    }
-  }
-
-  // ==================== 消息确认机制 ====================
-
-  void _startAckRetry() {
-    _ackRetryTimer = Timer.periodic(_ackRetryInterval, (_) {
-      _retryPendingAcks();
-    });
-  }
-
-  void _retryPendingAcks() {
-    if (_isClosed || _isDisposed || _pendingAcks.isEmpty) return;
-
-    final batch = _pendingAcks.poll(DateTime.now());
-    for (final message in batch.messages) {
-      _rawSend(message);
-    }
-    if (batch.hasTimeout) _handleAckTimeout();
-  }
-
-  void _handleAck(String messageId) {
-    _pendingAcks.acknowledge(messageId);
-  }
-
-  void _sendAck(String messageId) {
-    final ack = NetworkMessage.ack(messageId, identity);
-    _rawSend(ack);
-  }
-
-  void _handleAckTimeout() {
-    if (_isClosing || _isDisposed) return;
-    // ACK 超时 → 触发断线重连
-    _pendingAcks.clear();
-    _attemptReconnect();
   }
 
   // ==================== 断线重连 ====================
@@ -224,9 +241,11 @@ class NetworkEngine {
     _reconnectNotifier.value = 0;
     _reconnectDialogShown = false;
     _isClosed = true;
+    identity = 0;
+    identityNotifier.value = 0;
 
     // 关闭旧连接
-    _connection.close();
+    if (_hasConnection) _connection.close();
 
     _doReconnect();
   }
@@ -245,6 +264,8 @@ class NetworkEngine {
       if (!_reconnectDialogShown) {
         _reconnectDialogShown = true;
         navigatorHandler.value = (context) {
+          if (!_isReconnecting || _isClosing || _isDisposed) return;
+          _reconnectDialogVisible = true;
           showDialog(
             context: context,
             barrierDismissible: false,
@@ -272,7 +293,7 @@ class NetworkEngine {
                 ],
               ),
             ),
-          );
+          ).whenComplete(() => _reconnectDialogVisible = false);
         };
       }
 
@@ -283,10 +304,16 @@ class NetworkEngine {
       }
 
       try {
-        _connection = await conn.Connection.connect(
+        final connection = await conn.Connection.connect(
           roomInfo.address,
           roomInfo.port,
         );
+        if (_isClosing || _isDisposed) {
+          await connection.close();
+          return;
+        }
+        _connection = connection;
+        _hasConnection = true;
         _isClosed = false;
         _isReconnecting = false;
 
@@ -298,6 +325,7 @@ class NetworkEngine {
 
         // 重新进入房间
         _onReconnected();
+        _sendHandshake();
       } catch (_) {
         _doReconnect(); // 继续重试
       }
@@ -306,23 +334,19 @@ class NetworkEngine {
 
   void _onReconnected() {
     // 清空旧状态
-    _pendingAcks.clear();
-    _receivedMessageIds.clear();
     _sendBuffer.clear();
     identity = 0;
     identityNotifier.value = 0; // 重新等待 accept 分配新 ID
 
     // 关闭重连对话框
     navigatorHandler.value = (context) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (_reconnectDialogVisible) Navigator.of(context).pop();
     };
-
-    // 通知子类重连完成（用于重置游戏状态）
-    onReconnected?.call();
   }
 
   // ==================== 消息发送 ====================
 
+  @override
   void sendInputText() {
     final text = textController.text.trim();
     if (text.isEmpty) return;
@@ -361,8 +385,13 @@ class NetworkEngine {
         cleaned.length <= 8;
   }
 
-  void sendNetworkMessage(MessageType type, String content) {
-    if (identity == 0 || _isDisposed) return;
+  void sendNetworkMessage(
+    MessageType type,
+    String content, {
+    int? targetId,
+    String? sessionId,
+  }) {
+    if (identity == 0 || _isClosing || _isDisposed) return;
 
     final message = NetworkMessage(
       id: identity,
@@ -370,15 +399,9 @@ class NetworkEngine {
       source: userName,
       content: content,
       timestamp: DateTime.now().millisecondsSinceEpoch,
+      targetId: targetId,
+      sessionId: sessionId,
     );
-
-    // 为需要 ACK 的消息生成唯一 ID
-    message.ensureMessageId();
-
-    // 加入待确认队列
-    if (message.messageId != null) {
-      _pendingAcks.track(message);
-    }
 
     _sendBuffer.add(message);
     _pushMessage();
@@ -415,7 +438,7 @@ class NetworkEngine {
 
   /// 发送正在输入状态
   void sendTypingStatus() {
-    if (identity == 0 || _isDisposed) return;
+    if (identity == 0 || _isClosing || _isDisposed) return;
     final message = NetworkMessage(
       id: identity,
       type: MessageType.typing,
@@ -430,20 +453,26 @@ class NetworkEngine {
     if (_isClosed || _isSending || _sendBuffer.isEmpty) return;
 
     _isSending = true;
+    final connection = _connection;
 
     try {
-      while (_sendBuffer.isNotEmpty) {
-        final message = _sendBuffer.first;
-        _rawSend(message);
-        await _connection.flush();
-        _sendBuffer.removeAt(0);
+      while (!_isClosed &&
+          identical(connection, _connection) &&
+          _sendBuffer.isNotEmpty) {
+        // 先出队，避免等待写入期间重连清空队列后再次移除同一条消息。
+        final message = _sendBuffer.removeAt(0);
+        connection.send(message.toSocketData(encryptionKey: encryptionKey));
+        await connection.flush();
       }
     } catch (e) {
-      _sendBuffer.clear();
+      if (identical(connection, _connection)) _sendBuffer.clear();
     } finally {
       _isSending = false;
       _sendCompleter?.complete();
       _sendCompleter = null;
+      if (!_isClosed && _sendBuffer.isNotEmpty) {
+        unawaited(_pushMessage());
+      }
     }
   }
 
@@ -456,58 +485,81 @@ class NetworkEngine {
   // ==================== 生命周期 ====================
 
   void leavePage() {
-    closeSocket();
+    if (_isDisposed) return;
+    unawaited(closeSocket());
     _navigateToBack();
   }
 
-  Future<void> closeSocket() async {
-    if (!_isClosed && !_isClosing) {
-      _isClosing = true;
-      _stopKeyboard();
-      _ackRetryTimer?.cancel();
-      _reconnectTimer?.cancel();
+  /// 只关闭连接，不负责导航或销毁界面资源；重复调用共享同一个关闭结果。
+  Future<void> closeSocket() {
+    if (_closeCompleter case final pending?) return pending.future;
+    final completion = Completer<void>();
+    _closeCompleter = completion;
+    _closeConnection().then(
+      (_) => completion.complete(),
+      onError: (Object error, StackTrace stack) =>
+          completion.completeError(error, stack),
+    );
+    return completion.future;
+  }
 
-      sendNetworkMessage(MessageType.notify, 'leave room');
-
-      // 等待发送队列清空
+  Future<void> _closeConnection() async {
+    final notify = !_isClosed && !_isClosing && identity != 0;
+    _isClosing = true;
+    _isReconnecting = false;
+    _reconnectTimer?.cancel();
+    if (notify) {
+      _sendBuffer.add(
+        NetworkMessage(
+          id: identity,
+          type: MessageType.notify,
+          source: userName,
+          content: 'leave room',
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+    }
+    identity = 0;
+    identityNotifier.value = 0;
+    try {
+      // 关闭前发送完已有消息，关闭开始后不再接受新消息。
       if (_isSending) {
         _sendCompleter ??= Completer<void>();
         await _sendCompleter!.future;
       }
       await _pushMessage();
-
+    } finally {
       _isClosed = true;
-      await _connection.close();
+      _sendBuffer.clear();
+      if (_hasConnection) {
+        _hasConnection = false;
+        await _connection.close();
+      }
     }
   }
 
   void _navigateToBack() {
+    if (_isDisposed || _exitRequested) return;
+    _exitRequested = true;
     navigatorHandler.value = (BuildContext context) {
-      Navigator.pop(context);
+      if (!_isDisposed && context.mounted) Navigator.pop(context);
     };
-
-    if (!_isDisposed) {
-      _isDisposed = true;
-      messageList.removeCallBack(_scrollToBottom);
-      _ackRetryTimer?.cancel();
-      _reconnectTimer?.cancel();
-    }
   }
 
-  void _startKeyboard() {
-    HardwareKeyboard.instance.addHandler(_handleChatKeyboardEvent);
-  }
-
-  void _stopKeyboard() {
-    HardwareKeyboard.instance.removeHandler(_handleChatKeyboardEvent);
-  }
-
-  bool _handleChatKeyboardEvent(KeyEvent event) {
-    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
-      sendInputText();
-      return true;
-    }
-    return false;
+  /// 由聊天室页面持有者调用；游戏结束不得调用此方法。
+  void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+    // 先结束依赖房间身份的游戏会话，再销毁通知器。
+    unawaited(closeSocket());
+    _listeners.clear();
+    messageList.removeCallBack(_scrollToBottom);
+    messageList.dispose();
+    scrollController.dispose();
+    textController.dispose();
+    identityNotifier.dispose();
+    roomSession.dispose();
+    _reconnectNotifier.dispose();
   }
 
   String _summarizeMedia(String content, String type) {

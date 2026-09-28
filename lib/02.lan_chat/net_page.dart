@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../00.common/network/network_room.dart';
+
+import '../00.common/network/room_session.dart';
+import '../00.common/widget/navigator/game_launch.dart';
 import '../00.common/style/chat_theme.dart';
 import '../00.common/tool/blur_hash.dart';
 import '../00.common/widget/component/chat_component.dart';
@@ -22,7 +26,10 @@ class NetChatPage extends StatefulWidget {
     super.key,
     required this.userName,
     required this.roomInfo,
+    required this.gameFactory,
   });
+
+  final GameLaunchFactory gameFactory;
 
   @override
   State<NetChatPage> createState() => _NetChatPageState();
@@ -31,15 +38,61 @@ class NetChatPage extends StatefulWidget {
 class _NetChatPageState extends State<NetChatPage> {
   late final NetManager _manager;
   final ChatTheme _theme = ChatTheme.light;
+  GameLaunch? _game;
+  Route<void>? _gameRoute;
+  bool _gameEventScheduled = false;
+
   @override
   void initState() {
     super.initState();
     _manager = NetManager(userName: widget.userName, roomInfo: widget.roomInfo);
   }
 
+  void _gameChanged() {
+    if (_gameEventScheduled || !mounted) return;
+    _gameEventScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _gameEventScheduled = false;
+      if (!mounted) return;
+      final game = _game;
+      if (game == null) return;
+      if (game.engine.ended.value) {
+        if (_gameRoute != null) {
+          final navigator = Navigator.of(context);
+          final chatRoute = ModalRoute.of(context);
+          navigator.popUntil(
+            (route) => route == _gameRoute || route == chatRoute,
+          );
+          if (_gameRoute!.isCurrent) navigator.pop();
+        } else {
+          _releaseGame(game);
+        }
+        return;
+      }
+      if (_gameRoute != null || !game.engine.readyToOpen.value) return;
+      final route = MaterialPageRoute<void>(builder: (_) => game.buildPage());
+      _gameRoute = route;
+      await Navigator.of(context).push(route);
+      game.engine.finish();
+      await route.completed;
+      if (!mounted) return;
+      _gameRoute = null;
+      _releaseGame(game);
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  void _releaseGame(GameLaunch game) {
+    game.engine.readyToOpen.removeListener(_gameChanged);
+    game.engine.ended.removeListener(_gameChanged);
+    if (identical(_game, game)) _game = null;
+    game.dispose();
+  }
+
   @override
   void dispose() {
-    _manager.leavePage();
+    if (_game case final game?) _releaseGame(game);
+    _manager.dispose();
     super.dispose();
   }
 
@@ -83,16 +136,32 @@ class _NetChatPageState extends State<NetChatPage> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.roomInfo.name,
-            style: TextStyle(
-              color: _theme.otherTextColor,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
+          ValueListenableBuilder<RoomSession>(
+            valueListenable: _manager.networkEngine.roomSession,
+            builder: (_, __, ___) => Text(
+              _manager.networkEngine.roomName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _theme.otherTextColor,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          _statusDot(),
+          Row(
+            children: [
+              _statusDot(),
+              ValueListenableBuilder<RoomSession>(
+                valueListenable: _manager.networkEngine.roomSession,
+                builder: (_, session, __) => Text(
+                  ' · ${session.count} ${S.members}',
+                  style: TextStyle(color: _theme.systemTextColor, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       centerTitle: false,
@@ -164,11 +233,22 @@ class _NetChatPageState extends State<NetChatPage> {
     return Column(
       children: [
         NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+        ValueListenableBuilder<RoomSession>(
+          valueListenable: _manager.networkEngine.roomSession,
+          builder: (_, session, __) => session.game == 0
+              ? const SizedBox.shrink()
+              : PinnedRoomCard(child: _gameCard(session)),
+        ),
         Expanded(
-          child: MessageList(
-            networkEngine: _manager.networkEngine,
-            theme: _theme,
-            topPadding: MediaQuery.of(context).padding.top + kToolbarHeight + 4,
+          child: ValueListenableBuilder<RoomSession>(
+            valueListenable: _manager.networkEngine.roomSession,
+            builder: (_, session, __) => MessageList(
+              networkEngine: _manager.networkEngine,
+              theme: _theme,
+              topPadding: session.game == 0
+                  ? MediaQuery.paddingOf(context).top + kToolbarHeight + 4
+                  : 4,
+            ),
           ),
         ),
         MessageInput(
@@ -186,6 +266,34 @@ class _NetChatPageState extends State<NetChatPage> {
       onImagePick: _pickImage,
       onFilePick: _pickFile,
     );
+  }
+
+  Widget _gameCard(RoomSession session) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: ListTile(
+        leading: const Icon(Icons.sports_esports_outlined),
+        title: Text(S.roomTypeString(session.gameName)),
+
+        trailing: Text(S.joinGame),
+        onTap: _requestPlay,
+      ),
+    );
+  }
+
+  void _requestPlay() {
+    final room = _manager.networkEngine;
+    final type = room.roomSession.value.game;
+    if (room.identity == 0 || _gameRoute != null || type <= 0) {
+      return;
+    }
+    if (_game case final previous?) _releaseGame(previous);
+    final game = widget.gameFactory(room);
+    if (game == null) return;
+    _game = game;
+    game.engine.readyToOpen.addListener(_gameChanged);
+    game.engine.ended.addListener(_gameChanged);
+    game.engine.start();
   }
 
   Future<void> _pickImage() async {
@@ -281,4 +389,19 @@ class _NetChatPageState extends State<NetChatPage> {
         break;
     }
   }
+}
+
+/// 聊天内容可延伸到毛玻璃顶部栏后方，但置顶内容必须避开顶部栏。
+class PinnedRoomCard extends StatelessWidget {
+  final Widget child;
+
+  const PinnedRoomCard({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(
+      top: MediaQuery.paddingOf(context).top + kToolbarHeight,
+    ),
+    child: child,
+  );
 }

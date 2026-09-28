@@ -159,8 +159,8 @@ Dual network mode, switchable via one line in `lib/00.common/config/network_conf
 双网络方案，通过 `lib/00.common/config/network_config.dart` 一行切换：
 
 ```dart
-const NetworkMode networkMode = NetworkMode.socket;     // TCP + UDP (native)
-const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
+const NetworkMode networkMode = NetworkMode.socket;     // TCP + UDP，原生平台
+const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 平台
 ```
 
 ```
@@ -173,12 +173,13 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 ├───────────────────────────────────────────────────────┤
 │  Transport Layer | 传输层                               │
 │  socket: TCP ServerSocket + UDP broadcast/multicast    │
-│  webSocket: HttpServer + WebSocket + HTTP discovery    │
+│  webSocket: HttpServer upgrade + WebSocket            │
 └───────────────────────────────────────────────────────┘
 ```
 
-- **Room Discovery** — UDP broadcast/multicast (socket) or HTTP scan (WebSocket) | 房间发现
-- **Reliability** — ACK + retry for critical messages | 关键消息确认重试
+- **Room Discovery** — UDP discovery on native platforms; Web joins by IP. Room type and key arrive in the `accept` handshake. | 原生端通过 UDP 发现房间，Web 通过 IP 加入；房间类型和密钥由 `accept` 握手返回，不再使用 HTTP 查询。
+- **Room / Game Lifecycle** — One persistent room connection, temporary game sessions started from the pinned card. | 房间保持一条连接，点击置顶卡片才创建对局，游戏退出不关闭房间。
+- **Message Routing** — `targetId` selects a recipient; `sessionId` separates games from room chat. No application-level ACK/retry. | 定向转发与会话隔离；不再维护应用层 ACK 和重发。
 - **Reconnection** — Exponential backoff (1s→2s→4s→8s→16s, max 5 attempts) | 指数退避重连
 - **Encryption** — XOR stream encryption with room-shared key (lightweight; key exchanged via LAN discovery, not a secure channel — defends against casual snooping only) | 轻量加密传输（密钥经局域网发现交换，非安全信道，仅防偶然嗅探）
 
@@ -191,10 +192,11 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket (Web)
 | 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
 |------|---------|---------|---------|----------|
 | `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/connection.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
-| `http` | Web 端 HTTP 获取房间信息（名称、加密密钥等）<br/>Fetch room info (name, encryption key) for Web | `00.common/network/http_fetch.dart` | 删除 `http_fetch.dart` 文件<br/>Delete `http_fetch.dart` | Web 端手动加入房间时无法获取房间名和加密密钥<br/>Web cannot fetch room name & encryption key when joining by IP |
 | `image_picker` | 聊天发送图片<br/>Send images in chat | `02.lan_chat/net_page.dart` | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项<br/>Delete `_pickImage()`, attachment menu auto-hides album | 聊天无法发送图片<br/>Cannot send images |
 | `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `02.lan_chat/net_page.dart`、`00.common/widget/component/chat_component.dart` | 删除 `_pickFile()` 方法和 `_saveFile()` 中的 FilePicker 调用<br/>Delete `_pickFile()` and FilePicker calls in `_saveFile()` | 聊天无法发送和保存文件<br/>Cannot send or save files |
 | `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/tool/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |
+
+`http` 已移除直接依赖；锁文件中仍由部分插件间接引入。房间密码是入房校验，不是安全传输保证；协议及安全边界见 [联机流程说明](docs/network-flow.md)。
 
 > **平台权限 Platform Permissions**：`image_picker` 需要 Android `READ_MEDIA_IMAGES`（13+）/ `READ_EXTERNAL_STORAGE`（12-）和 iOS `NSPhotoLibraryUsageDescription`。`file_picker` 需要 Android `WRITE_EXTERNAL_STORAGE`（9-）。已在 `AndroidManifest.xml` 和 `Info.plist` 中声明，移除插件后可同步删除。
 >

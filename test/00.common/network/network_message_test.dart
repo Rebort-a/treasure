@@ -98,11 +98,10 @@ void main() {
         'type': MessageType.action.index,
         'source': 'bob',
         'content': 'move',
-        'messageId': 'm1',
       });
       final msg = NetworkMessage.fromJsonString(json);
       expect(msg, isNotNull);
-      expect(msg!.messageId, 'm1');
+      expect(msg!.content, 'move');
     });
 
     test('畸形 JSON 返回 null（不抛异常）', () {
@@ -179,52 +178,6 @@ void main() {
         encryptionKey: 'key2',
       );
       expect(restored, isNull, reason: '密钥不匹配应解为乱码而非合法消息');
-    });
-  });
-
-  group('ACK 与 messageId', () {
-    test('ack 工厂构造正确', () {
-      final ack = NetworkMessage.ack('msg-42', 7);
-      expect(ack.id, 7);
-      expect(ack.type, MessageType.ack);
-      expect(ack.content, 'msg-42');
-    });
-
-    test('ensureMessageId 为需 ACK 的类型生成 id', () {
-      final msg = NetworkMessage(
-        id: 1,
-        type: MessageType.action,
-        source: 'a',
-        content: 'x',
-      );
-      expect(msg.messageId, isNull);
-      msg.ensureMessageId();
-      expect(msg.messageId, isNotNull);
-    });
-
-    test('ensureMessageId 不为非 ACK 类型生成 id', () {
-      final msg = NetworkMessage(
-        id: 1,
-        type: MessageType.text,
-        source: 'a',
-        content: 'x',
-      );
-      msg.ensureMessageId();
-      expect(msg.messageId, isNull);
-    });
-
-    test('生成的 messageId 格式合法', () {
-      final msg = NetworkMessage(
-        id: 1,
-        type: MessageType.action,
-        source: 'a',
-        content: 'x',
-      )..ensureMessageId();
-      expect(
-        msg.messageId,
-        matches(RegExp(r'^[0-9a-z]+-[0-9a-z]+$')),
-        reason: '格式应为 <base36 时间戳>-<base36 随机>',
-      );
     });
   });
 }

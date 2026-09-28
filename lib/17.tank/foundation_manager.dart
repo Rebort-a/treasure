@@ -978,9 +978,6 @@ abstract class TankGameManager extends ChangeNotifier
   /// 玩家停止移动：local 设 moving=false，net 发 action 转发
   void updatePlayerStop();
 
-  /// 请求重开：local 直接重置，net 触发联机重握手
-  void requestRestart();
-
   void leavePage();
 
   // 广播钩子（local 全部空实现；net 发 action）

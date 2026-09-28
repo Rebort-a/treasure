@@ -1,29 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/network/network_room.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
+import '../00.common/widget/component/chat_component.dart';
 import '../00.common/l10n/strings.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
 class NetGomokuPage extends StatelessWidget {
-  late final NetManager _manager;
+  final NetManager _manager;
 
-  NetGomokuPage({
-    super.key,
-    required RoomInfo roomInfo,
-    required String userName,
-  }) {
-    _manager = NetManager(roomInfo: roomInfo, userName: userName);
-  }
+  const NetGomokuPage({super.key, required NetManager manager})
+    : _manager = manager;
 
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (bool didPop, Object? result) {
-      _manager.leavePage();
+      if (!didPop) _manager.leavePage();
     },
     child: _buildPage(context),
   );
@@ -40,6 +35,13 @@ class NetGomokuPage extends StatelessWidget {
         icon: const Icon(Icons.arrow_back),
         onPressed: _manager.netTurnEngine.leavePage,
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.flag),
+          tooltip: S.surrender,
+          onPressed: _manager.resign,
+        ),
+      ],
     );
   }
 
@@ -54,17 +56,32 @@ class NetGomokuPage extends StatelessWidget {
               ...(step == GameStep.action
                   ? [
                       _buildTurnIndicator(),
-                      Expanded(child: FoundationalWidget(manager: _manager)),
+                      Expanded(
+                        flex: 3,
+                        child: FoundationalWidget(manager: _manager),
+                      ),
                     ]
-                  : [Expanded(child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 20),
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 20),
-                      Text(step.getExplanation(), style: const TextStyle(fontSize: 16)),
-                    ],
-                  ))]),
+                  : [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(height: 20),
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 20),
+                            Text(
+                              step.getExplanation(),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
+              Expanded(
+                flex: 2,
+                child: MessageList(networkEngine: _manager.netTurnEngine),
+              ),
+              MessageInput(networkEngine: _manager.netTurnEngine),
             ],
           ),
         );
@@ -78,7 +95,9 @@ class NetGomokuPage extends StatelessWidget {
       String text = '';
       if (_manager.board.gameOver) {
         text = S.sideWin(
-          gamer == TurnGamerType.rear ? S.blackSide : S.whiteSide,
+          _manager.board.lastWinner == TurnGamerType.front
+              ? S.blackSide
+              : S.whiteSide,
         );
       } else {
         final side = gamer == TurnGamerType.front ? S.blackSide : S.whiteSide;

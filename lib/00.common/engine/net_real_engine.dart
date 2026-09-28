@@ -1,123 +1,176 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-import 'network_engine.dart';
-import '../network/network_message.dart';
 import '../game/step.dart';
+import '../network/network_message.dart';
+import 'net_game_engine.dart';
 
-class NetRealGameEngine extends NetworkEngine {
-  final ValueNotifier<GameStep> gameStep = ValueNotifier(GameStep.disconnect);
-
-  int _publisherId = 0;
-
+class NetRealGameEngine extends NetGameEngine {
+  final int? maxPlayers;
   final void Function(int) searchHandler;
   final void Function(NetworkMessage) resourceHandler;
   final void Function(NetworkMessage) syncHandler;
   final void Function(NetworkMessage) actionHandler;
   final void Function(int) exitHandler;
+  final Map<int, String> _participants = {};
+  final Map<int, String> _waiting = {};
+  int? publisherId;
+  bool _searchEchoed = false;
 
   NetRealGameEngine({
-    required super.userName,
-    required super.roomInfo,
-    required super.navigatorHandler,
+    required super.room,
     required this.searchHandler,
     required this.resourceHandler,
     required this.syncHandler,
     required this.actionHandler,
     required this.exitHandler,
-  }) {
-    super.messageHandler = _handleMessage;
+    this.maxPlayers,
+  });
 
-    // 重连后重置游戏状态
-    super.onReconnected = () {
-      gameStep.value = GameStep.disconnect;
-      _publisherId = 0;
-    };
+  @override
+  void start() {
+    if (isActive || ended.value || identity == 0) return;
+    publisherId = identity;
+    _participants[identity] = requestId;
+    super.start();
   }
 
-  void _handleMessage(NetworkMessage message) {
-    switch (message.type) {
-      case MessageType.accept:
-        _handleAcceptMessage(message);
-        break;
-      case MessageType.search:
-        _handleSearchMessage(message);
-        break;
-      case MessageType.resource:
-        _handleResourceMessage(message);
-        break;
-      case MessageType.sync:
-        _handleSyncMessage(message);
-        break;
-      case MessageType.action:
-        _handleActionMessage(message);
-        break;
-      case MessageType.exit:
-        _handleExitMessage(message);
-        break;
-      case MessageType.match:
-        _handleMatchMessage(message.id);
-        break;
-      default:
-        break;
+  @override
+  void sendNetworkMessage(MessageType type, String content, {int? targetId}) {
+    if (type == MessageType.text ||
+        type == MessageType.image ||
+        type == MessageType.file ||
+        type == MessageType.emoji) {
+      return;
     }
-  }
-
-  void _handleAcceptMessage(NetworkMessage message) {
-    if (gameStep.value == GameStep.disconnect) {
-      gameStep.value = GameStep.connected;
-      _publisherId = identity; // 先假定房间内没人，自己就是发布者
-      sendNetworkMessage(MessageType.search, 'Searching for publisher');
+    if (type == MessageType.resource) {
+      content = jsonEncode({
+        'players': _participants.map((id, request) => MapEntry('$id', request)),
+        'data': content,
+      });
     }
+    if (type == MessageType.exit) content = jsonEncode({'request': requestId});
+    super.sendNetworkMessage(type, content, targetId: targetId);
   }
 
-  void _handleSearchMessage(NetworkMessage message) {
-    if (message.id != identity) {
-      // 收到他人的查找消息
-      if (identity == _publisherId) {
-        // 如果自己就是发布者，发布资源
-        searchHandler(message.id);
+  @override
+  void handleMessage(NetworkMessage message) {
+    if (message.type == MessageType.search) {
+      if (message.id == identity && message.sessionId == requestId) {
+        _searchEchoed = true;
+        return;
       }
+      if (!_searchEchoed ||
+          message.id == identity ||
+          message.sessionId == null ||
+          publisherId != identity) {
+        return;
+      }
+      if (_participants[message.id] == message.sessionId) return;
+      _waiting[message.id] = message.sessionId!;
+      if (maxPlayers != null && _participants.length >= maxPlayers!) {
+        super.sendNetworkMessage(
+          MessageType.match,
+          jsonEncode({'waitingFor': message.sessionId}),
+          targetId: message.id,
+        );
+      }
+      _admitNext();
+      return;
     }
-  }
-
-  void _handleResourceMessage(NetworkMessage message) {
-    _handleMatchMessage(message.id);
-    if (gameStep.value == GameStep.connected ||
+    if (message.type == MessageType.match &&
+        gameStep.value == GameStep.start &&
+        message.targetId == identity) {
+      final data = jsonDecode(message.content) as Map<String, dynamic>;
+      if (data['waitingFor'] == requestId) publisherId = message.id;
+      return;
+    }
+    if (message.type == MessageType.resource && message.sessionId != null) {
+      final envelope = jsonDecode(message.content) as Map<String, dynamic>;
+      final raw = envelope['players'] as Map<String, dynamic>;
+      if (raw['$identity'] != requestId || raw.length < 2) return;
+      if (gameStep.value != GameStep.start && message.sessionId != sessionId) {
+        return;
+      }
+      if (!raw.containsKey('${message.id}')) return;
+      publisherId = message.id;
+      sessionId = message.sessionId!;
+      _participants
+        ..clear()
+        ..addAll(
+          raw.map((id, request) => MapEntry(int.parse(id), request as String)),
+        );
+      gameStep.value = GameStep.synchronizing;
+      resourceHandler(
+        NetworkMessage(
+          id: message.id,
+          type: message.type,
+          source: message.source,
+          content: envelope['data'] as String,
+          sessionId: sessionId,
+        ),
+      );
+      return;
+    }
+    if (message.type == MessageType.exit && message.id != identity) {
+      if (gameStep.value == GameStep.start &&
+          !_participants.containsKey(message.id)) {
+        if (publisherId == message.id) publisherId = identity;
+        // 可能已有空位，或新发布者需要重新收到当前排队请求。
+        super.sendNetworkMessage(MessageType.search, 'search');
+      }
+      if (message.sessionId == null ||
+          _waiting[message.id] == message.sessionId) {
+        _waiting.remove(message.id);
+      }
+      if (!_participants.containsKey(message.id) ||
+          (message.sessionId != null && message.sessionId != sessionId)) {
+        return;
+      }
+      if (message.sessionId != null &&
+          (jsonDecode(message.content) as Map<String, dynamic>)['request'] !=
+              _participants[message.id]) {
+        return;
+      }
+      _participants.remove(message.id);
+      if (publisherId == message.id) {
+        // 所有参与者使用同一份成员快照，选举 ID 最小的成员作为发布者。
+        final remaining = _participants.keys.toList()..sort();
+        publisherId = remaining.isEmpty ? identity : remaining.first;
+      }
+      exitHandler(message.id);
+      _admitNext();
+      return;
+    }
+    if (message.sessionId != sessionId ||
+        !_participants.containsKey(message.id)) {
+      return;
+    }
+    if (message.type == MessageType.sync) syncHandler(message);
+    if (message.type == MessageType.action &&
         gameStep.value == GameStep.action) {
-      resourceHandler(message);
-      gameStep.value = GameStep.action;
-    }
-  }
-
-  void _handleSyncMessage(NetworkMessage message) {
-    _handleMatchMessage(message.id);
-    syncHandler(message);
-  }
-
-  void _handleActionMessage(NetworkMessage message) {
-    _handleMatchMessage(message.id);
-    if (gameStep.value == GameStep.action) {
       actionHandler(message);
     }
   }
 
-  void _handleExitMessage(NetworkMessage message) {
-    if (message.id != identity) {
-      // 只处理他人的退出消息，因为自己会直接退出
-      exitHandler(message.id);
-      if (message.id == _publisherId) {
-        _publisherId = identity; // 发布者退出，假定自己就是发布者，然后竞选
-        sendNetworkMessage(MessageType.match, 'Election publisher');
-      }
+  void _admitNext() {
+    if (publisherId != identity ||
+        _waiting.isEmpty ||
+        (maxPlayers != null && _participants.length >= maxPlayers!)) {
+      return;
     }
+    final next = _waiting.entries.first;
+    _waiting.remove(next.key);
+    _participants[next.key] = next.value;
+    searchHandler(next.key);
   }
 
-  // 发布者选举：最小 id 胜出（bully 选举简化版）。
-  // 取舍：网络分区时两端可能短暂各自认定不同发布者，依赖 action 层幂等兜底
-  // （如 tank 的拥有者权威模型只信自己模拟结果 + host 仲裁）。
-  void _handleMatchMessage(int messageId) {
-    if (messageId < _publisherId) {
-      _publisherId = messageId;
+  /// 仅在游戏完成全员同步后调用，不能在刚收到资源时调用。
+  bool completeSynchronization() {
+    if (!isActive || (!readyToOpen.value && _participants.length < 2)) {
+      return false;
     }
+    gameStep.value = GameStep.action;
+    readyToOpen.value = true;
+    return true;
   }
 }

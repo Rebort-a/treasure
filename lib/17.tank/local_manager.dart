@@ -50,7 +50,6 @@ class LocalTankManager extends TankGameManager {
     if (tank != null) fire(identity, tank);
   }
 
-  @override
   void requestRestart() => resetGame();
 
   @override

@@ -60,6 +60,54 @@ class AppLocalizationsZh extends AppLocalizations {
   String get local => '本地';
 
   @override
+  String get network => '网络';
+
+  @override
+  String get roomPassword => '房间密码';
+
+  @override
+  String get passwordOptional => '留空则为公开房间';
+
+  @override
+  String get passwordIfNeeded => '房间设有密码时填写';
+
+  @override
+  String get incorrectRoomPassword => '房间密码错误';
+
+  @override
+  String get defaultPlayerName => '默认玩家名称';
+
+  @override
+  String get defaultPlayerNameHint => '留空则每次加入时填写';
+
+  @override
+  String get searchApps => '搜索应用';
+
+  @override
+  String get recentApps => '最近打开';
+
+  @override
+  String get allApps => '全部应用';
+
+  @override
+  String get noAppsFound => '没有找到应用';
+
+  @override
+  String get noRooms => '暂无房间';
+
+  @override
+  String get joinGame => '点击进入游戏';
+
+  @override
+  String get matchingPlayers => '正在匹配玩家';
+
+  @override
+  String get joinedRoom => '加入了房间';
+
+  @override
+  String get leftGame => '退出了游戏';
+
+  @override
   String get createdRooms => '你创建的房间';
 
   @override
@@ -252,12 +300,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get emojiSymbol => '符号';
-
-  @override
-  String get stepDisconnect => '等待连接';
-
-  @override
-  String get stepConnected => '已连接，等待对手加入...';
 
   @override
   String get stepFrontConfig => '请配置';

@@ -1,3 +1,12 @@
+import '../00.common/engine/network_engine.dart';
+import '../00.common/widget/navigator/game_launch.dart';
+import '../03.animal_chess/net_manager.dart' as animal;
+import '../04.elemental_battle/upper/net_combat_manager.dart' as elemental;
+import '../05.gobang/net_manager.dart' as gobang;
+import '../06.greedy_snake/net_manager.dart' as snake;
+import '../07.weiqi/net_manager.dart' as go;
+import '../17.tank/net_manager.dart' as tank;
+
 import 'package:flutter/material.dart';
 
 import '../00.common/network/network_room.dart';
@@ -94,35 +103,71 @@ extension LocalItemTypeExtension on LocalItemType {
 }
 
 extension NetItemTypeExtension on NetItemType {
-  Widget page(String userName, RoomInfo roomInfo) {
+  GameLaunch createGame(NetworkEngine room) {
     switch (this) {
       case NetItemType.onlyChat:
-        return NetChatPage(userName: userName, roomInfo: roomInfo);
+        throw StateError('Chat-only rooms do not create games');
       case NetItemType.animalChess:
-        return NetAnimalChessPage(userName: userName, roomInfo: roomInfo);
+        final manager = animal.NetManager(room: room);
+        return GameLaunch(
+          manager.netTurnEngine,
+          () => NetAnimalChessPage(manager: manager),
+          manager.netTurnEngine.dispose,
+        );
       case NetItemType.elementalBattle:
-        return NetCombatPage(userName: userName, roomInfo: roomInfo);
+        final manager = elemental.NetCombatManager(room: room);
+        return GameLaunch(
+          manager.netTurnEngine,
+          () => NetCombatPage(manager: manager),
+          manager.netTurnEngine.dispose,
+        );
       case NetItemType.gobang:
-        return NetGomokuPage(userName: userName, roomInfo: roomInfo);
+        final manager = gobang.NetManager(room: room);
+        return GameLaunch(
+          manager.netTurnEngine,
+          () => NetGomokuPage(manager: manager),
+          manager.netTurnEngine.dispose,
+        );
       case NetItemType.greedySnake:
-        return NetGreedySnakePage(userName: userName, roomInfo: roomInfo);
+        final manager = snake.NetManager(room: room);
+        return GameLaunch(
+          manager.engine,
+          () => NetGreedySnakePage(manager: manager),
+          manager.dispose,
+        );
       case NetItemType.weiqi:
-        return GoNetPage(userName: userName, roomInfo: roomInfo);
+        final manager = go.GoNetManager(room: room);
+        return GameLaunch(
+          manager.netTurnEngine,
+          () => GoNetPage(manager: manager),
+          manager.netTurnEngine.dispose,
+        );
       case NetItemType.tank:
-        return NetTankPage(userName: userName, roomInfo: roomInfo);
+        final manager = tank.NetTankManager(room: room);
+        return GameLaunch(
+          manager.engine,
+          () => NetTankPage(manager: manager),
+          manager.dispose,
+        );
     }
   }
 }
 
 class RouteManager {
+  /// 具体游戏的装配留在应用入口，聊天室只接收可调用的工厂。
+  static GameLaunch? createRoomGame(NetworkEngine room) {
+    final type = room.roomSession.value.game;
+    if (type <= 0 || type >= NetItemType.values.length) return null;
+    return NetItemType.values[type].createGame(room);
+  }
+
   /// 导航到本地页面
   static void navigateToLocalPage(
     BuildContext context,
     LocalItemType routeType,
   ) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => routeType.page));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => routeType.page));
   }
 
   /// 导航到网络页面
@@ -131,14 +176,14 @@ class RouteManager {
     String userName,
     RoomInfo roomInfo,
   ) {
-    if (roomInfo.type < 0 || roomInfo.type >= NetItemType.values.length) {
-      debugPrint('Invalid page type index: ${roomInfo.type}');
-      return;
-    }
-
-    final netType = NetItemType.values[roomInfo.type];
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => netType.page(userName, roomInfo)));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NetChatPage(
+          userName: userName,
+          roomInfo: roomInfo,
+          gameFactory: createRoomGame,
+        ),
+      ),
+    );
   }
 }

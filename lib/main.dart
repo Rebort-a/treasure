@@ -5,6 +5,7 @@ import '00.common/l10n/app_localizations.dart';
 import '00.common/style/theme.dart';
 import '00.common/tool/storage_service.dart';
 import '00.common/tool/app_info.dart';
+import '00.common/tool/player_settings.dart';
 import '01.home/home_page.dart';
 import '00.common/l10n/l10n.dart';
 
@@ -18,6 +19,7 @@ void main() async {
   // 加载持久化的语言和主题设置
   await LanguageProvider.instance.load();
   await ThemeProvider.instance.load();
+  await PlayerSettings.instance.load();
 
   runApp(const MyApp());
 }

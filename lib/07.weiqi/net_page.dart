@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/network/network_room.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
+import '../00.common/widget/component/chat_component.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
 class GoNetPage extends StatelessWidget {
-  late final GoNetManager _manager;
+  final GoNetManager _manager;
 
-  GoNetPage({super.key, required RoomInfo roomInfo, required String userName}) {
-    _manager = GoNetManager(roomInfo: roomInfo, userName: userName);
-  }
+  const GoNetPage({super.key, required GoNetManager manager})
+    : _manager = manager;
 
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (bool didPop, Object? result) {
-      _manager.leavePage();
+      if (!didPop) _manager.leavePage();
     },
     child: _buildPage(context),
   );
@@ -53,17 +52,32 @@ class GoNetPage extends StatelessWidget {
               ...(step == GameStep.action
                   ? [
                       _buildTurnIndicator(),
-                      Expanded(child: GoFoundationWidget(manager: _manager)),
+                      Expanded(
+                        flex: 3,
+                        child: GoFoundationWidget(manager: _manager),
+                      ),
                     ]
-                  : [Expanded(child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 20),
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 20),
-                      Text(step.getExplanation(), style: const TextStyle(fontSize: 16)),
-                    ],
-                  ))]),
+                  : [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(height: 20),
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 20),
+                            Text(
+                              step.getExplanation(),
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
+              Expanded(
+                flex: 2,
+                child: MessageList(networkEngine: _manager.netTurnEngine),
+              ),
+              MessageInput(networkEngine: _manager.netTurnEngine),
             ],
           ),
         );

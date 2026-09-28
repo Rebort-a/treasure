@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../../00.common/engine/net_turn_engine.dart';
 import '../../00.common/game/step.dart';
 import '../../00.common/network/network_message.dart';
-import '../../00.common/network/network_room.dart';
+import '../../00.common/engine/network_engine.dart';
 import '../../00.common/l10n/strings.dart';
 
 import '../middle/foundation_combat_manager.dart';
@@ -22,12 +22,11 @@ import '../upper/status_page.dart';
 class NetCombatManager extends FoundationalCombatManager {
   late final NetTurnGameEngine netTurnEngine;
 
-  NetCombatManager({required String userName, required RoomInfo roomInfo}) {
+  NetCombatManager({required NetworkEngine room}) {
     // 使用局部函数初始化NetTurnEngine
     netTurnEngine = NetTurnGameEngine(
-      userName: userName,
-      roomInfo: roomInfo,
-      navigatorHandler: pageNavigator,
+      room: room,
+      resourceMode: TurnResourceMode.both,
       searchHandler: _searchHandler,
       resourceHandler: _resourceHandler,
       actionHandler: _actionHandler,
@@ -49,7 +48,7 @@ class NetCombatManager extends FoundationalCombatManager {
       // 先手收到敌人的信息，初始化enemy，并开始战斗
       enemy = Elemental.fromJson(jsonData);
       initCombat(netTurnEngine.playerType);
-    } else if (step == GameStep.connected || step == GameStep.rearWait) {
+    } else if (step == GameStep.rearWait) {
       // 后手收到敌人的信息，初始化enemy
       enemy = Elemental.fromJson(jsonData);
     } else if (step == GameStep.rearConfig) {
@@ -80,7 +79,7 @@ class NetCombatManager extends FoundationalCombatManager {
     actionHandlers[actionType]?.call();
   }
 
-  void _exitHandler() {}
+  void _exitHandler() => netTurnEngine.leavePage();
 
   @override
   void handleEnemyAction() {}

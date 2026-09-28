@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
+
 import '../middle/foundation_combat_widget.dart';
 
 import '../../00.common/game/step.dart';
-import '../../00.common/network/network_room.dart';
 import '../../00.common/widget/component/chat_component.dart';
 import '../../00.common/widget/navigator/notifier_navigator.dart';
 import '../../00.common/l10n/strings.dart';
 import 'net_combat_manager.dart';
 
 class NetCombatPage extends StatelessWidget {
-  late final NetCombatManager _manager;
+  final NetCombatManager _manager;
 
-  NetCombatPage({
-    super.key,
-    required RoomInfo roomInfo,
-    required String userName,
-  }) {
-    _manager = NetCombatManager(roomInfo: roomInfo, userName: userName);
-  }
+  const NetCombatPage({super.key, required NetCombatManager manager})
+    : _manager = manager;
 
   @override
-  Widget build(BuildContext context) =>
-      PopScope(canPop: false, child: _buildPage(context));
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _manager.leavePage();
+    },
+    child: _buildPage(context),
+  );
 
   Widget _buildPage(BuildContext context) {
     return ValueListenableBuilder<GameStep>(
@@ -68,8 +68,7 @@ class NetCombatPage extends StatelessWidget {
           children: [
             NotifierNavigator(navigatorHandler: _manager.pageNavigator),
             const SizedBox(height: 20),
-            if (step == GameStep.disconnect || step == GameStep.connected)
-              const CircularProgressIndicator(),
+            if (step == GameStep.start) const CircularProgressIndicator(),
             const SizedBox(height: 20),
             Text(step.getExplanation()),
             const SizedBox(height: 20),

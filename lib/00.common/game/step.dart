@@ -2,12 +2,12 @@ import '../l10n/strings.dart';
 
 // 游戏进展类型
 enum GameStep {
-  disconnect,
-  connected,
+  start,
   frontConfig,
   rearWait,
   frontWait,
   rearConfig,
+  synchronizing,
   action,
   gameOver,
 }
@@ -15,10 +15,10 @@ enum GameStep {
 extension TurnGameStepExtension on GameStep {
   String getExplanation() {
     switch (this) {
-      case GameStep.disconnect:
-        return S.stepDisconnect;
-      case GameStep.connected:
-        return S.stepConnected;
+      case GameStep.start:
+        return S.matchingPlayers;
+      case GameStep.synchronizing:
+        return S.wait;
       case GameStep.frontConfig:
         return S.stepFrontConfig;
       case GameStep.rearWait:

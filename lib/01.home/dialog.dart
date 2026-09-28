@@ -1,74 +1,139 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/network/network_room.dart';
 import '../00.common/l10n/strings.dart';
-import 'route.dart';
 
 class RoomDialog {
   static void showCreateRoomDialog({
     required BuildContext context,
-    required Function(String roomName, NetItemType roomType) onConfirm,
+    required void Function(String roomName, String? password) onConfirm,
   }) {
-    DialogTemplate.optionDialog<NetItemType>(
+    var roomName = '';
+    var password = '';
+    showDialog<void>(
       context: context,
-      title: S.createRoom,
-      hintText: S.enterRoomName,
-      confirmButtonText: S.create,
-      options: NetItemType.values,
-      onConfirm: onConfirm,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(S.createRoom),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                autofocus: true,
+                decoration: InputDecoration(labelText: S.enterRoomName),
+                onChanged: (value) => roomName = value,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: S.roomPassword,
+                  helperText: S.passwordOptional,
+                ),
+                onChanged: (value) => password = value,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(S.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final name = roomName.trim();
+              if (name.isEmpty) return;
+              Navigator.pop(dialogContext);
+              onConfirm(name, password.trim().isEmpty ? null : password);
+            },
+            child: Text(S.create),
+          ),
+        ],
+      ),
     );
   }
 
   static void showJoinRoomDialog({
     required BuildContext context,
     required RoomInfo room,
-    required Function(String userName, RoomInfo room, BuildContext context)
+    required String defaultUserName,
+    required void Function(String userName, String? password, RoomInfo room)
     onConfirm,
   }) {
-    DialogTemplate.inputDialog(
+    var userName = defaultUserName;
+    var password = '';
+    showDialog<void>(
       context: context,
-      title: S.joinRoom,
-      hintText: S.enterUserName,
-      confirmButtonText: S.join,
-      onConfirm: (userName) => onConfirm(userName, room, context),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(S.joinRoom),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (defaultUserName.isEmpty)
+              TextFormField(
+                initialValue: defaultUserName,
+                autofocus: true,
+                decoration: InputDecoration(labelText: S.enterUserName),
+                onChanged: (value) => userName = value,
+              ),
+            if (room.hasPassword)
+              TextField(
+                autofocus: defaultUserName.isNotEmpty,
+                obscureText: true,
+                decoration: InputDecoration(labelText: S.roomPassword),
+                onChanged: (value) => password = value,
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(S.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final name = userName.trim();
+              if (name.isEmpty || (room.hasPassword && password.isEmpty)) {
+                return;
+              }
+              Navigator.pop(dialogContext);
+              onConfirm(name, room.hasPassword ? password : null, room);
+            },
+            child: Text(S.join),
+          ),
+        ],
+      ),
     );
   }
 
-  static void showLeaveRoomDialog({
-    required BuildContext context,
-    required RoomInfo room,
-    required Function() onConfirm,
-  }) {
-    DialogTemplate.promptDialog(
-      context: context,
-      title: S.leave,
-      content: S.leaveRoom,
-      before: () => true,
-      after: onConfirm,
-    );
-  }
-
-  /// Web 端：手动输入 Host IP、端口和用户名加入房间
+  /// 手动输入 Host IP、端口和用户名加入聊天室
   static void showJoinByIpDialog({
     required BuildContext context,
-    required Function(String userName, String host, int port, NetItemType type)
+    required String defaultUserName,
+    required void Function(
+      String userName,
+      String host,
+      int port,
+      String? password,
+    )
     onConfirm,
   }) {
-    String userName = '';
+    String userName = defaultUserName;
     String host = '';
     String portStr = '';
-    NetItemType selectedType = NetItemType.values.first;
+    String password = '';
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(S.joinRoom),
-          content: Column(
+      builder: (context) => AlertDialog(
+        title: Text(S.joinRoom),
+        content: SingleChildScrollView(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              TextFormField(
+                initialValue: defaultUserName,
                 onChanged: (v) => userName = v,
                 decoration: InputDecoration(hintText: S.userName),
               ),
@@ -84,40 +149,42 @@ class RoomDialog {
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<NetItemType>(
-                initialValue: selectedType,
-                onChanged: (v) {
-                  if (v != null) setState(() => selectedType = v);
-                },
-                items: NetItemType.values
-                    .map(
-                      (t) => DropdownMenuItem(
-                        value: t,
-                        child: Text(t.toString().split('.').last),
-                      ),
-                    )
-                    .toList(),
-                decoration: InputDecoration(labelText: S.type),
+              TextField(
+                obscureText: true,
+                onChanged: (v) => password = v,
+                decoration: InputDecoration(
+                  labelText: S.roomPassword,
+                  helperText: S.passwordIfNeeded,
+                ),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(S.cancel),
-            ),
-            TextButton(
-              onPressed: () {
-                final port = int.tryParse(portStr);
-                if (userName.isNotEmpty && host.isNotEmpty && port != null) {
-                  Navigator.pop(context);
-                  onConfirm(userName, host, port, selectedType);
-                }
-              },
-              child: Text(S.join),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(S.cancel),
+          ),
+          TextButton(
+            onPressed: () {
+              final port = int.tryParse(portStr);
+              if (userName.trim().isNotEmpty &&
+                  host.trim().isNotEmpty &&
+                  port != null &&
+                  port > 0 &&
+                  port <= 65535) {
+                Navigator.pop(context);
+                onConfirm(
+                  userName.trim(),
+                  host.trim(),
+                  port,
+                  password.isEmpty ? null : password,
+                );
+              }
+            },
+            child: Text(S.join),
+          ),
+        ],
       ),
     );
   }

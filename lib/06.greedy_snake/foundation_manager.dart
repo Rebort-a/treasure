@@ -227,6 +227,10 @@ abstract class FoundationalManager extends ChangeNotifier
   void _handleGameOver(int length) {
     suspendGame();
     handleGameOverCallback();
+    if (!showGameOverDialog) {
+      leavePage();
+      return;
+    }
     pageNavigator.value = (context) {
       showDialog<void>(
         context: context,
@@ -247,6 +251,7 @@ abstract class FoundationalManager extends ChangeNotifier
   }
 
   void handleGameOverCallback();
+  bool get showGameOverDialog => true;
 
   void leavePage() {
     _navigateBack();

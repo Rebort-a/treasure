@@ -1,34 +1,92 @@
 import 'package:flutter/material.dart';
+
 import '../00.common/l10n/l10n.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/tool/app_info.dart';
+import '../00.common/tool/player_settings.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  final bool embedded;
+  const SettingsPage({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(S.settings)),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          _buildSection(
-            context,
-            title: S.general,
-            children: [_buildLanguageTile(context), _buildThemeTile(context)],
+    final content = ListView(
+      padding: EdgeInsets.only(
+        top: 8,
+        bottom: 8 + MediaQuery.paddingOf(context).bottom,
+      ),
+      children: [
+        _buildSection(
+          context,
+          title: S.general,
+          children: [
+            _buildDefaultNameTile(context),
+            _buildLanguageTile(context),
+            _buildThemeTile(context),
+          ],
+        ),
+        _buildSection(
+          context,
+          title: S.about,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text(S.version),
+              subtitle: Text(AppInfo.isLoaded ? (AppInfo.version ?? '—') : '—'),
+            ),
+          ],
+        ),
+      ],
+    );
+    return embedded
+        ? content
+        : Scaffold(
+            appBar: AppBar(title: Text(S.settings)),
+            body: content,
+          );
+  }
+
+  Widget _buildDefaultNameTile(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: PlayerSettings.instance.defaultName,
+      builder: (_, name, __) => ListTile(
+        leading: const Icon(Icons.person_outline),
+        title: Text(S.defaultPlayerName),
+        subtitle: Text(name.isEmpty ? S.enterUserName : name),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _editDefaultName(context, name),
+      ),
+    );
+  }
+
+  void _editDefaultName(BuildContext context, String current) {
+    var name = current;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(S.defaultPlayerName),
+        content: TextFormField(
+          initialValue: current,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: S.userName,
+            helperText: S.defaultPlayerNameHint,
           ),
-          _buildSection(
-            context,
-            title: S.about,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: Text(S.version),
-                subtitle: Text(AppInfo.isLoaded ? (AppInfo.version ?? '—') : '—'),
-              ),
-            ],
+          onChanged: (value) => name = value,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(S.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              PlayerSettings.instance.setDefaultName(name);
+            },
+            child: Text(S.confirm),
           ),
         ],
       ),

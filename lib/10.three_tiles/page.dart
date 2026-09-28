@@ -13,7 +13,9 @@ class ThreeTilesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
-    onPopInvokedWithResult: (_, __) => _manager.leavePage(),
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _manager.leavePage();
+    },
     child: Scaffold(appBar: _appBar(), body: _body()),
   );
 

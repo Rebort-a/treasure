@@ -1,156 +1,152 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-import 'network_engine.dart';
-import '../network/network_message.dart';
 import '../game/gamer.dart';
 import '../game/step.dart';
+import '../network/network_message.dart';
+import 'net_game_engine.dart';
 
-class NetTurnGameEngine extends NetworkEngine {
-  final ValueNotifier<GameStep> gameStep = ValueNotifier(GameStep.disconnect);
+enum TurnResourceMode { none, frontOnly, both }
 
-  late TurnGamerType playerType;
-  int _enemyId = 0;
-
+class NetTurnGameEngine extends NetGameEngine {
+  final TurnResourceMode resourceMode;
   final void Function() searchHandler;
   final void Function(GameStep, NetworkMessage) resourceHandler;
   final void Function(bool, NetworkMessage) actionHandler;
   final void Function() exitHandler;
+  late TurnGamerType playerType;
+  int _enemyId = 0;
+  String? _enemyRequestId;
+  bool _searchEchoed = false;
+  int get enemyId => _enemyId;
 
   NetTurnGameEngine({
-    required super.userName,
-    required super.roomInfo,
-    required super.navigatorHandler,
-    required this.searchHandler,
-    required this.resourceHandler,
+    required super.room,
+    required this.resourceMode,
+    this.searchHandler = _noSearch,
+    this.resourceHandler = _noResource,
     required this.actionHandler,
     required this.exitHandler,
-  }) {
-    // 在构造函数体中设置messageHandler
-    super.messageHandler = _handleMessage;
+  });
 
-    // 重连后重置游戏状态，使 accept 处理器能重新触发
-    super.onReconnected = () {
-      gameStep.value = GameStep.disconnect;
-      _enemyId = 0;
-    };
+  static void _noSearch() {}
+  static void _noResource(GameStep step, NetworkMessage message) {}
+
+  @override
+  void sendNetworkMessage(MessageType type, String content, {int? targetId}) {
+    if (type == MessageType.search) {
+      super.sendNetworkMessage(type, content);
+      return;
+    }
+    if (_enemyId == 0) {
+      if (type == MessageType.exit) super.sendNetworkMessage(type, content);
+      return;
+    }
+    if (type == MessageType.image || type == MessageType.file) return;
+    if (const {
+      MessageType.resource,
+      MessageType.action,
+      MessageType.text,
+      MessageType.emoji,
+    }.contains(type)) {
+      super.sendNetworkMessage(type, content, targetId: identity);
+    }
+    super.sendNetworkMessage(type, content, targetId: targetId ?? _enemyId);
   }
 
-  void _handleMessage(NetworkMessage message) {
+  @override
+  void handleMessage(NetworkMessage message) {
+    if (message.type == MessageType.search) {
+      if (message.id == identity && message.sessionId == requestId) {
+        _searchEchoed = true;
+        return;
+      }
+      if (!_searchEchoed ||
+          gameStep.value != GameStep.start ||
+          message.id == identity ||
+          message.sessionId == null) {
+        return;
+      }
+      _enemyId = message.id;
+      _enemyRequestId = message.sessionId;
+      playerType = TurnGamerType.front;
+      gameStep.value = resourceMode == TurnResourceMode.none
+          ? GameStep.action
+          : GameStep.frontConfig;
+      sendNetworkMessage(
+        MessageType.match,
+        jsonEncode({'request': message.sessionId}),
+      );
+      readyToOpen.value = true;
+      if (resourceMode != TurnResourceMode.none) searchHandler();
+      return;
+    }
+    if (message.type == MessageType.match &&
+        gameStep.value == GameStep.start &&
+        message.targetId == identity &&
+        message.sessionId != null) {
+      final data = jsonDecode(message.content) as Map<String, dynamic>;
+      if (data['request'] != requestId) return;
+      _enemyId = message.id;
+      _enemyRequestId = message.sessionId;
+      sessionId = message.sessionId!;
+      playerType = TurnGamerType.rear;
+      gameStep.value = resourceMode == TurnResourceMode.none
+          ? GameStep.action
+          : GameStep.rearWait;
+      readyToOpen.value = true;
+      return;
+    }
+    if (message.id != identity && message.id != _enemyId) return;
+    if (message.type == MessageType.exit &&
+        message.id == _enemyId &&
+        (message.sessionId == null ||
+            message.sessionId == sessionId ||
+            message.sessionId == _enemyRequestId)) {
+      exitHandler();
+      // 对手离开仅结束本次对局，不关闭房间连接。
+      finish();
+      return;
+    }
+    if (message.sessionId != sessionId || message.targetId != identity) return;
     switch (message.type) {
-      case MessageType.accept:
-        _handleAcceptMessage(message);
-        break;
-      case MessageType.search:
-        _handleSearchMessage(message);
-        break;
-      case MessageType.match:
-        _handleMatchMessage(message);
-        break;
       case MessageType.resource:
-        _handleResourceMessage(message);
-        break;
+        _resource(message);
       case MessageType.action:
-        _handleActionMessage(message);
-        break;
-      case MessageType.exit:
-        _handleExitMessage(message);
-        break;
+        if (gameStep.value == GameStep.action) {
+          actionHandler(message.id == identity, message);
+        }
+      case MessageType.text:
+      case MessageType.emoji:
+        messageList.add(message);
       default:
         break;
     }
   }
 
-  void _handleAcceptMessage(NetworkMessage message) {
-    // 先手和后手都会处理
-    // 获取服务器连接消息后，更新游戏阶段到connected，同时查找对手
-    if (gameStep.value == GameStep.disconnect) {
-      gameStep.value = GameStep.connected;
-      sendNetworkMessage(MessageType.search, 'Searching for opponent');
+  void _resource(NetworkMessage message) {
+    final self = message.id == identity;
+    final step = gameStep.value;
+    if (resourceMode == TurnResourceMode.frontOnly) {
+      if ((step == GameStep.frontConfig && self) ||
+          (step == GameStep.rearWait && !self)) {
+        resourceHandler(step, message);
+        gameStep.value = GameStep.action;
+      }
+      return;
     }
-  }
-
-  void _handleSearchMessage(NetworkMessage message) {
-    // 只有先手才能获得非自身发出的SearchMessage
-    // 如果在连接状态下，收到他人查找对手的消息，那么直接匹配到对手，确定自身为先手，更新游戏状态到先手配置阶段，同时向对手发送匹配成功的信息
-    if (gameStep.value == GameStep.connected && message.id != identity) {
-      _enemyId = message.id;
-      sendNetworkMessage(MessageType.match, 'Match to opponent');
-      playerType = TurnGamerType.front;
-      gameStep.value = GameStep.frontConfig;
-      // 然后有两种选择，要么界面上根据游戏阶段，出现配置按钮，点击后生成游戏资源，要么直接生成游戏资源，并通过网络发送
-      searchHandler();
-    }
-  }
-
-  void _handleMatchMessage(NetworkMessage message) {
-    // 只有后手才会收到非自身发出的MatchMessage
-    // 如果在连接状态下，收到对手匹配成功的消息，那么直接匹配到对手，确认自己为后手，进入后手等待先手配置阶段
-    if (gameStep.value == GameStep.connected && message.id != identity) {
-      _enemyId = message.id;
-      playerType = TurnGamerType.rear;
-      gameStep.value = GameStep.rearWait;
-    }
-  }
-
-  void _handleResourceMessage(NetworkMessage message) {
-    // 匹配到对手后进入，交换资源阶段，不是所有游戏都需要先后手都生成资源并交互
-    // 正常顺序为，先手在frontConfig->frontWait->action
-    //   后手在(connected/rearWait)->rearConfig->action
-    bool isSelf = message.id == identity && message.source == userName;
-    bool isEnemy = message.id == _enemyId;
-
-    // 先手
-    // 1.在frontConfig收到自己的信息，更新阶段到frontWait，等待对手配置完成
-    // 2.在frontWait收到对手的配置信息，更新阶段到行动阶段，轮到自己行动
-    if (gameStep.value == GameStep.frontConfig && isSelf) {
+    if (resourceMode != TurnResourceMode.both) return;
+    if (step == GameStep.frontConfig && self) {
+      resourceHandler(step, message);
       gameStep.value = GameStep.frontWait;
-      resourceHandler(GameStep.frontConfig, message);
-    } else if (gameStep.value == GameStep.frontWait && isEnemy) {
+    } else if (step == GameStep.frontWait && !self) {
+      resourceHandler(step, message);
       gameStep.value = GameStep.action;
-      resourceHandler(GameStep.frontWait, message);
-    } else
-    // 后手
-    // 1.在connected收到对手的配置信息，匹配对手，更新阶段到rearWait，等待对手配置完成，防止之前未匹配成功
-    // 2.在rearWait收到对手的配置信息，更新阶段到rearWait，等待对手配置完成
-    // 3.在rearConfig收到自己的信息，更新阶段到行动阶段，轮到对方行动
-    if (gameStep.value == GameStep.connected && !isSelf) {
-      _enemyId = message.id;
-      playerType = TurnGamerType.rear;
+    } else if (step == GameStep.rearWait && !self) {
+      resourceHandler(step, message);
       gameStep.value = GameStep.rearConfig;
-      resourceHandler(GameStep.connected, message);
-    } else if (gameStep.value == GameStep.rearWait && isEnemy) {
-      gameStep.value = GameStep.rearConfig;
-      resourceHandler(GameStep.rearWait, message);
-    } else if (gameStep.value == GameStep.rearConfig && isSelf) {
+    } else if (step == GameStep.rearConfig && self) {
+      resourceHandler(step, message);
       gameStep.value = GameStep.action;
-      resourceHandler(GameStep.rearConfig, message);
     }
-  }
-
-  void _handleActionMessage(NetworkMessage message) {
-    if (gameStep.value == GameStep.action) {
-      bool isSelf = message.id == identity && message.source == userName;
-
-      bool isEnemy = message.id == _enemyId;
-
-      if (isSelf || isEnemy) {
-        // 处理敌人和自己的行动信息
-        actionHandler(isSelf, message);
-      }
-    }
-  }
-
-  void _handleExitMessage(NetworkMessage message) {
-    if (identity != 0 && _enemyId != 0) {
-      bool isEnemy = message.id == _enemyId;
-      if (isEnemy) {
-        exitHandler();
-      }
-    }
-  }
-
-  void resetForRematch() {
-    _enemyId = 0;
-    gameStep.value = GameStep.connected;
   }
 }

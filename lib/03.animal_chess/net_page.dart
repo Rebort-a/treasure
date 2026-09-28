@@ -4,7 +4,6 @@ import '../00.common/game/gamer.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/component/chat_component.dart';
 import '../00.common/game/step.dart';
-import '../00.common/network/network_room.dart';
 
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
@@ -13,21 +12,16 @@ import 'net_manager.dart';
 import 'foundation_widget.dart';
 
 class NetAnimalChessPage extends StatelessWidget {
-  late final NetManager _manager;
+  final NetManager _manager;
 
-  NetAnimalChessPage({
-    super.key,
-    required RoomInfo roomInfo,
-    required String userName,
-  }) {
-    _manager = NetManager(roomInfo: roomInfo, userName: userName);
-  }
+  const NetAnimalChessPage({super.key, required NetManager manager})
+    : _manager = manager;
 
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     onPopInvokedWithResult: (bool didPop, Object? result) {
-      _manager.leavePage();
+      if (!didPop) _manager.leavePage();
     },
     child: _buildPage(context),
   );

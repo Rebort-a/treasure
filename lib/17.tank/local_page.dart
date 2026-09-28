@@ -28,6 +28,10 @@ class _LocalTankPageState extends State<LocalTankPage> {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
-    child: TankGameScreen(manager: manager, showStateButton: true),
+    child: TankGameScreen(
+      manager: manager,
+      showStateButton: true,
+      onRestart: manager.requestRestart,
+    ),
   );
 }

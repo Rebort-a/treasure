@@ -282,6 +282,7 @@ class Manager {
   }
 
   void leavePage() {
+    _timer.stop();
     _saveProgress(); // 退出前自动保存
     _navigateToBack();
   }
