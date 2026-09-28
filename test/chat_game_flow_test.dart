@@ -49,7 +49,16 @@ void main() {
           ),
         );
         await pumpUntil(() => h.server.session.count == 1);
+        await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
         final bob = (await tester.runAsync(() => h.join('Bob')))!;
+        await pumpUntil(() => find.text('Test room (2)').evaluate().isNotEmpty);
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.textContaining(' · '),
+          ),
+          findsNothing,
+        );
         var searches = 0;
         bob.addMessageListener((m) {
           if (m.type == MessageType.search && m.id != bob.identity) searches++;
@@ -108,8 +117,10 @@ void main() {
         expect(find.text('duel only'), findsNothing);
         expect(h.server.session.members[aliceId], 'Alice');
         expect(h.server.session.count, 2);
+        await tester.runAsync(() => bob.closeSocket());
+        await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
         await tester.pumpWidget(const SizedBox.shrink());
-        await pumpUntil(() => h.server.session.count == 1);
+        await pumpUntil(() => h.server.session.count == 0);
         expect(h.server.session.members.containsKey(aliceId), isFalse);
         expect(tester.takeException(), isNull);
       } finally {

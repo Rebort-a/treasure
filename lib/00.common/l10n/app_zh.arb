@@ -33,6 +33,7 @@
   "joinGame": "点击进入游戏",
   "matchingPlayers": "正在匹配玩家",
   "joinedRoom": "加入了房间",
+  "leftRoom": "离开了房间",
   "leftGame": "退出了游戏",
   "createdRooms": "你创建的房间",
   "otherRooms": "其他房间",

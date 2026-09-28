@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../chat/chat_channel.dart';
 import '../game/step.dart';
-import '../l10n/strings.dart';
 import '../network/network_message.dart';
 import '../tool/notifiers.dart';
 import 'network_engine.dart';
@@ -39,7 +38,7 @@ abstract class NetGameEngine implements ChatChannel {
     _started = true;
     room.addMessageListener(_receive);
     room.identityNotifier.addListener(_identityChanged);
-    room.sendNetworkMessage(MessageType.notify, S.matchingPlayers);
+    room.sendRoomNotice(RoomNotice.matchingPlayers);
     sendNetworkMessage(MessageType.search, 'search');
   }
 
@@ -88,7 +87,7 @@ abstract class NetGameEngine implements ChatChannel {
     if (ended.value) return;
     if (isActive && sendExit && identity != 0) {
       sendNetworkMessage(MessageType.exit, 'game');
-      room.sendNetworkMessage(MessageType.notify, S.leftGame);
+      room.sendRoomNotice(RoomNotice.leftGame);
     }
     room.removeMessageListener(_receive);
     room.identityNotifier.removeListener(_identityChanged);

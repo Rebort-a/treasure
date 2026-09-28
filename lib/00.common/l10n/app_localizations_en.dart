@@ -105,6 +105,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get joinedRoom => 'Joined the room';
 
   @override
+  String get leftRoom => 'Left the room';
+
+  @override
   String get leftGame => 'Left the game';
 
   @override

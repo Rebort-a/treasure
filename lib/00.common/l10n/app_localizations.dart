@@ -284,6 +284,12 @@ abstract class AppLocalizations {
   /// **'Joined the room'**
   String get joinedRoom;
 
+  /// No description provided for @leftRoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Left the room'**
+  String get leftRoom;
+
   /// No description provided for @leftGame.
   ///
   /// In en, this message translates to:

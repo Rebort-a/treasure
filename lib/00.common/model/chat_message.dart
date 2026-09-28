@@ -17,6 +17,9 @@ class ChatMessage {
   final String? fileName;
   final int? fileSize;
 
+  /// 保留协议编码，不在接收时固定翻译，以便切换语言后重新展示。
+  RoomNotice? get notice => isSystem ? RoomNotice.fromContent(content) : null;
+
   const ChatMessage({
     required this.id,
     required this.senderName,
@@ -37,8 +40,7 @@ class ChatMessage {
     int localIdentity,
     String localUserName,
   ) {
-    final isMe =
-        message.id == localIdentity && message.source == localUserName;
+    final isMe = message.id == localIdentity && message.source == localUserName;
     final isSystem = message.type == MessageType.notify;
 
     ChatMessageType type;
@@ -124,8 +126,14 @@ class ChatMessage {
   /// 根据用户名生成头像颜色
   static int getAvatarColor(String name) {
     const colors = [
-      0xFF4CAF50, 0xFF2196F3, 0xFFFF9800, 0xFF9C27B0,
-      0xFFE91E63, 0xFF00BCD4, 0xFF795548, 0xFF607D8B,
+      0xFF4CAF50,
+      0xFF2196F3,
+      0xFFFF9800,
+      0xFF9C27B0,
+      0xFFE91E63,
+      0xFF00BCD4,
+      0xFF795548,
+      0xFF607D8B,
     ];
     int hash = 0;
     for (var rune in name.runes) {

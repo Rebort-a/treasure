@@ -23,6 +23,28 @@ enum MessageType {
   exit,
 }
 
+/// 自动通知只传固定编码，接收端展示时再按本地语言生成文案。
+enum RoomNotice {
+  joinedRoom(1),
+  leftRoom(2),
+  matchingPlayers(3),
+  leftGame(4);
+
+  const RoomNotice(this.code);
+
+  /// 显式指定协议编码，调整枚举顺序不会改变网络含义。
+  final int code;
+
+  String get content => code.toString();
+
+  static RoomNotice? fromContent(String content) {
+    for (final notice in values) {
+      if (notice.content == content) return notice;
+    }
+    return null;
+  }
+}
+
 class NetworkMessage {
   int id;
   MessageType type;
@@ -48,7 +70,7 @@ class NetworkMessage {
     this.sessionId,
   });
 
-  /// 解析消息；type/id 越界或缺失时返回 null（不抛异常，调用方丢弃）
+  /// 解析消息；字段类型、取值或通知编码不合法时返回 null，由调用方丢弃。
   static NetworkMessage? fromJson(Map<String, dynamic> json) {
     final typeIndex = json['type'];
     if (typeIndex is! int ||
@@ -72,6 +94,10 @@ class NetworkMessage {
         (replyToId != null && replyToId is! String) ||
         (sessionId != null && sessionId is! String) ||
         (targetId != null && (targetId is! int || targetId <= 0))) {
+      return null;
+    }
+    if (typeIndex == MessageType.notify.index &&
+        (content is! String || RoomNotice.fromContent(content) == null)) {
       return null;
     }
     return NetworkMessage(

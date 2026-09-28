@@ -181,7 +181,7 @@ class NetworkEngine implements ChatChannel {
       roomName = message.source;
       roomSession.value = RoomSession(game: accepted['roomType'] as int);
       identityNotifier.value = identity;
-      sendNetworkMessage(MessageType.notify, S.joinedRoom);
+      sendRoomNotice(RoomNotice.joinedRoom);
       return;
     }
 
@@ -385,6 +385,11 @@ class NetworkEngine implements ChatChannel {
         cleaned.length <= 8;
   }
 
+  /// 通知发送端不拼接本地化文本，语言由每位接收者自行决定。
+  void sendRoomNotice(RoomNotice notice) {
+    sendNetworkMessage(MessageType.notify, notice.content);
+  }
+
   void sendNetworkMessage(
     MessageType type,
     String content, {
@@ -514,7 +519,7 @@ class NetworkEngine implements ChatChannel {
           id: identity,
           type: MessageType.notify,
           source: userName,
-          content: 'leave room',
+          content: RoomNotice.leftRoom.content,
           timestamp: DateTime.now().millisecondsSinceEpoch,
         ),
       );

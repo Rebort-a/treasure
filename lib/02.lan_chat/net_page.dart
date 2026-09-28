@@ -138,8 +138,8 @@ class _NetChatPageState extends State<NetChatPage> {
         children: [
           ValueListenableBuilder<RoomSession>(
             valueListenable: _manager.networkEngine.roomSession,
-            builder: (_, __, ___) => Text(
-              _manager.networkEngine.roomName,
+            builder: (_, session, __) => Text(
+              '${_manager.networkEngine.roomName} (${session.count})',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -150,18 +150,7 @@ class _NetChatPageState extends State<NetChatPage> {
             ),
           ),
           const SizedBox(height: 2),
-          Row(
-            children: [
-              _statusDot(),
-              ValueListenableBuilder<RoomSession>(
-                valueListenable: _manager.networkEngine.roomSession,
-                builder: (_, session, __) => Text(
-                  ' · ${session.count} ${S.members}',
-                  style: TextStyle(color: _theme.systemTextColor, fontSize: 11),
-                ),
-              ),
-            ],
-          ),
+          _statusDot(),
         ],
       ),
       centerTitle: false,

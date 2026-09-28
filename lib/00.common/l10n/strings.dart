@@ -47,6 +47,7 @@ class S {
   static String get joinGame => _l.joinGame;
   static String get matchingPlayers => _l.matchingPlayers;
   static String get joinedRoom => _l.joinedRoom;
+  static String get leftRoom => _l.leftRoom;
   static String get leftGame => _l.leftGame;
   static String get createdRooms => _l.createdRooms;
   static String get otherRooms => _l.otherRooms;

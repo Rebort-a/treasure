@@ -105,6 +105,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get joinedRoom => '加入了房间';
 
   @override
+  String get leftRoom => '离开了房间';
+
+  @override
   String get leftGame => '退出了游戏';
 
   @override

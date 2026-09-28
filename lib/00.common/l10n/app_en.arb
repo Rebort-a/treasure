@@ -34,6 +34,7 @@
   "joinGame": "Click to play",
   "matchingPlayers": "Matching players",
   "joinedRoom": "Joined the room",
+  "leftRoom": "Left the room",
   "leftGame": "Left the game",
   "createdRooms": "The rooms you created",
   "otherRooms": "The other rooms",
