@@ -240,13 +240,16 @@ class _CustomKeyboardState extends State<CustomKeyboard> {
 
   // 构建方法，返回自定义键盘的布局
   @override
-  Widget build(BuildContext context) {
-    // 获取屏幕尺寸
-    final Size screenSize = MediaQuery.of(context).size;
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => _buildKeyboard(constraints.maxWidth),
+  );
+
+  Widget _buildKeyboard(double availableWidth) {
+    // 根据键盘实际可用宽度计算按键尺寸。
     // 计算边距
-    final double padding = screenSize.width * 0.002;
+    final double padding = availableWidth * 0.002;
     // 计算按钮大小
-    final double buttonSize = screenSize.width * 0.07;
+    final double buttonSize = availableWidth * 0.07;
 
     // 存储键盘行的列表
     List<Widget> rows = [];

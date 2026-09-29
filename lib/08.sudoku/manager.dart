@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../00.common/widget/effect/magic_celebration.dart';
 import '../00.common/style/theme.dart';
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../00.common/tool/storage_service.dart';
+import '../00.common/service/storage_service.dart';
 import '../00.common/l10n/strings.dart';
 import 'algorithm.dart';
 import 'base.dart';
@@ -59,8 +59,9 @@ class Manager {
       level: boardLevel,
       target: _difficulty,
     );
-    _solution = generator.getSolution();
     List<List<int>> sudoku = generator.generate();
+    // 必须先生成棋盘，才能读取本局对应的完整解。
+    _solution = generator.getSolution();
 
     // 更新难度为实际生成的难度（可能已降低）
     _difficulty = generator.target;
@@ -147,12 +148,19 @@ class Manager {
 
   /// 保存最佳用时
   Future<void> _saveBestTime() async {
-    final data = await StorageService.instance.read('sudoku_best');
+    final data = await StorageService.instance.read(
+      'sudoku_best',
+      project: '08.sudoku',
+    );
     final key = 'diff_$_difficulty';
     final best = data[key] as int? ?? 0;
     if (best == 0 || _timer.tick < best) {
       data[key] = _timer.tick;
-      await StorageService.instance.write('sudoku_best', data);
+      await StorageService.instance.write(
+        'sudoku_best',
+        data,
+        project: '08.sudoku',
+      );
     }
   }
 
@@ -372,12 +380,15 @@ class Manager {
       'elapsed': _timer.tick,
       'solution': _solution,
       'cells': cellData,
-    });
+    }, project: '08.sudoku');
   }
 
   /// 从文件加载进度
   Future<void> _loadProgress() async {
-    final data = await StorageService.instance.read('sudoku');
+    final data = await StorageService.instance.read(
+      'sudoku',
+      project: '08.sudoku',
+    );
     if (data.isEmpty) return;
 
     try {
@@ -435,6 +446,6 @@ class Manager {
 
   /// 清除保存的进度
   Future<void> _clearProgress() async {
-    await StorageService.instance.delete('sudoku');
+    await StorageService.instance.delete('sudoku', project: '08.sudoku');
   }
 }

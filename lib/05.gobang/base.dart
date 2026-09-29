@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/game/gamer.dart';
 import '../00.common/game/map.dart';
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 
 // 围棋棋子状态
 enum PieceType { empty, black, white }
@@ -55,8 +55,7 @@ class Board {
   }
 
   /// 导出位编码快照：0=空 1=黑 2=白（PieceType.index），供 AI 只读使用
-  List<int> snapshot() =>
-      [for (final g in grids.value) g.value.type.index];
+  List<int> snapshot() => [for (final g in grids.value) g.value.type.index];
 
   void placePiece(int index) {
     GridNotifier grid = grids.value[index];

@@ -196,12 +196,6 @@ class ElementalDialog {
                 ),
                 actions: <Widget>[
                   TextButton(
-                    child: Text(S.cancel),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                  ),
-                  TextButton(
                     onPressed: () {
                       if (chosenElement != -1) {
                         upgrade(chosenElement, chosenAttribute);
@@ -209,6 +203,12 @@ class ElementalDialog {
                       Navigator.pop(context);
                     },
                     child: Text(S.ok),
+                  ),
+                  TextButton(
+                    child: Text(S.cancel),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
                   ),
                 ],
               );

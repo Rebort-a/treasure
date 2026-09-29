@@ -1,8 +1,9 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 import 'base.dart';
 
 /// 塔防游戏核心管理器（飞船范式：Manager 自持 Ticker + ChangeNotifier，

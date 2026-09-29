@@ -2,19 +2,20 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/engine/net_turn_engine.dart';
-import '../00.common/tool/notifiers.dart';
+import '../00.common/network/session/turn_game_session.dart';
+import '../00.common/model/notifiers.dart';
 import '../00.common/network/network_message.dart';
-import '../00.common/engine/network_engine.dart';
+import '../00.common/network/engine/network_engine.dart';
+import '../00.common/network/engine/net_turn_engine.dart';
 import 'foundation_manager.dart';
 
 class NetManager extends FoundationalManager {
-  late final NetTurnGameEngine netTurnEngine;
+  late final TurnGameSession turnSession;
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
 
   NetManager({required NetworkEngine room}) {
-    netTurnEngine = NetTurnGameEngine(
+    turnSession = createTurnSession(
       room: room,
       resourceMode: TurnResourceMode.none,
       actionHandler: _onAction,
@@ -26,24 +27,28 @@ class NetManager extends FoundationalManager {
     final data = jsonDecode(message.content) as Map<String, dynamic>;
     int index = data['index'] as int;
     board.placePiece(index);
-    if (board.gameOver) netTurnEngine.finish();
+    if (board.gameOver) turnSession.finish();
   }
 
   void resign() {
-    netTurnEngine.finish();
+    turnSession.finish();
   }
 
-  void _onExit() => netTurnEngine.leavePage();
+  void _onExit() => turnSession.leavePage();
 
   @override
   void placePiece(int index) {
-    if (board.currentGamer.value == netTurnEngine.playerType) {
-      netTurnEngine.sendNetworkMessage(
+    if (board.currentGamer.value == turnSession.playerType) {
+      turnSession.sendNetworkMessage(
         MessageType.action,
         jsonEncode({'index': index}),
       );
     }
   }
 
-  void leavePage() => netTurnEngine.leavePage();
+  void leavePage() => turnSession.leavePage();
+  void dispose() {
+    turnSession.dispose();
+    pageNavigator.dispose();
+  }
 }

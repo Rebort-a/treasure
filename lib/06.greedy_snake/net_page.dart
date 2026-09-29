@@ -1,3 +1,6 @@
+import '../00.common/network/session/game_session.dart';
+import '../00.common/widget/navigator/online_game_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/game/step.dart';
@@ -6,26 +9,43 @@ import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
 import 'foundation_widget.dart';
 
-class NetGreedySnakePage extends StatelessWidget {
-  final NetManager manager;
-
-  const NetGreedySnakePage({super.key, required this.manager});
+class NetGreedySnakePage extends OnlineGamePage<NetManager> {
+  const NetGreedySnakePage({super.key, required super.room});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) manager.leavePage();
-    },
-    child: _buildPage(),
-  );
+  String get gameName => 'greedySnake';
+
+  @override
+  NetManager createManager() => NetManager(room: room);
+
+  @override
+  GameSession sessionOf(NetManager manager) => manager.realSession;
+
+  @override
+  Widget buildGame(
+    BuildContext context,
+    NetManager manager,
+    VoidCallback requestExit,
+  ) => _SnakeGame(manager: manager);
+
+  @override
+  void disposeManager(NetManager manager) => manager.dispose();
+}
+
+class _SnakeGame extends StatelessWidget {
+  final NetManager _manager;
+
+  const _SnakeGame({required NetManager manager}) : _manager = manager;
+
+  @override
+  Widget build(BuildContext context) => _buildPage();
 
   Widget _buildPage() {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: manager.engine.gameStep,
+      valueListenable: _manager.realSession.gameStep,
       builder: (_, step, __) {
         return step == GameStep.action
-            ? GameScreen(manager: manager, showStateButton: false)
+            ? GameScreen(manager: _manager, showStateButton: false)
             : _buildPrepare(step);
       },
     );
@@ -36,7 +56,7 @@ class NetGreedySnakePage extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: manager.leavePage,
+          onPressed: _manager.leavePage,
         ),
         title: Text(S.wait),
       ),
@@ -44,11 +64,11 @@ class NetGreedySnakePage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            NotifierNavigator(navigatorHandler: manager.pageNavigator),
+            NotifierNavigator(navigatorHandler: _manager.pageNavigator),
             if (step != GameStep.gameOver) const SizedBox(height: 20),
             if (step != GameStep.gameOver) const CircularProgressIndicator(),
             const SizedBox(height: 20),
-            Text(step.getExplanation()),
+            Text(S.gameStepExplanation(step)),
           ],
         ),
       ),

@@ -64,9 +64,8 @@ class Broadcast {
   }
 
   static bool isIPv4(String address) {
-    return RegExp(
-      r'^(?:(?:^|\.)(?:2(?:5[0-5]|[0-4]\d)|1?\d?\d)){4}$',
-    ).hasMatch(address);
+    return RegExp(r'^(?:(?:^|\.)(?:2(?:5[0-5]|[0-4]\d)|1?\d?\d)){4}$')
+        .hasMatch(address);
   }
 
   static String _getBroadcastAddress(String localAddress, String netmask) {
@@ -80,6 +79,7 @@ class Broadcast {
 
 class Discovery {
   RawDatagramSocket? _socket;
+  int _generation = 0;
 
   static Future<RawDatagramSocket> initSocket() async {
     RawDatagramSocket socket = await RawDatagramSocket.bind(
@@ -90,26 +90,46 @@ class Discovery {
     );
     socket.broadcastEnabled = true;
     socket.readEventsEnabled = true;
-    socket.joinMulticast(InternetAddress(multicastAddress));
+    try {
+      socket.joinMulticast(InternetAddress(multicastAddress));
+    } catch (_) {
+      socket.close();
+      rethrow;
+    }
     return socket;
   }
 
-  void startReceive(
+  Future<void> startReceive(
     void Function(String address, List<int> data) callback,
   ) async {
     if (!Broadcast._enabled) return;
-    _socket = await initSocket();
-    _socket!.listen((RawSocketEvent event) {
-      if (event == RawSocketEvent.read) {
-        final dgram = _socket!.receive();
-        if (dgram != null) {
-          callback(dgram.address.address, dgram.data);
-        }
+    final generation = ++_generation;
+    _socket?.close();
+    _socket = null;
+    try {
+      final socket = await initSocket();
+      if (generation != _generation) {
+        socket.close();
+        return;
       }
-    });
+      _socket = socket;
+      socket.listen((RawSocketEvent event) {
+        if (generation != _generation) return;
+        if (event == RawSocketEvent.read) {
+          final dgram = socket.receive();
+          if (dgram != null) {
+            callback(dgram.address.address, dgram.data);
+          }
+        }
+      });
+    } catch (error) {
+      // 发现服务不可用不影响手动输入地址加入房间。
+      debugPrint('[Discovery] $error');
+    }
   }
 
   void stopReceive() {
+    _generation++;
     _socket?.close();
     _socket = null;
   }

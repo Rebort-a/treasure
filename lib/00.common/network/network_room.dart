@@ -3,6 +3,8 @@ import 'dart:math';
 
 enum RoomState { start, stop }
 
+enum RoomGameMode { none, turn, real }
+
 class RoomInfo {
   static const int chatType = 0;
   final String name;

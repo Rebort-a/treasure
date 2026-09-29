@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../tool/storage_service.dart';
+import '../service/storage_service.dart';
 
 ThemeData globalTheme = ThemeData(
   colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),

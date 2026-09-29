@@ -2,16 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/engine/net_turn_engine.dart';
+import 'package:treasure/00.common/network/session/turn_game_session.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/network_room.dart';
+import 'package:treasure/00.common/network/engine/network_engine.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
-import 'package:treasure/01.home/route.dart';
 import 'package:treasure/05.gobang/net_page.dart';
 
-import 'support/network_room_harness.dart';
+import '00.common/network/support/network_room_harness.dart';
+import '00.common/network/support/match_game_driver.dart';
 
 void main() {
   testWidgets(
@@ -20,7 +20,8 @@ void main() {
       HttpOverrides.global = null;
       LanguageProvider.instance.resetForTesting();
       final h = RoomHarness(3);
-      NetTurnGameEngine? opponent;
+      var matchedCount = 0;
+      TurnGameSession? opponent;
       Future<void> pumpUntil(bool Function() condition) async {
         for (var i = 0; i < 250; i++) {
           await tester.runAsync(
@@ -34,21 +35,12 @@ void main() {
 
       await tester.runAsync(() => h.server.start());
       try {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: NetChatPage(
-              gameFactory: RouteManager.createRoomGame,
-              userName: 'Alice',
-              roomInfo: RoomInfo(
-                name: 'IP join',
-                type: 0,
-                address: '127.0.0.1',
-                port: h.server.port,
-              ),
-            ),
-          ),
-        );
-        await pumpUntil(() => h.server.session.count == 1);
+        final alice = (await tester.runAsync(() => h.join('Alice')))!;
+        alice.matchPhase.addListener(() {
+          if (alice.matchPhase.value == RoomMatchPhase.matched) matchedCount++;
+        });
+        await tester.pumpWidget(MaterialApp(home: NetGomokuPage(room: alice)));
+        await pumpUntil(() => h.server.members.length == 1);
         await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
         final bob = (await tester.runAsync(() => h.join('Bob')))!;
         await pumpUntil(() => find.text('Test room (2)').evaluate().isNotEmpty);
@@ -61,25 +53,56 @@ void main() {
         );
         var searches = 0;
         bob.addMessageListener((m) {
-          if (m.type == MessageType.search && m.id != bob.identity) searches++;
+          if (m.type != MessageType.search || m.id == bob.identity) return;
+          searches++;
         });
         await tester.pump();
         expect(find.byType(PinnedRoomCard), findsOneWidget);
-        expect(find.text('Click to play'), findsOneWidget);
-        expect(find.byType(NetGomokuPage), findsNothing);
-        await tester.tap(find.text('Click to play'));
+        expect(find.text('Start matching'), findsOneWidget);
+        expect(find.byType(NetChatPage), findsOneWidget);
+        await tester.tap(find.text('Start matching'));
         await tester.pump();
         await pumpUntil(() => searches == 1);
-        expect(find.byType(NetGomokuPage), findsNothing);
-        await tester.tap(find.text('Click to play'));
+        expect(find.byType(NetGomokuPage), findsOneWidget);
+        expect(find.text('Matching'), findsOneWidget);
+        expect(find.text('Cancel matching'), findsOneWidget);
+        expect(find.text('Start matching'), findsNothing);
+        // 点击匹配中的卡片不能隐式重启搜索，更不会提前创建游戏引擎。
+        await tester.tap(find.byIcon(Icons.gamepad));
+        await tester.pump();
+        expect(matchedCount, 0);
+        expect(searches, 1);
+        await tester.tap(find.text('Cancel matching'));
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        expect(searches, 1, reason: '取消匹配不得发送额外的 search');
+        expect(find.text('Start matching'), findsOneWidget);
+        expect(find.text('Matching'), findsNothing);
+        expect(find.text('Cancel matching'), findsNothing);
+        expect(matchedCount, 0);
+        await tester.tap(find.text('Start matching'));
         await tester.pump();
         await pumpUntil(() => searches == 2);
-        expect(h.server.session.count, 2);
-        final aliceId = h.server.session.members.entries
+        expect(matchedCount, 0);
+        expect(h.server.members.length, 2);
+        final aliceId = h.server.members.entries
             .firstWhere((e) => e.value == 'Alice')
             .key;
+        await tester.runAsync(() async {
+          bob.sendNetworkMessage(
+            MessageType.text,
+            'chat survives cancellation',
+          );
+        });
+        await pumpUntil(
+          () => find.text('chat survives cancellation').evaluate().isNotEmpty,
+        );
+        expect(find.byType(NetChatPage), findsOneWidget);
+        expect(matchedCount, 0);
 
-        opponent = NetTurnGameEngine(
+        opponent = TurnGameSession(
           room: bob,
           resourceMode: TurnResourceMode.none,
           searchHandler: () {},
@@ -88,13 +111,16 @@ void main() {
           exitHandler: () {},
         );
         await tester.runAsync(() async {
-          opponent!.start();
+          startGame(opponent!);
         });
         await pumpUntil(() => opponent!.gameStep.value == GameStep.action);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 350));
+        expect(matchedCount, 1);
         expect(find.byType(NetGomokuPage), findsOneWidget);
-        expect(h.server.session.count, 2);
+        expect(find.byType(NetChatPage, skipOffstage: false), findsOneWidget);
+        expect(find.byType(NetChatPage), findsNothing);
+        expect(h.server.members.length, 2);
 
         await tester.runAsync(() async {
           bob.sendNetworkMessage(MessageType.text, 'public while playing');
@@ -111,17 +137,36 @@ void main() {
           findsNothing,
         );
         await tester.tap(find.byIcon(Icons.arrow_back));
-        await pumpUntil(() => find.byType(NetGomokuPage).evaluate().isEmpty);
-        expect(find.byType(NetGomokuPage), findsNothing);
+        await tester.pump();
+        expect(find.text('Surrender'), findsWidgets);
+        expect(find.text('Are you sure you want to surrender?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pump();
+        expect(find.text('duel only'), findsOneWidget);
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        expect(find.text('Are you sure you want to surrender?'), findsOneWidget);
+        await tester.tap(find.text('Confirm'));
+        await pumpUntil(
+          () => find.byType(NetChatPage).evaluate().isNotEmpty,
+        );
+        expect(find.byType(NetGomokuPage), findsOneWidget);
+        expect(find.byType(NetChatPage), findsOneWidget);
         expect(find.text('public while playing'), findsOneWidget);
         expect(find.text('duel only'), findsNothing);
-        expect(h.server.session.members[aliceId], 'Alice');
-        expect(h.server.session.count, 2);
-        await tester.runAsync(() => bob.closeSocket());
+        await pumpUntil(
+          () => find.text('Start matching').evaluate().isNotEmpty,
+        );
+        expect(matchedCount, 1);
+        expect(find.text('Start matching'), findsOneWidget);
+        expect(find.text('Cancel matching'), findsNothing);
+        expect(h.server.members[aliceId], 'Alice');
+        expect(h.server.members.length, 2);
+        await tester.runAsync(() => bob.close());
         await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
         await tester.pumpWidget(const SizedBox.shrink());
-        await pumpUntil(() => h.server.session.count == 0);
-        expect(h.server.session.members.containsKey(aliceId), isFalse);
+        await pumpUntil(() => h.server.members.length == 0);
+        expect(h.server.members.containsKey(aliceId), isFalse);
         expect(tester.takeException(), isNull);
       } finally {
         opponent?.dispose();

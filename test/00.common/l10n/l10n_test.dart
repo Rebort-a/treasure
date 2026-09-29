@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:treasure/00.common/tool/storage_service.dart';
+import 'package:treasure/00.common/service/storage_service.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
 
@@ -12,8 +12,8 @@ void main() {
     setUp(() async {
       StorageService.instance.resetForTesting();
       // 独立临时目录，避免与真实 .treasure/ 及并发测试共享同一份 settings.json
-      StorageService.instance.overrideBaseDir =
-          await Directory.systemTemp.createTemp('treasure_l10n_');
+      StorageService.instance.overrideBaseDir = await Directory.systemTemp
+          .createTemp('treasure_l10n_');
       await StorageService.instance.init();
       LanguageProvider.instance.resetForTesting();
     });
@@ -97,6 +97,9 @@ void main() {
         LanguageProvider.instance.resetForTesting();
         expect(S.confirm, equals('Confirm'));
         expect(S.cancel, equals('Cancel'));
+        expect(S.appsPage, equals('Apps'));
+        expect(S.onlinePage, equals('Online'));
+        expect(S.quickCreateRoom, equals('Quick create room'));
         expect(S.score(5), equals('Score: 5'));
         expect(S.roomTypeString('gobang'), equals('Gomoku'));
         expect(S.damageLog('a', 10, false, 5), contains('physical'));
@@ -106,6 +109,12 @@ void main() {
         LanguageProvider.instance.resetForTesting();
         await LanguageProvider.instance.setLocale(AppLocale.zh);
         expect(S.confirm, equals('确认'));
+        expect(S.appsPage, equals('\u5e94\u7528'));
+        expect(S.onlinePage, equals('\u8054\u673a'));
+        expect(
+          S.quickCreateRoom,
+          equals('\u5feb\u901f\u521b\u5efa\u623f\u95f4'),
+        );
         expect(S.score(5), equals('分数: 5'));
         expect(S.roomTypeString('gobang'), equals('五子棋'));
         expect(S.damageLog('a', 10, true, 5), contains('法术'));

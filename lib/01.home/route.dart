@@ -1,20 +1,12 @@
-import '../00.common/engine/network_engine.dart';
-import '../00.common/widget/navigator/game_launch.dart';
-import '../03.animal_chess/net_manager.dart' as animal;
-import '../04.elemental_battle/upper/net_combat_manager.dart' as elemental;
-import '../05.gobang/net_manager.dart' as gobang;
-import '../06.greedy_snake/net_manager.dart' as snake;
-import '../07.weiqi/net_manager.dart' as go;
-import '../17.tank/net_manager.dart' as tank;
-
 import 'package:flutter/material.dart';
 
+import '../00.common/network/engine/network_engine.dart';
 import '../00.common/network/network_room.dart';
 import '../02.lan_chat/net_page.dart';
 import '../03.animal_chess/local_page.dart';
 import '../03.animal_chess/net_page.dart';
 import '../04.elemental_battle/upper/maze_page.dart';
-import '../04.elemental_battle/upper/net_combat_page.dart';
+import '../04.elemental_battle/upper/net_page.dart';
 import '../05.gobang/local_page.dart';
 import '../05.gobang/net_page.dart';
 import '../06.greedy_snake/local_page.dart';
@@ -33,7 +25,7 @@ import '../16.schulte/page.dart';
 import '../17.tank/local_page.dart';
 import '../17.tank/net_page.dart';
 
-enum LocalItemType {
+enum AppItemType {
   animalChess,
   elementalBattle,
   gobang,
@@ -51,7 +43,7 @@ enum LocalItemType {
   tank,
 }
 
-enum NetItemType {
+enum OnlineItemType {
   onlyChat,
   animalChess,
   elementalBattle,
@@ -61,129 +53,114 @@ enum NetItemType {
   tank,
 }
 
-extension NetItemTypeExt on NetItemType {
+extension OnlineItemTypeExt on OnlineItemType {
   String get name => toString().split('.').last;
 }
 
-extension LocalItemTypeExtension on LocalItemType {
+extension AppItemTypeExtension on AppItemType {
+  OnlineItemType? get onlineType => switch (this) {
+    AppItemType.animalChess => OnlineItemType.animalChess,
+    AppItemType.elementalBattle => OnlineItemType.elementalBattle,
+    AppItemType.gobang => OnlineItemType.gobang,
+    AppItemType.greedySnake => OnlineItemType.greedySnake,
+    AppItemType.weiqi => OnlineItemType.weiqi,
+    AppItemType.tank => OnlineItemType.tank,
+    AppItemType.sudoku ||
+    AppItemType.guess ||
+    AppItemType.threeTiles ||
+    AppItemType.spaceship ||
+    AppItemType.soft ||
+    AppItemType.minecraft ||
+    AppItemType.towerDefense ||
+    AppItemType.memoryCard ||
+    AppItemType.schulte => null,
+  };
+
   Widget get page {
     switch (this) {
-      case LocalItemType.animalChess:
+      case AppItemType.animalChess:
         return LocalAnimalChessPage();
-      case LocalItemType.elementalBattle:
+      case AppItemType.elementalBattle:
         return MazePage();
-      case LocalItemType.gobang:
+      case AppItemType.gobang:
         return LocalGomokuPage();
-      case LocalItemType.greedySnake:
+      case AppItemType.greedySnake:
         return LocalGreedySnakePage();
-      case LocalItemType.weiqi:
+      case AppItemType.weiqi:
         return GoLocalPage();
-      case LocalItemType.sudoku:
+      case AppItemType.sudoku:
         return SudokuPage();
-      case LocalItemType.guess:
+      case AppItemType.guess:
         return GuessPage();
-      case LocalItemType.threeTiles:
+      case AppItemType.threeTiles:
         return ThreeTilesPage();
-      case LocalItemType.spaceship:
+      case AppItemType.spaceship:
         return SpaceShipPage();
-      case LocalItemType.soft:
+      case AppItemType.soft:
         return SoftPage();
-      case LocalItemType.minecraft:
+      case AppItemType.minecraft:
         return MinecraftPage();
-      case LocalItemType.towerDefense:
+      case AppItemType.towerDefense:
         return TowerDefensePage();
-      case LocalItemType.memoryCard:
+      case AppItemType.memoryCard:
         return MemoryPage();
-      case LocalItemType.schulte:
+      case AppItemType.schulte:
         return SchultePage();
-      case LocalItemType.tank:
+      case AppItemType.tank:
         return LocalTankPage();
     }
   }
 }
 
-extension NetItemTypeExtension on NetItemType {
-  GameLaunch createGame(NetworkEngine room) {
-    switch (this) {
-      case NetItemType.onlyChat:
-        throw StateError('Chat-only rooms do not create games');
-      case NetItemType.animalChess:
-        final manager = animal.NetManager(room: room);
-        return GameLaunch(
-          manager.netTurnEngine,
-          () => NetAnimalChessPage(manager: manager),
-          manager.netTurnEngine.dispose,
-        );
-      case NetItemType.elementalBattle:
-        final manager = elemental.NetCombatManager(room: room);
-        return GameLaunch(
-          manager.netTurnEngine,
-          () => NetCombatPage(manager: manager),
-          manager.netTurnEngine.dispose,
-        );
-      case NetItemType.gobang:
-        final manager = gobang.NetManager(room: room);
-        return GameLaunch(
-          manager.netTurnEngine,
-          () => NetGomokuPage(manager: manager),
-          manager.netTurnEngine.dispose,
-        );
-      case NetItemType.greedySnake:
-        final manager = snake.NetManager(room: room);
-        return GameLaunch(
-          manager.engine,
-          () => NetGreedySnakePage(manager: manager),
-          manager.dispose,
-        );
-      case NetItemType.weiqi:
-        final manager = go.GoNetManager(room: room);
-        return GameLaunch(
-          manager.netTurnEngine,
-          () => GoNetPage(manager: manager),
-          manager.netTurnEngine.dispose,
-        );
-      case NetItemType.tank:
-        final manager = tank.NetTankManager(room: room);
-        return GameLaunch(
-          manager.engine,
-          () => NetTankPage(manager: manager),
-          manager.dispose,
-        );
-    }
-  }
+extension OnlineItemTypeExtension on OnlineItemType {
+  RoomGameMode get gameMode => switch (this) {
+    OnlineItemType.onlyChat => RoomGameMode.none,
+    OnlineItemType.greedySnake || OnlineItemType.tank => RoomGameMode.real,
+    _ => RoomGameMode.turn,
+  };
+
+  Widget createGame(NetworkEngine room) => switch (this) {
+    OnlineItemType.animalChess => NetAnimalChessPage(room: room),
+    OnlineItemType.elementalBattle => NetCombatPage(room: room),
+    OnlineItemType.gobang => NetGomokuPage(room: room),
+    OnlineItemType.greedySnake => NetGreedySnakePage(room: room),
+    OnlineItemType.weiqi => GoNetPage(room: room),
+    OnlineItemType.tank => NetTankPage(room: room),
+    OnlineItemType.onlyChat => NetChatPage(room: room),
+  };
 }
 
 class RouteManager {
-  /// 具体游戏的装配留在应用入口，聊天室只接收可调用的工厂。
-  static GameLaunch? createRoomGame(NetworkEngine room) {
-    final type = room.roomSession.value.game;
-    if (type <= 0 || type >= NetItemType.values.length) return null;
-    return NetItemType.values[type].createGame(room);
+  /// 应用入口只选择模块的公开入口，具体管理器由模块内部装配。
+  static Widget? createRoomGame(NetworkEngine room) {
+    final type = room.roomType;
+    if (type <= 0 || type >= OnlineItemType.values.length) return null;
+    if (OnlineItemType.values[type].gameMode != room.gameMode) return null;
+    return OnlineItemType.values[type].createGame(room);
   }
 
   /// 导航到本地页面
-  static void navigateToLocalPage(
-    BuildContext context,
-    LocalItemType routeType,
-  ) {
+  static void navigateToLocalPage(BuildContext context, AppItemType routeType) {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => routeType.page));
   }
 
   /// 导航到网络页面
-  static void navigateToNetPage(
+  static Future<void> navigateToNetPage(
     BuildContext context,
-    String userName,
-    RoomInfo roomInfo,
-  ) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => NetChatPage(
-          userName: userName,
-          roomInfo: roomInfo,
-          gameFactory: createRoomGame,
-        ),
-      ),
-    );
+    NetworkEngine room,
+  ) async {
+    if (!room.isJoined) {
+      throw StateError('Room authentication has not completed');
+    }
+    final type = room.roomType;
+    final page =
+        type >= 0 &&
+            type < OnlineItemType.values.length &&
+            OnlineItemType.values[type].gameMode == room.gameMode
+        ? OnlineItemType.values[type].createGame(room)
+        : NetChatPage(room: room);
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => page));
   }
 }

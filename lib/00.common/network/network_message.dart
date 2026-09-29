@@ -10,17 +10,19 @@ enum MessageType {
   text,
   image,
   file,
-  emoji,
-  typing,
-  roomControl,
 
   // 游戏信息
   search,
   match,
+  confirm,
+  publish,
   resource,
   sync,
   action,
-  exit,
+  gameExit,
+  memberJoined,
+  memberLeft,
+  roomClosed,
 }
 
 /// 自动通知只传固定编码，接收端展示时再按本地语言生成文案。
@@ -46,6 +48,7 @@ enum RoomNotice {
 }
 
 class NetworkMessage {
+  /// 发送者身份，0 仅供服务器使用；成员事件的主体放在 content 中。
   int id;
   MessageType type;
   String source;
@@ -53,11 +56,11 @@ class NetworkMessage {
   int? timestamp;
   String? replyToId;
 
-  /// 服务器转发的目标客户端；为空时广播，由接收方按会话标识区分消息。
-  int? targetId;
+  /// 私聊只指定对方；服务器先向发送者回环，再发给对方。
+  final int? recipientId;
 
-  /// 标识一次游戏会话，而非单条消息或回执；为空时表示房间消息。
-  String? sessionId;
+  /// 指定群体消息包含所有对局玩家，通常也包含自己。
+  final Set<int>? recipientIds;
 
   NetworkMessage({
     required this.id,
@@ -66,9 +69,35 @@ class NetworkMessage {
     required this.content,
     this.timestamp,
     this.replyToId,
-    this.targetId,
-    this.sessionId,
-  });
+    this.recipientId,
+    Set<int>? recipientIds,
+  }) : recipientIds = recipientIds == null
+           ? null
+           : Set.unmodifiable(recipientIds);
+
+  bool get isRoomMessage => recipientId == null && recipientIds == null;
+  bool get isPrivateMessage => recipientId != null && recipientIds == null;
+  bool get isGroupMessage => recipientIds != null && recipientId == null;
+
+  /// 游戏消息必须指定非空收件集合；空集合绝不能退化为房间广播。
+  bool get hasValidRoute {
+    final recipients = recipientIds;
+    if ((recipientId != null && recipientId! <= 0) ||
+        (recipientId != null && recipients != null) ||
+        (recipients != null &&
+            (recipients.isEmpty || recipients.any((id) => id <= 0)))) {
+      return false;
+    }
+    return switch (type) {
+      MessageType.match || MessageType.confirm => isPrivateMessage,
+      MessageType.publish || MessageType.sync => isGroupMessage,
+      MessageType.resource ||
+      MessageType.action ||
+      MessageType.gameExit => isPrivateMessage || isGroupMessage,
+      MessageType.text => true,
+      _ => isRoomMessage,
+    };
+  }
 
   /// 解析消息；字段类型、取值或通知编码不合法时返回 null，由调用方丢弃。
   static NetworkMessage? fromJson(Map<String, dynamic> json) {
@@ -86,30 +115,40 @@ class NetworkMessage {
     final content = json['content'];
     final timestamp = json['timestamp'];
     final replyToId = json['replyToId'];
-    final targetId = json['targetId'];
-    final sessionId = json['sessionId'];
+    final target = json['recipientId'];
+    final targets = json['recipientIds'];
     if ((source != null && source is! String) ||
         (content != null && content is! String) ||
         (timestamp != null && timestamp is! int) ||
         (replyToId != null && replyToId is! String) ||
-        (sessionId != null && sessionId is! String) ||
-        (targetId != null && (targetId is! int || targetId <= 0))) {
+        (target != null && (target is! int || target <= 0)) ||
+        (targets != null &&
+            (targets is! List || targets.any((id) => id is! int || id <= 0)))) {
       return null;
     }
     if (typeIndex == MessageType.notify.index &&
         (content is! String || RoomNotice.fromContent(content) == null)) {
       return null;
     }
-    return NetworkMessage(
+    final message = NetworkMessage(
       id: id,
       type: MessageType.values[typeIndex],
       source: source as String? ?? '',
       content: content as String? ?? '',
       timestamp: timestamp as int?,
       replyToId: replyToId as String?,
-      targetId: targetId as int?,
-      sessionId: sessionId as String?,
+      recipientId: target as int?,
+      recipientIds: targets == null ? null : Set<int>.from(targets as List),
     );
+    final route = message.isRoomMessage
+        ? 'room'
+        : message.isPrivateMessage
+        ? 'private'
+        : 'group';
+    if (json['route'] != route) {
+      return null;
+    }
+    return message.hasValidRoute ? message : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -120,8 +159,13 @@ class NetworkMessage {
       'content': content,
       if (timestamp != null) 'timestamp': timestamp,
       if (replyToId != null) 'replyToId': replyToId,
-      if (targetId != null) 'targetId': targetId,
-      if (sessionId != null) 'sessionId': sessionId,
+      'route': isRoomMessage
+          ? 'room'
+          : isPrivateMessage
+          ? 'private'
+          : 'group',
+      if (recipientId != null) 'recipientId': recipientId,
+      if (recipientIds != null) 'recipientIds': recipientIds!.toList(),
     };
   }
 

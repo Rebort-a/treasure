@@ -1,3 +1,6 @@
+import '../00.common/network/session/game_session.dart';
+import '../00.common/widget/navigator/online_game_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/game/gamer.dart';
@@ -8,20 +11,39 @@ import '../00.common/l10n/strings.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
-class NetGomokuPage extends StatelessWidget {
-  final NetManager _manager;
-
-  const NetGomokuPage({super.key, required NetManager manager})
-    : _manager = manager;
+class NetGomokuPage extends OnlineGamePage<NetManager> {
+  const NetGomokuPage({super.key, required super.room});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: _buildPage(context),
-  );
+  String get gameName => 'gobang';
+
+  @override
+  NetManager createManager() => NetManager(room: room);
+
+  @override
+  GameSession sessionOf(NetManager manager) => manager.turnSession;
+
+  @override
+  Widget buildGame(
+    BuildContext context,
+    NetManager manager,
+    VoidCallback requestExit,
+  ) => _GomokuGame(manager: manager, onExit: requestExit);
+
+  @override
+  void disposeManager(NetManager manager) => manager.dispose();
+}
+
+class _GomokuGame extends StatelessWidget {
+  final NetManager _manager;
+  final VoidCallback _onExit;
+
+  const _GomokuGame({required NetManager manager, required VoidCallback onExit})
+    : _manager = manager,
+      _onExit = onExit;
+
+  @override
+  Widget build(BuildContext context) => _buildPage(context);
 
   Widget _buildPage(BuildContext context) {
     return Scaffold(appBar: _buildAppBar(), body: _buildBody());
@@ -33,13 +55,13 @@ class NetGomokuPage extends StatelessWidget {
       centerTitle: true,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: _manager.netTurnEngine.leavePage,
+        onPressed: _onExit,
       ),
       actions: [
         IconButton(
           icon: const Icon(Icons.flag),
           tooltip: S.surrender,
-          onPressed: _manager.resign,
+          onPressed: _onExit,
         ),
       ],
     );
@@ -47,7 +69,7 @@ class NetGomokuPage extends StatelessWidget {
 
   Widget _buildBody() {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: _manager.netTurnEngine.gameStep,
+      valueListenable: _manager.turnSession.gameStep,
       builder: (__, step, _) {
         return Center(
           child: Column(
@@ -70,7 +92,7 @@ class NetGomokuPage extends StatelessWidget {
                             const CircularProgressIndicator(),
                             const SizedBox(height: 20),
                             Text(
-                              step.getExplanation(),
+                              S.gameStepExplanation(step),
                               style: const TextStyle(fontSize: 16),
                             ),
                           ],
@@ -79,9 +101,9 @@ class NetGomokuPage extends StatelessWidget {
                     ]),
               Expanded(
                 flex: 2,
-                child: MessageList(networkEngine: _manager.netTurnEngine),
+                child: MessageList(channel: _manager.turnSession),
               ),
-              MessageInput(networkEngine: _manager.netTurnEngine),
+              MessageInput(channel: _manager.turnSession),
             ],
           ),
         );
@@ -101,7 +123,7 @@ class NetGomokuPage extends StatelessWidget {
         );
       } else {
         final side = gamer == TurnGamerType.front ? S.blackSide : S.whiteSide;
-        text = gamer == _manager.netTurnEngine.playerType
+        text = gamer == _manager.turnSession.playerType
             ? S.yourSideTurn(side)
             : S.opponentSideTurn(side);
       }

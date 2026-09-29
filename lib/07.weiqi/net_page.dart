@@ -1,3 +1,6 @@
+import '../00.common/network/session/game_session.dart';
+import '../00.common/widget/navigator/online_game_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/game/step.dart';
@@ -8,20 +11,39 @@ import 'base.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
-class GoNetPage extends StatelessWidget {
-  final GoNetManager _manager;
-
-  const GoNetPage({super.key, required GoNetManager manager})
-    : _manager = manager;
+class GoNetPage extends OnlineGamePage<GoNetManager> {
+  const GoNetPage({super.key, required super.room});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: _buildPage(context),
-  );
+  String get gameName => 'weiqi';
+
+  @override
+  GoNetManager createManager() => GoNetManager(room: room);
+
+  @override
+  GameSession sessionOf(GoNetManager manager) => manager.turnSession;
+
+  @override
+  Widget buildGame(
+    BuildContext context,
+    GoNetManager manager,
+    VoidCallback requestExit,
+  ) => _GoGame(manager: manager, onExit: requestExit);
+
+  @override
+  void disposeManager(GoNetManager manager) => manager.dispose();
+}
+
+class _GoGame extends StatelessWidget {
+  final GoNetManager _manager;
+  final VoidCallback _onExit;
+
+  const _GoGame({required GoNetManager manager, required VoidCallback onExit})
+    : _manager = manager,
+      _onExit = onExit;
+
+  @override
+  Widget build(BuildContext context) => _buildPage(context);
 
   Widget _buildPage(BuildContext context) {
     return Scaffold(appBar: _buildAppBar(), body: _buildBody());
@@ -33,17 +55,15 @@ class GoNetPage extends StatelessWidget {
       centerTitle: true,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: _manager.netTurnEngine.leavePage,
+        onPressed: _onExit,
       ),
-      actions: [
-        IconButton(icon: const Icon(Icons.flag), onPressed: _manager.resign),
-      ],
+      actions: [IconButton(icon: const Icon(Icons.flag), onPressed: _onExit)],
     );
   }
 
   Widget _buildBody() {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: _manager.netTurnEngine.gameStep,
+      valueListenable: _manager.turnSession.gameStep,
       builder: (__, step, _) {
         return Center(
           child: Column(
@@ -66,7 +86,7 @@ class GoNetPage extends StatelessWidget {
                             const CircularProgressIndicator(),
                             const SizedBox(height: 20),
                             Text(
-                              step.getExplanation(),
+                              S.gameStepExplanation(step),
                               style: const TextStyle(fontSize: 16),
                             ),
                           ],
@@ -75,9 +95,9 @@ class GoNetPage extends StatelessWidget {
                     ]),
               Expanded(
                 flex: 2,
-                child: MessageList(networkEngine: _manager.netTurnEngine),
+                child: MessageList(channel: _manager.turnSession),
               ),
-              MessageInput(networkEngine: _manager.netTurnEngine),
+              MessageInput(channel: _manager.turnSession),
             ],
           ),
         );

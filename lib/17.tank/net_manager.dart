@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/engine/net_real_engine.dart';
+import '../00.common/network/session/real_game_session.dart';
 import '../00.common/game/map.dart';
 import '../00.common/network/network_message.dart';
-import '../00.common/engine/network_engine.dart';
+import '../00.common/network/engine/network_engine.dart';
+import '../00.common/network/engine/net_real_engine.dart';
 import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -30,7 +31,7 @@ enum TankAction {
 /// AI、生成、道具和命中由权威方产生，但包括权威方自己在内，所有端都要
 /// 等服务器回环后才应用事件。
 class NetTankManager extends TankGameManager {
-  late final NetRealGameEngine engine;
+  late final RealGameSession realSession;
 
   final Set<int> _pendingSyncIds = {};
   final Set<int> _pendingEnemySpawns = {};
@@ -43,7 +44,7 @@ class NetTankManager extends TankGameManager {
   bool _fireRequestPending = false;
 
   NetTankManager({required NetworkEngine room}) {
-    engine = NetRealGameEngine(
+    realSession = createRealSession(
       room: room,
       maxPlayers: 4,
       searchHandler: _handleSearch,
@@ -53,13 +54,13 @@ class NetTankManager extends TankGameManager {
       exitHandler: _handleEnd,
     );
     initTicker();
-    engine.ended.addListener(suspendGame);
+    realSession.ended.addListener(suspendGame);
   }
 
   @override
-  int get identity => engine.identity;
+  int get identity => realSession.identity;
 
-  int? get authorityId => engine.publisherId;
+  int? get authorityId => realSession.publisherId;
 
   @override
   bool get isAuthority => identity == authorityId;
@@ -90,10 +91,29 @@ class NetTankManager extends TankGameManager {
   // ---- 全员资源同步 ----
 
   void _handleSearch(int id) {
-    if (!tanks.containsKey(identity)) addPlayerTank(identity);
-    if (!tanks.containsKey(id)) addPlayerTank(id);
+    suspendGame();
+    // 生成资源时不提前改变本地对局；由资源回环统一加载新名单。
+    final previousTanks = Map<int, Tank>.of(tanks);
+    final previousLives = Map<int, int>.of(livesByPlayer);
+    final previousSpawns = Map<int, int>.of(playerSpawnUsed);
+    late final Map<String, dynamic> proposed;
+    try {
+      if (!tanks.containsKey(identity)) addPlayerTank(identity);
+      if (!tanks.containsKey(id)) addPlayerTank(id);
+      proposed = toJson();
+    } finally {
+      tanks
+        ..clear()
+        ..addAll(previousTanks);
+      livesByPlayer
+        ..clear()
+        ..addAll(previousLives);
+      playerSpawnUsed
+        ..clear()
+        ..addAll(previousSpawns);
+    }
     _syncId++;
-    _sendSnapshot();
+    _sendSnapshot(proposed);
   }
 
   void _handleResource(NetworkMessage message) {
@@ -122,7 +142,7 @@ class NetTankManager extends TankGameManager {
               .where((entry) => entry.value.isPlayer)
               .map((entry) => entry.key),
         );
-      engine.sendNetworkMessage(
+      realSession.sendNetworkMessage(
         MessageType.sync,
         json.encode({'match': _matchId, 'sync': _syncId}),
       );
@@ -146,7 +166,7 @@ class NetTankManager extends TankGameManager {
 
   void _resumeWhenSynchronized() {
     if (_pendingSyncIds.isNotEmpty) return;
-    if (!engine.completeSynchronization()) return;
+    if (!realSession.completeSynchronization()) return;
     resumeGame();
   }
 
@@ -393,7 +413,7 @@ class NetTankManager extends TankGameManager {
     TankAction action, [
     Map<String, dynamic> payload = const {},
   ]) {
-    engine.sendNetworkMessage(
+    realSession.sendNetworkMessage(
       MessageType.action,
       json.encode({
         'actionType': action.name,
@@ -404,21 +424,25 @@ class NetTankManager extends TankGameManager {
     );
   }
 
-  void _sendSnapshot() {
-    engine.sendNetworkMessage(
+  void _sendSnapshot([Map<String, dynamic>? proposed]) {
+    realSession.sendNetworkMessage(
       MessageType.resource,
-      json.encode({'match': _matchId, 'sync': _syncId, 'state': toJson()}),
+      json.encode({
+        'match': _matchId,
+        'sync': _syncId,
+        'state': proposed ?? toJson(),
+      }),
     );
   }
 
   @override
   void leavePage() {
-    engine.leavePage();
+    realSession.leavePage();
   }
 
   @override
   void dispose() {
-    engine.dispose();
+    realSession.dispose();
     super.dispose();
   }
 }

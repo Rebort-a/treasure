@@ -1,15 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../00.common/config/network_config.dart';
+import '../00.common/l10n/l10n.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/network/network_room.dart';
-import '../00.common/tool/storage_service.dart';
+import '../00.common/style/theme.dart';
+import '../00.common/tool/app_info.dart';
+
+import '../00.common/service/storage_service.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
-import 'floating_navigation_bar.dart';
+
 import 'home_manager.dart';
 import 'route.dart';
-import 'settings_page.dart';
+import '../00.common/widget/navigator/floating_navigation_bar.dart';
+import 'player_settings.dart';
 
 class HomePage extends StatefulWidget {
   final HomeManager? manager;
@@ -21,47 +28,59 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final HomeManager _manager;
-  int _tab = 0;
-  String _query = '';
-  List<LocalItemType> _recent = [];
+  int _selectedTabIndex = 0;
+  String _appSearchQuery = '';
+  List<AppItemType> _recentApps = [];
 
   @override
   void initState() {
     super.initState();
     _manager = widget.manager ?? HomeManager();
-    _loadRecent();
+    _loadRecentApps();
   }
 
-  Future<void> _loadRecent() async {
-    final list = await StorageService.instance.readList('recent_apps');
+  Future<void> _loadRecentApps() async {
+    final list = await StorageService.instance.readList(
+      'recent_apps',
+      project: '01.home',
+    );
     if (!mounted) return;
     setState(() {
-      _recent = list
+      _recentApps = list
           .whereType<String>()
           .map((key) {
-            for (final item in LocalItemType.values) {
+            for (final item in AppItemType.values) {
               if (item.name == key) return item;
             }
             return null;
           })
-          .whereType<LocalItemType>()
+          .whereType<AppItemType>()
           .take(3)
           .toList();
     });
   }
 
-  void _openLocal(LocalItemType item) {
+  void _openLocal(AppItemType item) {
     setState(() {
-      _recent = [
+      _recentApps = [
         item,
-        ..._recent.where((other) => other != item),
+        ..._recentApps.where((other) => other != item),
       ].take(3).toList();
     });
     StorageService.instance.writeList(
       'recent_apps',
-      _recent.map((item) => item.name).toList(),
+      _recentApps.map((item) => item.name).toList(),
+      project: '01.home',
     );
     _manager.routeLocal(item);
+  }
+
+  void _quickCreateRoom(AppItemType item) {
+    final onlineType = item.onlineType;
+    if (onlineType == null) return;
+
+    setState(() => _selectedTabIndex = 1);
+    _manager.showCreateRoomDialog(onlineType: onlineType);
   }
 
   @override
@@ -74,7 +93,9 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      appBar: AppBar(title: Text([S.local, S.network, S.settings][_tab])),
+      appBar: AppBar(
+        title: Text([S.appsPage, S.onlinePage, S.settings][_selectedTabIndex]),
+      ),
       // 读取 Scaffold 为延伸内容提供的底部避让高度，包含胶囊导航和安全区。
       // 将留白放在各自的滚动视图内部，让内容能够从毛玻璃后方滚过。
       body: Builder(
@@ -83,11 +104,11 @@ class _HomePageState extends State<HomePage> {
             NotifierNavigator(navigatorHandler: _manager.pageNavigator),
             Expanded(
               child: IndexedStack(
-                index: _tab,
+                index: _selectedTabIndex,
                 children: [
-                  _localPage(MediaQuery.paddingOf(bodyContext).bottom),
-                  _networkPage(MediaQuery.paddingOf(bodyContext).bottom),
-                  const SettingsPage(embedded: true),
+                  _appsPage(MediaQuery.paddingOf(bodyContext).bottom),
+                  _onlinePage(MediaQuery.paddingOf(bodyContext).bottom),
+                  _settingsPage(),
                 ],
               ),
             ),
@@ -97,18 +118,19 @@ class _HomePageState extends State<HomePage> {
       bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
           ? null
           : FloatingNavigationBar(
-              selectedIndex: _tab,
-              onDestinationSelected: (index) => setState(() => _tab = index),
+              selectedIndex: _selectedTabIndex,
+              onDestinationSelected: (index) =>
+                  setState(() => _selectedTabIndex = index),
               destinations: [
                 NavigationDestination(
                   icon: const Icon(Icons.widgets_outlined),
                   selectedIcon: const Icon(Icons.widgets),
-                  label: S.local,
+                  label: S.appsPage,
                 ),
                 NavigationDestination(
                   icon: const Icon(Icons.lan_outlined),
                   selectedIcon: const Icon(Icons.lan),
-                  label: S.network,
+                  label: S.onlinePage,
                 ),
                 NavigationDestination(
                   icon: const Icon(Icons.settings_outlined),
@@ -120,16 +142,16 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _localPage(double bottomInset) {
-    final all = LocalItemType.values
+  Widget _appsPage(double bottomInset) {
+    final all = AppItemType.values
         .where(
           (item) => S
               .roomTypeString(item.name)
               .toLowerCase()
-              .contains(_query.toLowerCase()),
+              .contains(_appSearchQuery.toLowerCase()),
         )
         .toList();
-    final recent = _recent.where(all.contains).toList();
+    final recent = _recentApps.where(all.contains).toList();
     return ListView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       children: [
@@ -141,7 +163,7 @@ class _HomePageState extends State<HomePage> {
             enabledBorder: InputBorder.none,
             focusedBorder: const OutlineInputBorder(),
           ),
-          onChanged: (value) => setState(() => _query = value.trim()),
+          onChanged: (value) => setState(() => _appSearchQuery = value.trim()),
         ),
         if (recent.isNotEmpty) ...[
           _heading(S.recentApps),
@@ -160,16 +182,23 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _appCard(LocalItemType item) => Card(
-    child: ListTile(
-      leading: const Icon(Icons.sports_esports_outlined),
-      title: Text(S.roomTypeString(item.name)),
-      trailing: NetItemType.values.any((net) => net.name == item.name)
-          ? const Icon(Icons.wifi_tethering)
-          : null,
-      onTap: () => _openLocal(item),
-    ),
-  );
+  Widget _appCard(AppItemType item) {
+    final canPlayOnline = item.onlineType != null;
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.gamepad),
+        title: Text(S.roomTypeString(item.name)),
+        trailing: canPlayOnline
+            ? IconButton(
+                tooltip: S.quickCreateRoom,
+                icon: const Icon(Icons.wifi_tethering),
+                onPressed: () => _quickCreateRoom(item),
+              )
+            : null,
+        onTap: () => _openLocal(item),
+      ),
+    );
+  }
 
   Widget _heading(String title, {Widget? trailing}) => Padding(
     padding: const EdgeInsets.only(top: 20, bottom: 8),
@@ -183,7 +212,7 @@ class _HomePageState extends State<HomePage> {
     ),
   );
 
-  Widget _networkPage(double bottomInset) => ListView(
+  Widget _onlinePage(double bottomInset) => ListView(
     padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
     children: [
       Wrap(
@@ -242,14 +271,13 @@ class _HomePageState extends State<HomePage> {
   Widget _roomCard(RoomInfo room, {VoidCallback? onStop}) {
     final type = room is CreatedRoomInfo ? room.server.roomType : room.type;
     final count = room is CreatedRoomInfo
-        ? room.server.session.count
+        ? room.server.members.length
         : room.count;
-    final isGame = type > RoomInfo.chatType && type < NetItemType.values.length;
+    final isGame =
+        type > RoomInfo.chatType && type < OnlineItemType.values.length;
     return Card(
       child: ListTile(
-        leading: Icon(
-          isGame ? Icons.sports_esports_outlined : Icons.forum_outlined,
-        ),
+        leading: Icon(isGame ? Icons.gamepad : Icons.forum_outlined),
         title: Row(
           children: [
             if (room.hasPassword) ...[
@@ -261,7 +289,7 @@ class _HomePageState extends State<HomePage> {
         ),
         subtitle: Text(
           [
-            if (isGame) S.roomTypeString(NetItemType.values[type].name),
+            if (isGame) S.roomTypeString(OnlineItemType.values[type].name),
             '${room.address}:${room.port}',
           ].join(' · '),
         ),
@@ -273,6 +301,204 @@ class _HomePageState extends State<HomePage> {
                 tooltip: S.stop,
                 onPressed: onStop,
               ),
+      ),
+    );
+  }
+
+  Widget _settingsPage() => ListView(
+    padding: EdgeInsets.only(
+      top: 8,
+      bottom: 8 + MediaQuery.paddingOf(context).bottom,
+    ),
+    children: [
+      _settingsSection(
+        context,
+        title: S.general,
+        children: [_defaultNameTile(), _languageTile(), _themeTile()],
+      ),
+      _settingsSection(
+        context,
+        title: S.about,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(S.version),
+            subtitle: Text(AppInfo.isLoaded ? (AppInfo.version ?? '—') : '—'),
+          ),
+        ],
+      ),
+    ],
+  );
+
+  Widget _defaultNameTile() => ValueListenableBuilder<String>(
+    valueListenable: PlayerSettings.instance.defaultName,
+    builder: (_, name, __) => ListTile(
+      leading: const Icon(Icons.person_outline),
+      title: Text(S.defaultPlayerName),
+      subtitle: Text(name.isEmpty ? S.enterUserName : name),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => unawaited(_editDefaultName()),
+    ),
+  );
+
+  Future<void> _editDefaultName() async {
+    await PlayerSettings.instance.load();
+    if (!mounted) return;
+
+    final current = PlayerSettings.instance.defaultName.value;
+    var name = current;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(S.defaultPlayerName),
+          content: TextFormField(
+            initialValue: current,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: S.userName,
+              helperText: S.defaultPlayerNameHint,
+            ),
+            onChanged: (value) => name = value,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                PlayerSettings.instance.setDefaultName(name);
+              },
+              child: Text(S.confirm),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(S.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _settingsSection(
+    BuildContext context, {
+    required String title,
+    required List<Widget> children,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      ),
+      ...children.map(
+        (child) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Card(
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _languageTile() => ValueListenableBuilder<AppLocale>(
+    valueListenable: LanguageProvider.instance.locale,
+    builder: (context, currentLocale, _) => ListTile(
+      leading: const Icon(Icons.language),
+      title: Text(S.language),
+      subtitle: Text(currentLocale == AppLocale.zh ? S.chinese : S.english),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showLanguageDialog(currentLocale),
+    ),
+  );
+
+  Widget _themeTile() => ValueListenableBuilder<ThemeMode>(
+    valueListenable: ThemeProvider.instance.themeMode,
+    builder: (context, currentTheme, _) => ListTile(
+      leading: const Icon(Icons.palette),
+      title: Text(S.theme),
+      subtitle: Text(
+        currentTheme == ThemeMode.light ? S.themeLight : S.themeDark,
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showThemeDialog(currentTheme),
+    ),
+  );
+
+  void _showThemeDialog(ThemeMode currentTheme) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(S.theme),
+        children: [
+          RadioGroup<ThemeMode>(
+            groupValue: currentTheme,
+            onChanged: (value) async {
+              if (value == null) return;
+              Navigator.pop(dialogContext);
+              await ThemeProvider.instance.setThemeMode(value);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<ThemeMode>(
+                  title: Text(S.themeLight),
+                  value: ThemeMode.light,
+                ),
+                RadioListTile<ThemeMode>(
+                  title: Text(S.themeDark),
+                  value: ThemeMode.dark,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLanguageDialog(AppLocale currentLocale) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(S.language),
+        children: [
+          RadioGroup<AppLocale>(
+            groupValue: currentLocale,
+            onChanged: (value) async {
+              if (value == null) return;
+              Navigator.pop(dialogContext);
+              await LanguageProvider.instance.setLocale(value);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<AppLocale>(
+                  title: Text(S.chinese),
+                  value: AppLocale.zh,
+                ),
+                RadioListTile<AppLocale>(
+                  title: Text(S.english),
+                  value: AppLocale.en,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

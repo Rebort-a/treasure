@@ -1,6 +1,7 @@
 import 'app_localizations.dart';
 
 import 'l10n.dart';
+import '../game/step.dart';
 
 /// 全局翻译服务，无需 BuildContext。
 ///
@@ -13,8 +14,21 @@ class S {
 
   static AppLocalizations get _l => LanguageProvider.instance.current;
 
+  /// 状态文案由展示层翻译，协议状态枚举不反向依赖本地化模块。
+  static String gameStepExplanation(GameStep step) => switch (step) {
+    GameStep.start => matchingPlayers,
+    GameStep.synchronizing => wait,
+    GameStep.frontConfig => stepFrontConfig,
+    GameStep.rearWait => stepRearWait,
+    GameStep.frontWait => stepFrontWait,
+    GameStep.rearConfig => stepRearConfig,
+    GameStep.action => stepAction,
+    GameStep.gameOver => stepGameOver,
+  };
+
   // ==================== 通用 ====================
   static String get confirm => _l.confirm;
+  static String get confirmSurrender => _l.confirmSurrender;
   static String get cancel => _l.cancel;
   static String get close => _l.close;
   static String get ok => _l.ok;
@@ -31,12 +45,14 @@ class S {
 
   // ==================== 首页 ====================
   static String get roomList => _l.roomList;
-  static String get local => _l.local;
-  static String get network => _l.network;
+  static String get appsPage => _l.appsPage;
+  static String get onlinePage => _l.onlinePage;
   static String get roomPassword => _l.roomPassword;
   static String get passwordOptional => _l.passwordOptional;
   static String get passwordIfNeeded => _l.passwordIfNeeded;
   static String get incorrectRoomPassword => _l.incorrectRoomPassword;
+  static String get roomJoinFailed => _l.roomJoinFailed;
+  static String get roomJoinTimedOut => _l.roomJoinTimedOut;
   static String get defaultPlayerName => _l.defaultPlayerName;
   static String get defaultPlayerNameHint => _l.defaultPlayerNameHint;
   static String get searchApps => _l.searchApps;
@@ -44,7 +60,9 @@ class S {
   static String get allApps => _l.allApps;
   static String get noAppsFound => _l.noAppsFound;
   static String get noRooms => _l.noRooms;
-  static String get joinGame => _l.joinGame;
+  static String get startMatching => _l.startMatching;
+  static String get matching => _l.matching;
+  static String get cancelMatching => _l.cancelMatching;
   static String get matchingPlayers => _l.matchingPlayers;
   static String get joinedRoom => _l.joinedRoom;
   static String get leftRoom => _l.leftRoom;
@@ -52,6 +70,7 @@ class S {
   static String get createdRooms => _l.createdRooms;
   static String get otherRooms => _l.otherRooms;
   static String get createRoom => _l.createRoom;
+  static String get quickCreateRoom => _l.quickCreateRoom;
   static String get enterRoomName => _l.enterRoomName;
   static String get joinRoom => _l.joinRoom;
   static String get joinByIp => _l.joinByIp;

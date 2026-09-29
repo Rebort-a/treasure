@@ -3,14 +3,79 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:treasure/00.common/network/network_message.dart';
+import 'package:treasure/00.common/model/chat_message.dart';
 
 /// 网络消息层单测：覆盖解析健壮性（1.1 可空改造）与 XOR 加密往返。
 /// 纯逻辑、无需真实 socket。
 void main() {
+  test('纯表情和混合文字都以 text 传输并按普通聊天展示', () {
+    for (final content in ['🙂', '你好 👨‍👩‍👧‍👦，一起玩吧']) {
+      for (final recipients in <Set<int>?>[
+        null,
+        {1, 2},
+      ]) {
+        final original = NetworkMessage(
+          id: 1,
+          type: MessageType.text,
+          source: 'Alice',
+          content: content,
+          recipientIds: recipients,
+        );
+        final decoded = NetworkMessage.fromJsonString(original.toJsonString());
+        expect(decoded, isNotNull);
+        expect(decoded!.content, content);
+        expect(decoded.type, MessageType.text);
+        expect(decoded.recipientIds, recipients);
+        expect(
+          ChatMessage.fromNetworkMessage(decoded, 2, 'Bob').type,
+          ChatMessageType.text,
+        );
+      }
+    }
+  });
+
+  test('搜索是房间广播；匹配和确认是单人私聊', () {
+    final search = NetworkMessage(
+      id: 1,
+      type: MessageType.search,
+      source: 'Alice',
+      content: '',
+    );
+    expect(
+      NetworkMessage.fromJsonString(search.toJsonString())?.isRoomMessage,
+      isTrue,
+    );
+    for (final type in [MessageType.match, MessageType.confirm]) {
+      final message = NetworkMessage(
+        id: 1,
+        type: type,
+        source: 'Alice',
+        content: '',
+        recipientId: 2,
+      );
+      expect(
+        NetworkMessage.fromJsonString(message.toJsonString())?.recipientId,
+        2,
+      );
+      expect(
+        NetworkMessage.fromJsonString(
+          NetworkMessage(
+            id: 1,
+            type: type,
+            source: 'Alice',
+            content: '',
+          ).toJsonString(),
+        ),
+        isNull,
+      );
+    }
+  });
+
   group('NetworkMessage.fromJson', () {
     test('解析合法消息', () {
       final msg = NetworkMessage.fromJson({
         'id': 5,
+        'route': 'room',
         'type': MessageType.text.index,
         'source': 'alice',
         'content': 'hello',
@@ -25,6 +90,7 @@ void main() {
     test('type 越界返回 null（不 RangeError）', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
+        'route': 'room',
         'type': 9999,
         'source': 'x',
         'content': 'x',
@@ -35,6 +101,7 @@ void main() {
     test('type 负数返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
+        'route': 'room',
         'type': -1,
         'source': 'x',
         'content': 'x',
@@ -45,6 +112,7 @@ void main() {
     test('type 非 int 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
+        'route': 'room',
         'type': 'text',
         'source': 'x',
         'content': 'x',
@@ -55,6 +123,7 @@ void main() {
     test('id 非 int 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': '5',
+        'route': 'room',
         'type': MessageType.text.index,
         'source': 'x',
         'content': 'x',
@@ -65,6 +134,7 @@ void main() {
     test('负数 id 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': -1,
+        'route': 'room',
         'type': MessageType.text.index,
       });
       expect(msg, isNull);
@@ -73,6 +143,7 @@ void main() {
     test('可选字段类型错误返回 null（不抛 TypeError）', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
+        'route': 'room',
         'type': MessageType.text.index,
         'source': 123,
         'timestamp': 'now',
@@ -83,6 +154,7 @@ void main() {
     test('source/content 缺失回退空串（不崩溃）', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
+        'route': 'room',
         'type': MessageType.text.index,
       });
       expect(msg, isNotNull);
@@ -95,6 +167,8 @@ void main() {
     test('合法 JSON 解析', () {
       final json = jsonEncode({
         'id': 2,
+        'route': 'group',
+        'recipientIds': [1, 2],
         'type': MessageType.action.index,
         'source': 'bob',
         'content': 'move',

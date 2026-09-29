@@ -198,19 +198,22 @@ class _MinecraftPageState extends State<MinecraftPage> {
   }
 
   Widget _buildHotbar() {
-    final isPortrait =
-        MediaQuery.of(context).orientation == Orientation.portrait;
-    return Positioned(
-      // 竖屏：摇杆上方留出空间；横屏：贴近底部
-      bottom: isPortrait ? 160 : 12,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Hotbar(
-          slotTypes: manager.slotTypes,
-          getCount: manager.getCount,
-          selectedSlot: manager.selectedSlot,
-          onSelect: (i) => setState(() => manager.selectedSlot = i),
+    return Positioned.fill(
+      child: OrientationBuilder(
+        builder: (context, orientation) => Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            // 竖屏：摇杆上方留出空间；横屏：贴近底部。
+            padding: EdgeInsets.only(
+              bottom: orientation == Orientation.portrait ? 160 : 12,
+            ),
+            child: Hotbar(
+              slotTypes: manager.slotTypes,
+              getCount: manager.getCount,
+              selectedSlot: manager.selectedSlot,
+              onSelect: (i) => setState(() => manager.selectedSlot = i),
+            ),
+          ),
         ),
       ),
     );

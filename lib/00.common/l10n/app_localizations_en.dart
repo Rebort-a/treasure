@@ -13,6 +13,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirm => 'Confirm';
 
   @override
+  String get confirmSurrender => 'Are you sure you want to surrender?';
+
+  @override
   String get cancel => 'Cancel';
 
   @override
@@ -57,10 +60,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get roomList => 'Room List';
 
   @override
-  String get local => 'Local';
+  String get appsPage => 'Apps';
 
   @override
-  String get network => 'Network';
+  String get onlinePage => 'Online';
 
   @override
   String get roomPassword => 'Room password';
@@ -73,6 +76,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get incorrectRoomPassword => 'Incorrect room password';
+
+  @override
+  String get roomJoinFailed =>
+      'Unable to join the room. Check the network and room address.';
+
+  @override
+  String get roomJoinTimedOut =>
+      'Connection or authentication timed out. Please try again.';
 
   @override
   String get defaultPlayerName => 'Default player name';
@@ -96,7 +107,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noRooms => 'No rooms yet';
 
   @override
-  String get joinGame => 'Click to play';
+  String get startMatching => 'Start matching';
+
+  @override
+  String get matching => 'Matching';
+
+  @override
+  String get cancelMatching => 'Cancel matching';
 
   @override
   String get matchingPlayers => 'Matching players';
@@ -118,6 +135,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createRoom => 'Create Room';
+
+  @override
+  String get quickCreateRoom => 'Quick create room';
 
   @override
   String get enterRoomName => 'Enter room name';

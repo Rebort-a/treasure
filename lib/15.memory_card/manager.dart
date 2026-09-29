@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/l10n/strings.dart';
@@ -145,8 +145,9 @@ class MemoryManager {
     displayInfo.value = _displayText;
   }
 
-  String get _displayText =>
-      gameOver.value ? S.timeTaken(_timer.tick) : S.remainingPairs(_difficulty - matchedCount.value);
+  String get _displayText => gameOver.value
+      ? S.timeTaken(_timer.tick)
+      : S.remainingPairs(_difficulty - matchedCount.value);
 
   /// 难度设置对话框（牌对数 4~16）
   void showSelector() {

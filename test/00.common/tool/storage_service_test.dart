@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:treasure/00.common/tool/storage_service.dart';
+import 'package:treasure/00.common/service/storage_service.dart';
 
 void main() {
   group('StorageService', () {
@@ -51,6 +51,44 @@ void main() {
 
         // cleanup
         await StorageService.instance.delete(key);
+      });
+
+      test('stores data inside its project directory', () async {
+        await StorageService.instance.init();
+
+        await StorageService.instance.write('progress', {
+          'level': 2,
+        }, project: '08.sudoku');
+
+        final baseDir = StorageService.instance.overrideBaseDir!;
+        expect(
+          await File('${baseDir.path}/08.sudoku/progress.json').exists(),
+          isTrue,
+        );
+        expect(
+          await StorageService.instance.read('progress', project: '08.sudoku'),
+          {'level': 2},
+        );
+        expect(
+          await StorageService.instance.read(
+            'progress',
+            project: '11.spaceship',
+          ),
+          isEmpty,
+        );
+      });
+
+      test('does not read files outside the project directory', () async {
+        await StorageService.instance.init();
+        final baseDir = StorageService.instance.overrideBaseDir!;
+        await File('${baseDir.path}/settings.json')
+            .writeAsString('{"language":"zh"}');
+
+        expect(await StorageService.instance.read('settings'), isEmpty);
+        expect(
+          await File('${baseDir.path}/00.common/settings.json').exists(),
+          isFalse,
+        );
       });
 
       test('overwriting an existing key persists the latest value', () async {

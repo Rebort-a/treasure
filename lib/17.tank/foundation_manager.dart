@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../00.common/game/map.dart';
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 import 'base.dart';
 
 /// 坦克大战共享游戏内核。

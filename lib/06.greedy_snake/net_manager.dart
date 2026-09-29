@@ -2,9 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../00.common/engine/net_real_engine.dart';
+import '../00.common/network/session/real_game_session.dart';
 import '../00.common/network/network_message.dart';
-import '../00.common/engine/network_engine.dart';
+import '../00.common/network/engine/network_engine.dart';
+import '../00.common/network/engine/net_real_engine.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
@@ -17,13 +18,13 @@ enum SnakeAction { joystick, speedButton }
 class NetManager extends FoundationalManager {
   static const int generateCount = 10;
 
-  late final NetRealGameEngine engine;
+  late final RealGameSession realSession;
 
   final Set<int> _pendingSyncIds = {};
   int _syncId = 0;
 
   NetManager({required NetworkEngine room}) {
-    engine = NetRealGameEngine(
+    realSession = createRealSession(
       room: room,
       searchHandler: _handleSearch,
       resourceHandler: _handleResource,
@@ -32,27 +33,41 @@ class NetManager extends FoundationalManager {
       exitHandler: _handleEnd,
     );
     initTicker();
-    engine.ended.addListener(suspendGame);
+    realSession.ended.addListener(suspendGame);
   }
 
   @override
-  int get identity => engine.identity;
+  int get identity => realSession.identity;
 
   void _handleSearch(int id) {
-    if (!snakes.containsKey(identity)) {
-      addSnake(identity, FoundationalManager.initialLength);
+    suspendGame();
+    // 仅暂存生成资源；自己的资源也必须等服务器回环后才加载进游戏状态。
+    final previousSnakes = Map<int, Snake>.of(snakes);
+    final previousFoods = foodGrid.toJson();
+    late final Map<String, dynamic> proposed;
+    try {
+      if (!snakes.containsKey(identity)) {
+        addSnake(identity, FoundationalManager.initialLength);
+      }
+      if (!snakes.containsKey(id)) {
+        addSnake(id, snakes[identity]!.length ~/ 2);
+      }
+      for (var i = 0; i < generateCount; i++) {
+        addFood(randomSafePosition);
+      }
+      proposed = _toJson();
+    } finally {
+      snakes
+        ..clear()
+        ..addAll(previousSnakes);
+      foodGrid
+        ..clear()
+        ..fromJson(previousFoods);
     }
-    if (!snakes.containsKey(id)) {
-      addSnake(id, snakes[identity]!.length ~/ 2);
-    }
-    for (var i = 0; i < generateCount; i++) {
-      addFood(randomSafePosition);
-    }
-
     _syncId++;
-    engine.sendNetworkMessage(
+    realSession.sendNetworkMessage(
       MessageType.resource,
-      json.encode({'syncId': _syncId, 'state': _toJson()}),
+      json.encode({'syncId': _syncId, 'state': proposed}),
     );
   }
 
@@ -70,7 +85,7 @@ class NetManager extends FoundationalManager {
       _pendingSyncIds
         ..clear()
         ..addAll(snakes.keys);
-      engine.sendNetworkMessage(
+      realSession.sendNetworkMessage(
         MessageType.sync,
         json.encode({'syncId': _syncId}),
       );
@@ -121,7 +136,7 @@ class NetManager extends FoundationalManager {
 
   void _resumeWhenSynchronized() {
     if (_pendingSyncIds.isNotEmpty) return;
-    if (!engine.completeSynchronization()) return;
+    if (!realSession.completeSynchronization()) return;
     resumeGame();
   }
 
@@ -173,7 +188,7 @@ class NetManager extends FoundationalManager {
     SnakeAction action, [
     Map<String, dynamic> payload = const {},
   ]) {
-    engine.sendNetworkMessage(
+    realSession.sendNetworkMessage(
       MessageType.action,
       json.encode({'actionType': action.name, 'syncId': _syncId, ...payload}),
     );
@@ -193,12 +208,12 @@ class NetManager extends FoundationalManager {
 
   @override
   void leavePage() {
-    engine.leavePage();
+    realSession.leavePage();
   }
 
   @override
   void dispose() {
-    engine.dispose();
+    realSession.dispose();
     super.dispose();
   }
 }

@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
 
 import '00.common/l10n/app_localizations.dart';
-
-import '00.common/style/theme.dart';
-import '00.common/tool/storage_service.dart';
-import '00.common/tool/app_info.dart';
-import '00.common/tool/player_settings.dart';
-import '01.home/home_page.dart';
 import '00.common/l10n/l10n.dart';
+import '00.common/style/theme.dart';
+import '00.common/tool/app_info.dart';
+import '00.common/service/storage_service.dart';
+
+import '01.home/home_page.dart';
 
 void main() async {
+  // 初始化 Flutter 引擎与插件绑定。
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 初始化存储服务
+  // 初始化本地 JSON 存储服务。
   await StorageService.instance.init();
-  // 加载应用版本信息
+  // 加载应用版本等基础信息。
   await AppInfo.load();
-  // 加载持久化的语言和主题设置
+  // 加载影响全局界面的语言和主题设置。
+  await _loadConfiguration();
+
+  runApp(const MyApp()); // 启动应用并显示根组件。
+}
+
+Future<void> _loadConfiguration() async {
   await LanguageProvider.instance.load();
   await ThemeProvider.instance.load();
-  await PlayerSettings.instance.load();
-
-  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

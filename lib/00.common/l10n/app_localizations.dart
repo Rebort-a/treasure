@@ -104,6 +104,12 @@ abstract class AppLocalizations {
   /// **'Confirm'**
   String get confirm;
 
+  /// No description provided for @confirmSurrender.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to surrender?'**
+  String get confirmSurrender;
+
   /// No description provided for @cancel.
   ///
   /// In en, this message translates to:
@@ -188,17 +194,17 @@ abstract class AppLocalizations {
   /// **'Room List'**
   String get roomList;
 
-  /// No description provided for @local.
+  /// No description provided for @appsPage.
   ///
   /// In en, this message translates to:
-  /// **'Local'**
-  String get local;
+  /// **'Apps'**
+  String get appsPage;
 
-  /// No description provided for @network.
+  /// No description provided for @onlinePage.
   ///
   /// In en, this message translates to:
-  /// **'Network'**
-  String get network;
+  /// **'Online'**
+  String get onlinePage;
 
   /// No description provided for @roomPassword.
   ///
@@ -223,6 +229,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Incorrect room password'**
   String get incorrectRoomPassword;
+
+  /// No description provided for @roomJoinFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to join the room. Check the network and room address.'**
+  String get roomJoinFailed;
+
+  /// No description provided for @roomJoinTimedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection or authentication timed out. Please try again.'**
+  String get roomJoinTimedOut;
 
   /// No description provided for @defaultPlayerName.
   ///
@@ -266,11 +284,23 @@ abstract class AppLocalizations {
   /// **'No rooms yet'**
   String get noRooms;
 
-  /// No description provided for @joinGame.
+  /// No description provided for @startMatching.
   ///
   /// In en, this message translates to:
-  /// **'Click to play'**
-  String get joinGame;
+  /// **'Start matching'**
+  String get startMatching;
+
+  /// No description provided for @matching.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching'**
+  String get matching;
+
+  /// No description provided for @cancelMatching.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel matching'**
+  String get cancelMatching;
 
   /// No description provided for @matchingPlayers.
   ///
@@ -313,6 +343,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Create Room'**
   String get createRoom;
+
+  /// No description provided for @quickCreateRoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick create room'**
+  String get quickCreateRoom;
 
   /// No description provided for @enterRoomName.
   ///

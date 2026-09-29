@@ -11,20 +11,20 @@ import '../../style/chat_theme.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n.dart';
-import '../../chat/chat_channel.dart';
+import '../../model/chat_channel.dart';
 import '../../network/network_message.dart';
 
 import '../image/blur_hash_image.dart';
 
 /// 现代化消息列表
 class MessageList extends StatefulWidget {
-  final ChatChannel networkEngine;
+  final ChatChannel channel;
   final ChatTheme theme;
   final double topPadding;
 
   const MessageList({
     super.key,
-    required this.networkEngine,
+    required this.channel,
     this.theme = ChatTheme.light,
     this.topPadding = 12,
   });
@@ -34,6 +34,7 @@ class MessageList extends StatefulWidget {
 }
 
 class _MessageListState extends State<MessageList> {
+  final _scrollController = ScrollController();
   bool _showScrollToBottom = false;
   bool _pendingCheck = false;
   bool _pendingScrollToBottom = false;
@@ -42,7 +43,7 @@ class _MessageListState extends State<MessageList> {
   @override
   void initState() {
     super.initState();
-    widget.networkEngine.scrollController.addListener(_onScroll);
+    _scrollController.addListener(_onScroll);
     _scheduleScrollToBottomIfNeeded();
   }
 
@@ -52,7 +53,7 @@ class _MessageListState extends State<MessageList> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _pendingCheck = false;
       if (!mounted) return;
-      final sc = widget.networkEngine.scrollController;
+      final sc = _scrollController;
       if (!sc.hasClients) return;
       final maxExtent = sc.position.maxScrollExtent;
       final atBottom = sc.offset >= maxExtent - 100;
@@ -69,7 +70,8 @@ class _MessageListState extends State<MessageList> {
 
   @override
   void dispose() {
-    widget.networkEngine.scrollController.removeListener(_onScroll);
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -79,7 +81,7 @@ class _MessageListState extends State<MessageList> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _pendingScrollToBottom = false;
       if (!mounted || _showScrollToBottom) return;
-      final sc = widget.networkEngine.scrollController;
+      final sc = _scrollController;
       if (!sc.hasClients) return;
       final diff = sc.position.maxScrollExtent - sc.offset;
       if (diff > 1) sc.jumpTo(sc.position.maxScrollExtent);
@@ -89,7 +91,7 @@ class _MessageListState extends State<MessageList> {
   void _onImageLoad() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _showScrollToBottom) return;
-      final sc = widget.networkEngine.scrollController;
+      final sc = _scrollController;
       if (!sc.hasClients) return;
       final maxExtent = sc.position.maxScrollExtent;
       if (maxExtent > _lastMaxExtent) {
@@ -102,7 +104,7 @@ class _MessageListState extends State<MessageList> {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<NetworkMessage>>(
-      valueListenable: widget.networkEngine.messageList,
+      valueListenable: widget.channel.messageList,
       builder: (context, messages, child) {
         if (!_showScrollToBottom) _scheduleScrollToBottomIfNeeded();
         return Stack(
@@ -148,14 +150,14 @@ class _MessageListState extends State<MessageList> {
         .map(
           (m) => ChatMessage.fromNetworkMessage(
             m,
-            widget.networkEngine.identity,
-            widget.networkEngine.userName,
+            widget.channel.identity,
+            widget.channel.userName,
           ),
         )
         .toList();
 
     return ListView.builder(
-      controller: widget.networkEngine.scrollController,
+      controller: _scrollController,
       padding: EdgeInsets.fromLTRB(16, widget.topPadding, 16, 12),
       itemCount: chatMessages.length,
       itemBuilder: (context, index) {
@@ -180,7 +182,7 @@ class _MessageListState extends State<MessageList> {
       bottom: 16,
       child: GestureDetector(
         onTap: () {
-          final sc = widget.networkEngine.scrollController;
+          final sc = _scrollController;
           if (sc.hasClients) {
             sc.jumpTo(sc.position.maxScrollExtent);
           }
@@ -336,11 +338,6 @@ class _MessageListState extends State<MessageList> {
     switch (msg.type) {
       case ChatMessageType.text:
         return _textBubble(msg);
-      case ChatMessageType.emoji:
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text(msg.content, style: const TextStyle(fontSize: 48)),
-        );
       case ChatMessageType.image:
         return _imageBubble(msg);
       case ChatMessageType.file:
@@ -612,13 +609,13 @@ class _MessageListState extends State<MessageList> {
 
 /// 现代化消息输入组件
 class MessageInput extends StatefulWidget {
-  final ChatChannel networkEngine;
+  final ChatChannel channel;
   final ChatTheme theme;
   final VoidCallback? onAttachmentTap;
 
   const MessageInput({
     super.key,
-    required this.networkEngine,
+    required this.channel,
     this.theme = ChatTheme.light,
     this.onAttachmentTap,
   });
@@ -628,22 +625,30 @@ class MessageInput extends StatefulWidget {
 }
 
 class _MessageInputState extends State<MessageInput> {
+  final _textController = TextEditingController();
+
+  void _sendText() {
+    widget.channel.sendText(_textController.text);
+    _textController.clear();
+  }
+
   bool _hasText = false;
 
   @override
   void initState() {
     super.initState();
-    widget.networkEngine.textController.addListener(_onTextChanged);
+    _textController.addListener(_onTextChanged);
   }
 
   void _onTextChanged() {
-    final hasText = widget.networkEngine.textController.text.trim().isNotEmpty;
+    final hasText = _textController.text.trim().isNotEmpty;
     if (hasText != _hasText) setState(() => _hasText = hasText);
   }
 
   @override
   void dispose() {
-    widget.networkEngine.textController.removeListener(_onTextChanged);
+    _textController.removeListener(_onTextChanged);
+    _textController.dispose();
     super.dispose();
   }
 
@@ -674,11 +679,11 @@ class _MessageInputState extends State<MessageInput> {
                     ),
                     decoration: widget.theme.inputDecoration,
                     child: TextField(
-                      controller: widget.networkEngine.textController,
+                      controller: _textController,
                       style: widget.theme.inputTextStyle,
                       maxLines: null,
                       textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => widget.networkEngine.sendInputText(),
+                      onSubmitted: (_) => _sendText(),
                       decoration: InputDecoration(
                         hintText: S.typeMessage,
                         hintStyle: widget.theme.inputHintStyle,
@@ -717,7 +722,7 @@ class _MessageInputState extends State<MessageInput> {
   Widget _sendBtn() {
     final enabled = _hasText;
     return GestureDetector(
-      onTap: enabled ? widget.networkEngine.sendInputText : null,
+      onTap: enabled ? _sendText : null,
       child: Container(
         width: 36,
         height: 36,

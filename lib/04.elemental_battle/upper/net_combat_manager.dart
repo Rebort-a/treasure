@@ -3,10 +3,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../../00.common/engine/net_turn_engine.dart';
+import '../../00.common/network/session/turn_game_session.dart';
 import '../../00.common/game/step.dart';
 import '../../00.common/network/network_message.dart';
-import '../../00.common/engine/network_engine.dart';
+import '../../00.common/network/engine/network_engine.dart';
+import '../../00.common/network/engine/net_turn_engine.dart';
 import '../../00.common/l10n/strings.dart';
 
 import '../middle/foundation_combat_manager.dart';
@@ -20,11 +21,10 @@ import '../upper/cast_page.dart';
 import '../upper/status_page.dart';
 
 class NetCombatManager extends FoundationalCombatManager {
-  late final NetTurnGameEngine netTurnEngine;
+  late final TurnGameSession turnSession;
 
   NetCombatManager({required NetworkEngine room}) {
-    // 使用局部函数初始化NetTurnEngine
-    netTurnEngine = NetTurnGameEngine(
+    turnSession = createTurnSession(
       room: room,
       resourceMode: TurnResourceMode.both,
       searchHandler: _searchHandler,
@@ -47,14 +47,14 @@ class NetCombatManager extends FoundationalCombatManager {
     } else if (step == GameStep.frontWait) {
       // 先手收到敌人的信息，初始化enemy，并开始战斗
       enemy = Elemental.fromJson(jsonData);
-      initCombat(netTurnEngine.playerType);
+      initCombat(turnSession.playerType);
     } else if (step == GameStep.rearWait) {
       // 后手收到敌人的信息，初始化enemy
       enemy = Elemental.fromJson(jsonData);
     } else if (step == GameStep.rearConfig) {
       // 后手收到自己的信息，初始化player，并开始战斗
       player = Elemental.fromJson(jsonData);
-      initCombat(netTurnEngine.playerType);
+      initCombat(turnSession.playerType);
     }
   }
 
@@ -65,7 +65,7 @@ class NetCombatManager extends FoundationalCombatManager {
     );
     final actionType = _getActionType(action.actionIndex);
 
-    if (isSelf && (netTurnEngine.playerType != currentGamer.value)) {
+    if (isSelf && (turnSession.playerType != currentGamer.value)) {
       return addCombatInfo(S.serverNotYourTurn);
     }
 
@@ -79,7 +79,7 @@ class NetCombatManager extends FoundationalCombatManager {
     actionHandlers[actionType]?.call();
   }
 
-  void _exitHandler() => netTurnEngine.leavePage();
+  void _exitHandler() => turnSession.leavePage();
 
   @override
   void handleEnemyAction() {}
@@ -102,10 +102,10 @@ class NetCombatManager extends FoundationalCombatManager {
   }
 
   void _sendRoleConfig(EnergyConfigs configs) {
-    netTurnEngine.sendNetworkMessage(
+    turnSession.sendNetworkMessage(
       MessageType.resource,
       Elemental.configToJsonString(
-        netTurnEngine.userName,
+        turnSession.userName,
         configs,
         Random().nextInt(EnergyType.values.length),
       ),
@@ -169,9 +169,9 @@ class NetCombatManager extends FoundationalCombatManager {
   }
 
   void _sendActionMessage(int actionIndex, int targetIndex) {
-    if ((netTurnEngine.playerType == currentGamer.value) ||
+    if ((turnSession.playerType == currentGamer.value) ||
         (actionIndex == ConationType.escape.index)) {
-      netTurnEngine.sendNetworkMessage(
+      turnSession.sendNetworkMessage(
         MessageType.action,
         jsonEncode(
           GameAction(actionIndex: actionIndex, targetIndex: targetIndex),
@@ -190,6 +190,11 @@ class NetCombatManager extends FoundationalCombatManager {
 
   @override
   void leavePage() {
-    netTurnEngine.leavePage();
+    turnSession.leavePage();
+  }
+
+  void dispose() {
+    turnSession.dispose();
+    pageNavigator.dispose();
   }
 }

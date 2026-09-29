@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../base/block.dart';
@@ -195,35 +196,37 @@ class Hotbar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    // 竖屏缩放：9 格全宽 432px 超出手机宽度时按比例缩小
-    final scale = screenWidth < 480 ? screenWidth / 480 : 1.0;
-    final slotSize = 44.0 * scale;
-    final margin = 2.0 * scale;
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final availableWidth = constraints.maxWidth;
+      // 竖屏缩放：背包栏宽度超过可用空间时按比例缩小。
+      final scale = availableWidth < 480 ? availableWidth / 480 : 1.0;
+      final slotSize = 44.0 * scale;
+      final margin = 2.0 * scale;
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4),
-      color: Colors.black.withValues(alpha: 0.35),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(Constants.hotbarSlotCount, (i) {
-          final type = i < slotTypes.length ? slotTypes[i] : null;
-          final count = type != null ? getCount(type) : 0;
-          return GestureDetector(
-            onTap: () => onSelect(i),
-            child: _HotbarSlot(
-              type: type,
-              count: count,
-              selected: i == selectedSlot,
-              slotSize: slotSize,
-              margin: margin,
-            ),
-          );
-        }),
-      ),
-    );
-  }
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4),
+        color: Colors.black.withValues(alpha: 0.35),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(Constants.hotbarSlotCount, (i) {
+            final type = i < slotTypes.length ? slotTypes[i] : null;
+            final count = type != null ? getCount(type) : 0;
+            return GestureDetector(
+              onTap: () => onSelect(i),
+              child: _HotbarSlot(
+                type: type,
+                count: count,
+                selected: i == selectedSlot,
+                slotSize: slotSize,
+                margin: margin,
+              ),
+            );
+          }),
+        ),
+      );
+    },
+  );
 }
 
 class _HotbarSlot extends StatelessWidget {
@@ -276,9 +279,7 @@ class _HotbarSlot extends StatelessWidget {
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(blurRadius: 2, color: Colors.black),
-                        ],
+                        shadows: [Shadow(blurRadius: 2, color: Colors.black)],
                       ),
                     ),
                   ),

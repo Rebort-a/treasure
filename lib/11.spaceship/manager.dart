@@ -1,12 +1,13 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../00.common/widget/banner/banner_template.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
-import '../00.common/tool/notifiers.dart';
-import '../00.common/tool/storage_service.dart';
+import '../00.common/model/notifiers.dart';
+import '../00.common/service/storage_service.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'constant.dart';
@@ -600,7 +601,10 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 从本地加载历史数据
   Future<void> loadHistory() async {
-    final data = await StorageService.instance.read('spaceship');
+    final data = await StorageService.instance.read(
+      'spaceship',
+      project: '11.spaceship',
+    );
     _highScore = data['highScore'] as int? ?? 0;
     final achList = data['achievements'] as List<dynamic>? ?? [];
     _persistedAchievements.clear();
@@ -625,7 +629,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     await StorageService.instance.write('spaceship', {
       'highScore': _highScore,
       'achievements': _persistedAchievements.map((e) => e.name).toList(),
-    });
+    }, project: '11.spaceship');
   }
 
   // 解锁成就

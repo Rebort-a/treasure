@@ -1,3 +1,6 @@
+import '../00.common/network/session/game_session.dart';
+import '../00.common/widget/navigator/online_game_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/game/gamer.dart';
@@ -11,25 +14,46 @@ import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
 import 'foundation_widget.dart';
 
-class NetAnimalChessPage extends StatelessWidget {
-  final NetManager _manager;
-
-  const NetAnimalChessPage({super.key, required NetManager manager})
-    : _manager = manager;
+class NetAnimalChessPage extends OnlineGamePage<NetManager> {
+  const NetAnimalChessPage({super.key, required super.room});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: _buildPage(context),
-  );
+  String get gameName => 'animalChess';
+
+  @override
+  NetManager createManager() => NetManager(room: room);
+
+  @override
+  GameSession sessionOf(NetManager manager) => manager.turnSession;
+
+  @override
+  Widget buildGame(
+    BuildContext context,
+    NetManager manager,
+    VoidCallback requestExit,
+  ) => _AnimalChessGame(manager: manager, onExit: requestExit);
+
+  @override
+  void disposeManager(NetManager manager) => manager.dispose();
+}
+
+class _AnimalChessGame extends StatelessWidget {
+  final NetManager _manager;
+  final VoidCallback _onExit;
+
+  const _AnimalChessGame({
+    required NetManager manager,
+    required VoidCallback onExit,
+  }) : _manager = manager,
+       _onExit = onExit;
+
+  @override
+  Widget build(BuildContext context) => _buildPage(context);
 
   Widget _buildPage(BuildContext context) {
     return Center(
       child: ValueListenableBuilder<GameStep>(
-        valueListenable: _manager.netTurnEngine.gameStep,
+        valueListenable: _manager.turnSession.gameStep,
         builder: (__, step, _) {
           return Scaffold(appBar: _buildAppBar(step), body: _buildBody(step));
         },
@@ -40,13 +64,13 @@ class NetAnimalChessPage extends StatelessWidget {
   AppBar _buildAppBar(GameStep step) {
     // 根据游戏步骤确定图标和回调
     IconData icon;
-    VoidCallback onPressed = _manager.leavePage;
+    VoidCallback onPressed = _onExit;
 
     if (step.index < GameStep.action.index) {
       icon = Icons.arrow_back;
     } else if (step.index == GameStep.action.index) {
       icon = Icons.flag;
-      onPressed = _manager.surrender;
+      onPressed = _onExit;
     } else {
       icon = Icons.exit_to_app;
     }
@@ -76,11 +100,8 @@ class NetAnimalChessPage extends StatelessWidget {
               ]
             : _buildPrepare(step)),
 
-        Expanded(
-          flex: 1,
-          child: MessageList(networkEngine: _manager.netTurnEngine),
-        ),
-        MessageInput(networkEngine: _manager.netTurnEngine),
+        Expanded(flex: 1, child: MessageList(channel: _manager.turnSession)),
+        MessageInput(channel: _manager.turnSession),
       ],
     );
   }
@@ -94,7 +115,7 @@ class NetAnimalChessPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        gamer == _manager.netTurnEngine.playerType
+        gamer == _manager.turnSession.playerType
             ? S.yourTurn()
             : S.opponentTurn(),
         style: globalTheme.textTheme.titleMedium?.copyWith(color: Colors.white),
@@ -107,7 +128,7 @@ class NetAnimalChessPage extends StatelessWidget {
       const SizedBox(height: 20),
       const CircularProgressIndicator(),
       const SizedBox(height: 20),
-      Text(step.getExplanation()),
+      Text(S.gameStepExplanation(step)),
     ];
   }
 }

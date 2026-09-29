@@ -13,6 +13,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirm => '确认';
 
   @override
+  String get confirmSurrender => '确定要投降吗？';
+
+  @override
   String get cancel => '取消';
 
   @override
@@ -57,10 +60,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get roomList => '房间列表';
 
   @override
-  String get local => '本地';
+  String get appsPage => '应用';
 
   @override
-  String get network => '网络';
+  String get onlinePage => '联机';
 
   @override
   String get roomPassword => '房间密码';
@@ -73,6 +76,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get incorrectRoomPassword => '房间密码错误';
+
+  @override
+  String get roomJoinFailed => '无法加入房间，请检查网络和房间地址';
+
+  @override
+  String get roomJoinTimedOut => '连接或认证超时，请重试';
 
   @override
   String get defaultPlayerName => '默认玩家名称';
@@ -96,7 +105,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noRooms => '暂无房间';
 
   @override
-  String get joinGame => '点击进入游戏';
+  String get startMatching => '开始匹配';
+
+  @override
+  String get matching => '正在匹配';
+
+  @override
+  String get cancelMatching => '取消匹配';
 
   @override
   String get matchingPlayers => '正在匹配玩家';
@@ -118,6 +133,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get createRoom => '创建房间';
+
+  @override
+  String get quickCreateRoom => '快速创建房间';
 
   @override
   String get enterRoomName => '输入房间名';

@@ -1,35 +1,39 @@
 import 'dart:convert';
-
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../00.common/network/network_room.dart';
+import 'package:flutter/material.dart';
 
-import '../00.common/network/room_session.dart';
-import '../00.common/widget/navigator/game_launch.dart';
-import '../00.common/style/chat_theme.dart';
-import '../00.common/tool/blur_hash.dart';
+import '../00.common/l10n/strings.dart';
+import '../00.common/network/engine/network_engine.dart';
 import '../00.common/widget/component/chat_component.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
-import '../00.common/l10n/strings.dart';
+import '../00.common/style/chat_theme.dart';
+import '../00.common/tool/blur_hash.dart';
+
 import 'net_manager.dart';
 import 'attachment_menu.dart';
 
 class NetChatPage extends StatefulWidget {
-  final String userName;
-  final RoomInfo roomInfo;
+  final NetworkEngine room;
+  final String gameName;
+  final bool ignoreBack;
 
-  const NetChatPage({
+  NetChatPage({
     super.key,
-    required this.userName,
-    required this.roomInfo,
-    required this.gameFactory,
-  });
+    required this.room,
+    this.gameName = '',
+    this.onMatched,
+    this.ignoreBack = false,
+  }) {
+    if (!room.isJoined) {
+      throw StateError('Room authentication has not completed');
+    }
+  }
 
-  final GameLaunchFactory gameFactory;
+  final Future<void> Function(BuildContext)? onMatched;
 
   @override
   State<NetChatPage> createState() => _NetChatPageState();
@@ -38,60 +42,48 @@ class NetChatPage extends StatefulWidget {
 class _NetChatPageState extends State<NetChatPage> {
   late final NetManager _manager;
   final ChatTheme _theme = ChatTheme.light;
-  GameLaunch? _game;
-  Route<void>? _gameRoute;
-  bool _gameEventScheduled = false;
+  bool _openingGame = false;
 
   @override
   void initState() {
     super.initState();
-    _manager = NetManager(userName: widget.userName, roomInfo: widget.roomInfo);
+    _manager = NetManager(room: widget.room);
+    widget.room.matchPhase.addListener(_matchChanged);
   }
 
-  void _gameChanged() {
-    if (_gameEventScheduled || !mounted) return;
-    _gameEventScheduled = true;
+  /// 匹配结果由房间保留，页面在导航时创建并自行接管游戏生命周期。
+  void _matchChanged() {
+    if (!mounted ||
+        _openingGame ||
+        widget.room.matchPhase.value != RoomMatchPhase.matched) {
+      return;
+    }
+    _openingGame = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _gameEventScheduled = false;
-      if (!mounted) return;
-      final game = _game;
-      if (game == null) return;
-      if (game.engine.ended.value) {
-        if (_gameRoute != null) {
-          final navigator = Navigator.of(context);
-          final chatRoute = ModalRoute.of(context);
-          navigator.popUntil(
-            (route) => route == _gameRoute || route == chatRoute,
-          );
-          if (_gameRoute!.isCurrent) navigator.pop();
-        } else {
-          _releaseGame(game);
-        }
+      if (!mounted || widget.room.matchPhase.value != RoomMatchPhase.matched) {
+        _openingGame = false;
         return;
       }
-      if (_gameRoute != null || !game.engine.readyToOpen.value) return;
-      final route = MaterialPageRoute<void>(builder: (_) => game.buildPage());
-      _gameRoute = route;
-      await Navigator.of(context).push(route);
-      game.engine.finish();
-      await route.completed;
-      if (!mounted) return;
-      _gameRoute = null;
-      _releaseGame(game);
+      final onMatched = widget.onMatched;
+      if (onMatched == null) {
+        widget.room.cancelMatching();
+        _openingGame = false;
+        return;
+      }
+      widget.room.openMatchedGame();
+      try {
+        await onMatched(context);
+      } finally {
+        if (mounted) setState(() => _openingGame = false);
+      }
     });
     WidgetsBinding.instance.scheduleFrame();
   }
 
-  void _releaseGame(GameLaunch game) {
-    game.engine.readyToOpen.removeListener(_gameChanged);
-    game.engine.ended.removeListener(_gameChanged);
-    if (identical(_game, game)) _game = null;
-    game.dispose();
-  }
-
   @override
   void dispose() {
-    if (_game case final game?) _releaseGame(game);
+    widget.room.matchPhase.removeListener(_matchChanged);
+    widget.room.cancelMatching();
     _manager.dispose();
     super.dispose();
   }
@@ -99,9 +91,9 @@ class _NetChatPageState extends State<NetChatPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: widget.ignoreBack,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop) return;
+        if (didPop || widget.ignoreBack) return;
         _manager.leavePage();
       },
       child: Scaffold(
@@ -131,15 +123,15 @@ class _NetChatPageState extends State<NetChatPage> {
           color: _theme.iconColor,
           size: 20,
         ),
-        onPressed: _manager.networkEngine.leavePage,
+        onPressed: _manager.leavePage,
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ValueListenableBuilder<RoomSession>(
-            valueListenable: _manager.networkEngine.roomSession,
+          ValueListenableBuilder<Map<int, String>>(
+            valueListenable: _manager.room.members,
             builder: (_, session, __) => Text(
-              '${_manager.networkEngine.roomName} (${session.count})',
+              '${_manager.room.roomName} (${session.length})',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -188,7 +180,7 @@ class _NetChatPageState extends State<NetChatPage> {
 
   Widget _statusDot() {
     return ValueListenableBuilder<int>(
-      valueListenable: _manager.networkEngine.identityNotifier,
+      valueListenable: _manager.room.identityNotifier,
       builder: (_, identity, __) {
         final online = identity > 0;
         return Row(
@@ -218,36 +210,59 @@ class _NetChatPageState extends State<NetChatPage> {
     );
   }
 
-  Widget _buildBody() {
-    return Column(
-      children: [
-        NotifierNavigator(navigatorHandler: _manager.pageNavigator),
-        ValueListenableBuilder<RoomSession>(
-          valueListenable: _manager.networkEngine.roomSession,
-          builder: (_, session, __) => session.game == 0
-              ? const SizedBox.shrink()
-              : PinnedRoomCard(child: _gameCard(session)),
-        ),
-        Expanded(
-          child: ValueListenableBuilder<RoomSession>(
-            valueListenable: _manager.networkEngine.roomSession,
-            builder: (_, session, __) => MessageList(
-              networkEngine: _manager.networkEngine,
+  Widget _buildBody() => ValueListenableBuilder<RoomStatus>(
+    valueListenable: widget.room.status,
+    builder: (_, status, __) {
+      final showStatus =
+          status.state != RoomConnectionState.joined &&
+          status.state != RoomConnectionState.closed;
+      final hasGame = widget.room.roomType != 0 && widget.gameName.isNotEmpty;
+      final failed = status.state == RoomConnectionState.failed;
+      final text = failed
+          ? switch (status.failure) {
+              RoomFailure.roomClosed => S.roomClosed,
+              RoomFailure.invalidPassword => S.incorrectRoomPassword,
+              _ => S.roomJoinFailed,
+            }
+          : S.reconnecting(status.attempt, widget.room.maxReconnectAttempts);
+      return Column(
+        children: [
+          NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+          if (showStatus || hasGame)
+            PinnedRoomCard(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showStatus)
+                    ListTile(
+                      title: Text(text),
+                      trailing: TextButton(
+                        onPressed: _manager.leavePage,
+                        child: Text(failed ? S.close : S.cancel),
+                      ),
+                    ),
+                  if (hasGame) _gameCard(),
+                ],
+              ),
+            ),
+          Expanded(
+            child: MessageList(
+              channel: widget.room,
               theme: _theme,
-              topPadding: session.game == 0
-                  ? MediaQuery.paddingOf(context).top + kToolbarHeight + 4
-                  : 4,
+              topPadding: showStatus || hasGame
+                  ? 4
+                  : MediaQuery.paddingOf(context).top + kToolbarHeight + 4,
             ),
           ),
-        ),
-        MessageInput(
-          networkEngine: _manager.networkEngine,
-          theme: _theme,
-          onAttachmentTap: _showAttachmentMenu,
-        ),
-      ],
-    );
-  }
+          MessageInput(
+            channel: widget.room,
+            theme: _theme,
+            onAttachmentTap: _showAttachmentMenu,
+          ),
+        ],
+      );
+    },
+  );
 
   void _showAttachmentMenu() {
     AttachmentMenu.show(
@@ -257,32 +272,60 @@ class _NetChatPageState extends State<NetChatPage> {
     );
   }
 
-  Widget _gameCard(RoomSession session) {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: ListTile(
-        leading: const Icon(Icons.sports_esports_outlined),
-        title: Text(S.roomTypeString(session.gameName)),
-
-        trailing: Text(S.joinGame),
-        onTap: _requestPlay,
-      ),
+  Widget _gameCard() {
+    return ValueListenableBuilder<RoomMatchPhase>(
+      valueListenable: widget.room.matchPhase,
+      builder: (_, match, __) {
+        final matching =
+            match == RoomMatchPhase.matching ||
+            match == RoomMatchPhase.matched ||
+            _openingGame;
+        final pending = match == RoomMatchPhase.sending;
+        return Card(
+          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: ListTile(
+            leading: const Icon(Icons.gamepad),
+            title: Text(S.roomTypeString(widget.gameName)),
+            subtitle: matching ? Text(S.matching) : null,
+            trailing: TextButton(
+              onPressed: pending
+                  ? null
+                  : matching
+                  ? _cancelMatch
+                  : _requestPlay,
+              child: Text(
+                pending
+                    ? S.startMatching
+                    : matching
+                    ? S.cancelMatching
+                    : S.startMatching,
+              ),
+            ),
+            onTap: matching || pending ? null : _requestPlay,
+          ),
+        );
+      },
     );
   }
 
   void _requestPlay() {
-    final room = _manager.networkEngine;
-    final type = room.roomSession.value.game;
-    if (room.identity == 0 || _gameRoute != null || type <= 0) {
+    final room = _manager.room;
+    final type = room.roomType;
+    if (room.identity == 0 ||
+        _openingGame ||
+        room.matchPhase.value != RoomMatchPhase.idle ||
+        type <= 0 ||
+        widget.gameName.isEmpty) {
       return;
     }
-    if (_game case final previous?) _releaseGame(previous);
-    final game = widget.gameFactory(room);
-    if (game == null) return;
-    _game = game;
-    game.engine.readyToOpen.addListener(_gameChanged);
-    game.engine.ended.addListener(_gameChanged);
-    game.engine.start();
+    room.startMatching();
+  }
+
+  void _cancelMatch() {
+    if (_manager.room.matchPhase.value != RoomMatchPhase.idle) {
+      _manager.room.cancelMatching();
+      return;
+    }
   }
 
   Future<void> _pickImage() async {
@@ -314,7 +357,7 @@ class _NetChatPageState extends State<NetChatPage> {
         blurHash = BlurHash.encode(pixels, w, h);
       } catch (_) {}
 
-      _manager.networkEngine.sendImageMessage(
+      _manager.room.sendImageMessage(
         base64Encode(bytes),
         fileName: file.name,
         blurHash: blurHash,
@@ -332,7 +375,7 @@ class _NetChatPageState extends State<NetChatPage> {
       final file = await FilePicker.pickFile(type: FileType.any);
       if (file != null) {
         final fileBytes = await file.readAsBytes();
-        _manager.networkEngine.sendFileMessage(
+        _manager.room.sendFileMessage(
           file.name,
           fileBytes.length,
           base64Encode(fileBytes),
@@ -359,18 +402,18 @@ class _NetChatPageState extends State<NetChatPage> {
             content: Text(S.clearHistoryConfirm),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(S.cancel),
-              ),
-              TextButton(
                 onPressed: () {
-                  _manager.networkEngine.messageList.clear();
+                  _manager.room.messageList.clear();
                   Navigator.pop(context);
                 },
                 child: Text(
                   S.confirm,
                   style: const TextStyle(color: Colors.red),
                 ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(S.cancel),
               ),
             ],
           ),

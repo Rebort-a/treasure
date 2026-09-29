@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 
 // 围棋棋子状态
 enum StoneState { empty, black, white }
@@ -70,7 +70,10 @@ abstract final class GoRules {
     final stack = [index];
     while (stack.isNotEmpty) {
       final i = stack.removeLast();
-      if (i < 0 || i >= cells.length || group.contains(i) || cells[i] != state) {
+      if (i < 0 ||
+          i >= cells.length ||
+          group.contains(i) ||
+          cells[i] != state) {
         continue;
       }
       group.add(i);
@@ -178,8 +181,9 @@ class GoBoard {
     _initializeLiberties();
   }
 
-  List<StoneState> _cellsSnapshot() =>
-      [for (final g in grids.value) g.value.state];
+  List<StoneState> _cellsSnapshot() => [
+    for (final g in grids.value) g.value.state,
+  ];
 
   /// 导出棋盘快照（StoneState 序列），供 AI 只读使用
   List<StoneState> snapshot() => _cellsSnapshot();
@@ -283,8 +287,7 @@ class GoBoard {
 
     final lastMove = moveHistory.removeLast();
     int index = lastMove['index'] as int;
-    List<int> captured =
-        (lastMove['captured'] as List<dynamic>).cast<int>();
+    List<int> captured = (lastMove['captured'] as List<dynamic>).cast<int>();
 
     // 恢复落子位置
     grids.value[index].clear();

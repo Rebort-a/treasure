@@ -1,7 +1,7 @@
 import '../network/network_message.dart';
 
 /// 聊天消息类型
-enum ChatMessageType { text, image, file, emoji, system }
+enum ChatMessageType { text, image, file, system }
 
 /// 聊天消息模型 - 用于 UI 展示
 class ChatMessage {
@@ -50,9 +50,6 @@ class ChatMessage {
         break;
       case MessageType.file:
         type = ChatMessageType.file;
-        break;
-      case MessageType.emoji:
-        type = ChatMessageType.emoji;
         break;
       case MessageType.notify:
         type = ChatMessageType.system;

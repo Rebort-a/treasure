@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/style/theme.dart';
-import 'package:treasure/00.common/tool/player_settings.dart';
+import 'package:treasure/01.home/player_settings.dart';
 import 'package:treasure/00.common/network/socket_server.dart';
 import 'package:treasure/00.common/network/network_room.dart';
 import 'package:treasure/01.home/home_manager.dart';
-import 'package:treasure/01.home/floating_navigation_bar.dart';
+import 'package:treasure/00.common/widget/navigator/floating_navigation_bar.dart';
 import 'package:treasure/01.home/home_page.dart';
 import 'package:treasure/01.home/route.dart';
 import 'package:treasure/03.animal_chess/local_page.dart';
@@ -25,7 +25,7 @@ void main() {
     await tester.pumpWidget(MyApp(home: HomePage(manager: manager)));
     await tester.pump();
 
-    expect(find.text('Local'), findsWidgets);
+    expect(find.text('Apps'), findsWidgets);
     expect(find.text('Animal Chess'), findsOneWidget);
     expect(find.byType(FloatingNavigationBar), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, 'Gomoku');
@@ -35,7 +35,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '');
     await tester.pump();
 
-    manager.routeLocal(LocalItemType.animalChess);
+    manager.routeLocal(AppItemType.animalChess);
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -55,7 +55,7 @@ void main() {
     expect(find.byIcon(Icons.lan_outlined), findsOneWidget);
     expect(find.byIcon(Icons.wifi_tethering), findsWidgets);
     expect(
-      find.text('All apps (${LocalItemType.values.length})'),
+      find.text('All apps (${AppItemType.values.length})'),
       findsOneWidget,
     );
     final search = find.byType(TextField).first;
@@ -132,6 +132,28 @@ void main() {
     expect(manager.createdRooms.value, isEmpty);
   });
 
+  testWidgets('应用卡片可跳过类型选择快速创建联机房间', (tester) async {
+    final manager = HomeManager(startDiscovery: false);
+    await tester.pumpWidget(MyApp(home: HomePage(manager: manager)));
+    await tester.pump();
+
+    final appCard = find.ancestor(
+      of: find.text('Gomoku'),
+      matching: find.byType(ListTile),
+    );
+    final quickCreateButton = find.descendant(
+      of: appCard,
+      matching: find.byTooltip('Quick create room'),
+    );
+    await tester.ensureVisible(quickCreateButton);
+    await tester.tap(quickCreateButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Online'), findsWidgets);
+    expect(find.text('Enter room name'), findsOneWidget);
+    expect(find.text('Game'), findsNothing);
+  });
+
   testWidgets('房间锁图标位于名称前，不替代游戏或聊天图标', (tester) async {
     final manager = HomeManager(startDiscovery: false);
     await tester.pumpWidget(MyApp(home: HomePage(manager: manager)));
@@ -143,7 +165,7 @@ void main() {
         for (final locked in [false, true]) {
           manager.createdRooms.value = [];
           manager.othersRooms.value = [];
-          final type = game ? NetItemType.gobang.index : RoomInfo.chatType;
+          final type = game ? OnlineItemType.gobang.index : RoomInfo.chatType;
           if (created) {
             manager.createdRooms.add(
               CreatedRoomInfo(
@@ -173,7 +195,7 @@ void main() {
           final tile = tester.widget<ListTile>(tileFinder);
           expect(
             (tile.leading as Icon).icon,
-            game ? Icons.sports_esports_outlined : Icons.forum_outlined,
+            game ? Icons.gamepad : Icons.forum_outlined,
           );
           final lock = find.descendant(
             of: find.byWidget(tile.title!),

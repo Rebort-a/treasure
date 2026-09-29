@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/tool/notifiers.dart';
+import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/l10n/strings.dart';
@@ -15,8 +15,9 @@ class SchulteManager {
   int _regionCount = 12; // N（区域数 = 数字数）
   bool _isGameOver = false;
 
-  final ValueNotifier<SchulteBoard> board =
-      ValueNotifier(SchulteBoard(cols: cols, rows: rows, regions: const []));
+  final ValueNotifier<SchulteBoard> board = ValueNotifier(
+    SchulteBoard(cols: cols, rows: rows, regions: const []),
+  );
   final ValueNotifier<int> nextNumber = ValueNotifier(1);
   final ValueNotifier<int> elapsed = ValueNotifier(0);
   final ValueNotifier<String> displayInfo = ValueNotifier('');
@@ -111,16 +112,16 @@ class SchulteManager {
   /// 难度设置（区域数 N：4~40）
   void showSelector() {
     pageNavigator.value = (context) => DialogTemplate.intSliderDialog(
-          context: context,
-          title: S.setDifficulty,
-          sliderData: IntSliderData(
-            start: 4,
-            end: 40,
-            value: _regionCount,
-            step: 1,
-          ),
-          onConfirm: _changeDifficulty,
-        );
+      context: context,
+      title: S.setDifficulty,
+      sliderData: IntSliderData(
+        start: 4,
+        end: 40,
+        value: _regionCount,
+        step: 1,
+      ),
+      onConfirm: _changeDifficulty,
+    );
   }
 
   void _changeDifficulty(int value) {

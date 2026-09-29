@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../base/energy.dart';
 
 import '../../00.common/game/gamer.dart';
 import '../../00.common/l10n/strings.dart';
 import '../../00.common/widget/dialog/template_dialog.dart';
-import '../../00.common/tool/notifiers.dart';
+import '../../00.common/model/notifiers.dart';
 import 'elemental.dart';
 import '../base/skill.dart';
 import 'common.dart';

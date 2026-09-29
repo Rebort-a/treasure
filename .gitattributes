@@ -1,0 +1,3 @@
+lib/00.common/l10n/app_localizations.dart whitespace=cr-at-eol
+lib/00.common/l10n/app_localizations_en.dart whitespace=cr-at-eol
+lib/00.common/l10n/app_localizations_zh.dart whitespace=cr-at-eol

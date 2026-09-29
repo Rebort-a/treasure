@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/style/theme.dart';
-import 'package:treasure/01.home/floating_navigation_bar.dart';
+import 'package:treasure/00.common/widget/navigator/floating_navigation_bar.dart';
 import 'package:treasure/01.home/home_manager.dart';
 import 'package:treasure/01.home/home_page.dart';
 import 'package:treasure/main.dart';
@@ -46,7 +46,7 @@ void main() {
             ModalRoute.of(tester.element(find.byType(HomePage)))!.isCurrent,
             isTrue,
           );
-          expect(find.text('Local'), findsOneWidget);
+          expect(find.text('Apps'), findsOneWidget);
           expect(tester.takeException(), isNull);
         }
       });
