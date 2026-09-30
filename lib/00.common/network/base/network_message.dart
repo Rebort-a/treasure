@@ -1,12 +1,15 @@
 import 'dart:convert';
 
 enum MessageType {
-  // 系统信息
+  // 发现与握手
   broadcast,
+  connect,
   accept,
 
-  // 聊天信息
+  // 房间事件与通知
   notify,
+
+  // 聊天信息
   text,
   image,
   file,
@@ -19,31 +22,83 @@ enum MessageType {
   resource,
   sync,
   action,
-  gameExit,
-  memberJoined,
-  memberLeft,
-  roomClosed,
+  exit,
 }
 
-/// 自动通知只传固定编码，接收端展示时再按本地语言生成文案。
-enum RoomNotice {
-  joinedRoom(1),
-  leftRoom(2),
-  matchingPlayers(3),
-  leftGame(4);
+enum NoticeType {
+  join(1),
+  left(2),
+  close(3),
+  search(4);
 
-  const RoomNotice(this.code);
+  const NoticeType(this.code);
 
-  /// 显式指定协议编码，调整枚举顺序不会改变网络含义。
   final int code;
 
-  String get content => code.toString();
-
-  static RoomNotice? fromContent(String content) {
-    for (final notice in values) {
-      if (notice.content == content) return notice;
+  static NoticeType? fromCode(int code) {
+    for (final type in values) {
+      if (type.code == code) return type;
     }
     return null;
+  }
+}
+
+/// 服务端房间通知；成员通知附带成员身份，供房间成员表和对局逻辑使用。
+class RoomNotification {
+  final NoticeType type;
+  final int? memberId;
+  final String? memberName;
+
+  const RoomNotification({required this.type, this.memberId, this.memberName});
+
+  String get content {
+    final memberRequired = type != NoticeType.close;
+    if (memberRequired &&
+        (memberId == null ||
+            memberId! <= 0 ||
+            memberName == null ||
+            memberName!.trim().isEmpty)) {
+      throw ArgumentError('Member notifications require a valid member');
+    }
+    if (!memberRequired && (memberId != null || memberName != null)) {
+      throw ArgumentError('Room-close notifications cannot identify a member');
+    }
+    return jsonEncode({
+      'event': type.code,
+      if (memberId != null) 'memberId': memberId,
+      if (memberName != null) 'name': memberName,
+    });
+  }
+
+  static RoomNotification? tryFromContent(String content) {
+    try {
+      final data = jsonDecode(content);
+      if (data is! Map<String, dynamic>) return null;
+      final code = data['event'];
+      if (code is! int) return null;
+      final type = NoticeType.fromCode(code);
+      if (type == null) return null;
+      final memberId = data['memberId'];
+      final memberName = data['name'];
+      final memberRequired = type != NoticeType.close;
+      if (memberRequired &&
+          (memberId is! int ||
+              memberId <= 0 ||
+              memberName is! String ||
+              memberName.trim().isEmpty)) {
+        return null;
+      }
+      if (!memberRequired && (memberId != null || memberName != null)) {
+        return null;
+      }
+      return RoomNotification(
+        type: type,
+        memberId: memberId as int?,
+        memberName: memberName as String?,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -93,8 +148,9 @@ class NetworkMessage {
       MessageType.publish || MessageType.sync => isGroupMessage,
       MessageType.resource ||
       MessageType.action ||
-      MessageType.gameExit => isPrivateMessage || isGroupMessage,
+      MessageType.exit => isPrivateMessage || isGroupMessage,
       MessageType.text => true,
+      MessageType.connect => isRoomMessage,
       _ => isRoomMessage,
     };
   }
@@ -127,7 +183,8 @@ class NetworkMessage {
       return null;
     }
     if (typeIndex == MessageType.notify.index &&
-        (content is! String || RoomNotice.fromContent(content) == null)) {
+        (content is! String ||
+            RoomNotification.tryFromContent(content) == null)) {
       return null;
     }
     final message = NetworkMessage(

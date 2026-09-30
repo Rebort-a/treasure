@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/network/engine/network_engine.dart';
-import '../00.common/network/network_room.dart';
+import '../00.common/model/app_item_type.dart';
+import '../00.common/network/upper/network_engine.dart';
 import '../02.lan_chat/net_page.dart';
 import '../03.animal_chess/local_page.dart';
 import '../03.animal_chess/net_page.dart';
@@ -25,57 +25,9 @@ import '../16.schulte/page.dart';
 import '../17.tank/local_page.dart';
 import '../17.tank/net_page.dart';
 
-enum AppItemType {
-  animalChess,
-  elementalBattle,
-  gobang,
-  greedySnake,
-  weiqi,
-  sudoku,
-  guess,
-  threeTiles,
-  spaceship,
-  soft,
-  minecraft,
-  towerDefense,
-  memoryCard,
-  schulte,
-  tank,
-}
+export '../00.common/model/app_item_type.dart';
 
-enum OnlineItemType {
-  onlyChat,
-  animalChess,
-  elementalBattle,
-  gobang,
-  greedySnake,
-  weiqi,
-  tank,
-}
-
-extension OnlineItemTypeExt on OnlineItemType {
-  String get name => toString().split('.').last;
-}
-
-extension AppItemTypeExtension on AppItemType {
-  OnlineItemType? get onlineType => switch (this) {
-    AppItemType.animalChess => OnlineItemType.animalChess,
-    AppItemType.elementalBattle => OnlineItemType.elementalBattle,
-    AppItemType.gobang => OnlineItemType.gobang,
-    AppItemType.greedySnake => OnlineItemType.greedySnake,
-    AppItemType.weiqi => OnlineItemType.weiqi,
-    AppItemType.tank => OnlineItemType.tank,
-    AppItemType.sudoku ||
-    AppItemType.guess ||
-    AppItemType.threeTiles ||
-    AppItemType.spaceship ||
-    AppItemType.soft ||
-    AppItemType.minecraft ||
-    AppItemType.towerDefense ||
-    AppItemType.memoryCard ||
-    AppItemType.schulte => null,
-  };
-
+extension AppItemTypeRoute on AppItemType {
   Widget get page {
     switch (this) {
       case AppItemType.animalChess:
@@ -113,12 +65,6 @@ extension AppItemTypeExtension on AppItemType {
 }
 
 extension OnlineItemTypeExtension on OnlineItemType {
-  RoomGameMode get gameMode => switch (this) {
-    OnlineItemType.onlyChat => RoomGameMode.none,
-    OnlineItemType.greedySnake || OnlineItemType.tank => RoomGameMode.real,
-    _ => RoomGameMode.turn,
-  };
-
   Widget createGame(NetworkEngine room) => switch (this) {
     OnlineItemType.animalChess => NetAnimalChessPage(room: room),
     OnlineItemType.elementalBattle => NetCombatPage(room: room),
@@ -133,10 +79,9 @@ extension OnlineItemTypeExtension on OnlineItemType {
 class RouteManager {
   /// 应用入口只选择模块的公开入口，具体管理器由模块内部装配。
   static Widget? createRoomGame(NetworkEngine room) {
-    final type = room.roomType;
-    if (type <= 0 || type >= OnlineItemType.values.length) return null;
-    if (OnlineItemType.values[type].gameMode != room.gameMode) return null;
-    return OnlineItemType.values[type].createGame(room);
+    final type = OnlineItemType.tryFromRoomType(room.roomType);
+    if (type == null || type == OnlineItemType.onlyChat) return null;
+    return type.createGame(room);
   }
 
   /// 导航到本地页面
@@ -153,13 +98,8 @@ class RouteManager {
     if (!room.isJoined) {
       throw StateError('Room authentication has not completed');
     }
-    final type = room.roomType;
-    final page =
-        type >= 0 &&
-            type < OnlineItemType.values.length &&
-            OnlineItemType.values[type].gameMode == room.gameMode
-        ? OnlineItemType.values[type].createGame(room)
-        : NetChatPage(room: room);
+    final type = OnlineItemType.tryFromRoomType(room.roomType);
+    final page = type == null ? NetChatPage(room: room) : type.createGame(room);
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => page));
   }

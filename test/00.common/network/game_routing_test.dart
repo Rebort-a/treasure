@@ -6,6 +6,65 @@ import 'support/network_room_harness.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('服务端将玩家 search 转为服务器通知', () async {
+    final h = RoomHarness(0);
+    await h.server.start();
+    try {
+      final a = await h.join('A');
+      final b = await h.join('B');
+      final received = <NetworkMessage>[];
+      b.addMessageListener(received.add);
+
+      a.sendNetworkMessage(MessageType.search, 'search');
+      await waitFor(
+        () => received.any(
+          (message) =>
+              message.type == MessageType.notify &&
+              RoomNotification.tryFromContent(message.content)?.type ==
+                  NoticeType.search,
+        ),
+      );
+      final notification = received.singleWhere(
+        (message) =>
+            message.type == MessageType.notify &&
+            RoomNotification.tryFromContent(message.content)?.type ==
+                NoticeType.search,
+      );
+      expect(notification.id, 0);
+      expect(
+        RoomNotification.tryFromContent(notification.content)?.type,
+        NoticeType.search,
+      );
+      expect(
+        RoomNotification.tryFromContent(notification.content)?.memberId,
+        a.identity,
+      );
+      expect(
+        received.where((message) => message.type == MessageType.search),
+        isEmpty,
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  test('客户端不能发送服务器通知', () async {
+    final h = RoomHarness(0);
+    await h.server.start();
+    try {
+      final a = await h.join('A');
+      expect(
+        () => a.sendNetworkMessage(
+          MessageType.notify,
+          const RoomNotification(type: NoticeType.close).content,
+        ),
+        throwsArgumentError,
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
   test('房间、私聊和群组各按自己的接收范围转发', () async {
     final h = RoomHarness(6);
     await h.server.start();

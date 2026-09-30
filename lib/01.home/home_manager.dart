@@ -4,11 +4,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../00.common/model/notifiers.dart';
-import '../00.common/network/broadcast_discovery.dart';
-import '../00.common/network/network_message.dart';
-import '../00.common/network/network_room.dart';
-import '../00.common/network/socket_server.dart';
-import '../00.common/network/engine/network_engine.dart';
+import '../00.common/network/base/broadcast_discovery.dart';
+import '../00.common/network/base/network_message.dart';
+import '../00.common/network/base/network_room.dart';
+import '../00.common/network/middle/socket_server.dart';
+import '../00.common/network/upper/network_engine.dart';
 import 'room_type_picker.dart';
 import '../00.common/l10n/strings.dart';
 import 'player_settings.dart';
@@ -160,8 +160,6 @@ class HomeManager {
     SocketServer server = SocketServer(
       roomName: roomName,
       roomType: type.index,
-      gameMode: type.gameMode,
-      maxGamePlayers: type == OnlineItemType.tank ? 4 : null,
       encryptionKey: encryptionKey,
       password: password,
     );

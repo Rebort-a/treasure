@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../network/session/game_session.dart';
-import '../../network/session/turn_game_session.dart';
-import '../../network/engine/network_engine.dart';
+import '../../network/middle/game_session.dart';
+import '../../network/middle/turn_game_session.dart';
+import '../../network/upper/network_engine.dart';
 import '../../l10n/strings.dart';
 import '../../../02.lan_chat/net_page.dart';
 

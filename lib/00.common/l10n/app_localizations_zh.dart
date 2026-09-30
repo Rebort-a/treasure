@@ -19,7 +19,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cancel => '取消';
 
   @override
-  String get close => '关闭';
+  String get close => '房间已关闭';
 
   @override
   String get ok => '确定';
@@ -190,9 +190,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get disconnected => '连接断开';
-
-  @override
-  String get roomClosed => '房间已关闭';
 
   @override
   String get cannotReconnect => '无法重新连接到服务器';

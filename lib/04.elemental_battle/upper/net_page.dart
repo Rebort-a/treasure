@@ -1,4 +1,4 @@
-import '../../00.common/network/session/game_session.dart';
+import '../../00.common/network/middle/game_session.dart';
 import '../../00.common/widget/navigator/online_game_page.dart';
 
 import 'package:flutter/material.dart';

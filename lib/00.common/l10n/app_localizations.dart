@@ -119,7 +119,7 @@ abstract class AppLocalizations {
   /// No description provided for @close.
   ///
   /// In en, this message translates to:
-  /// **'Close'**
+  /// **'Room closed'**
   String get close;
 
   /// No description provided for @ok.
@@ -457,12 +457,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disconnected'**
   String get disconnected;
-
-  /// No description provided for @roomClosed.
-  ///
-  /// In en, this message translates to:
-  /// **'Room closed'**
-  String get roomClosed;
 
   /// No description provided for @cannotReconnect.
   ///

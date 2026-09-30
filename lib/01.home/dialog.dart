@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/l10n/strings.dart';
-import '../00.common/network/network_room.dart';
-import '../00.common/network/engine/network_engine.dart';
+import '../00.common/network/base/network_room.dart';
+import '../00.common/network/upper/network_engine.dart';
 
 class RoomDialog {
   static void showCreateRoomDialog({

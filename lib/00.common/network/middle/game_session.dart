@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 
 import '../../model/chat_channel.dart';
 import '../../game/step.dart';
-import '../network_message.dart';
+import '../base/network_message.dart';
 import '../../model/notifiers.dart';
-import '../engine/network_engine.dart';
+import '../upper/network_engine.dart';
 
 /// 复用房间现有连接的单次游戏会话，生命周期仅覆盖本次对局。
 abstract class GameSession implements ChatChannel {
@@ -46,18 +44,19 @@ abstract class GameSession implements ChatChannel {
 
   void _receive(NetworkMessage message) {
     if (!isActive) return;
-    if (message.type == MessageType.roomClosed && message.id == 0) {
-      finish(sendExit: false);
-      return;
-    }
-    try {
-      if (message.type == MessageType.memberLeft && message.id == 0) {
-        memberLeft(
-          (jsonDecode(message.content) as Map<String, dynamic>)['memberId']
-              as int,
-        );
+    if (message.type == MessageType.notify && message.id == 0) {
+      final notification = RoomNotification.tryFromContent(message.content);
+      if (notification?.type == NoticeType.close) {
+        finish(sendExit: false);
+        return;
+      } else if (notification?.type == NoticeType.left) {
+        left(notification!.memberId!);
+        return;
+      } else if (notification?.type != NoticeType.search) {
         return;
       }
+    }
+    try {
       handleMessage(message);
     } on FormatException {
       debugPrint('[Game] Ignored malformed game data');
@@ -67,7 +66,7 @@ abstract class GameSession implements ChatChannel {
   }
 
   void handleMessage(NetworkMessage message);
-  void memberLeft(int memberId);
+  void left(int memberId);
 
   void sendNetworkMessage(
     MessageType type,
@@ -99,8 +98,7 @@ abstract class GameSession implements ChatChannel {
   void finish({bool sendExit = true}) {
     if (ended.value) return;
     if (isActive && sendExit && identity != 0) {
-      sendNetworkMessage(MessageType.gameExit, 'game');
-      room.sendRoomNotice(RoomNotice.leftGame);
+      sendNetworkMessage(MessageType.exit, 'game');
     }
     room.removeMessageListener(_receive);
     room.identityNotifier.removeListener(_identityChanged);

@@ -53,7 +53,13 @@ void main() {
         );
         var searches = 0;
         bob.addMessageListener((m) {
-          if (m.type != MessageType.search || m.id == bob.identity) return;
+          final notification = m.type == MessageType.notify
+              ? RoomNotification.tryFromContent(m.content)
+              : null;
+          if (notification?.type != NoticeType.search ||
+              notification?.memberId == bob.identity) {
+            return;
+          }
           searches++;
         });
         await tester.pump();
@@ -139,17 +145,21 @@ void main() {
         await tester.tap(find.byIcon(Icons.arrow_back));
         await tester.pump();
         expect(find.text('Surrender'), findsWidgets);
-        expect(find.text('Are you sure you want to surrender?'), findsOneWidget);
+        expect(
+          find.text('Are you sure you want to surrender?'),
+          findsOneWidget,
+        );
         await tester.tap(find.text('Cancel'));
         await tester.pump();
         expect(find.text('duel only'), findsOneWidget);
         await tester.binding.handlePopRoute();
         await tester.pump();
-        expect(find.text('Are you sure you want to surrender?'), findsOneWidget);
-        await tester.tap(find.text('Confirm'));
-        await pumpUntil(
-          () => find.byType(NetChatPage).evaluate().isNotEmpty,
+        expect(
+          find.text('Are you sure you want to surrender?'),
+          findsOneWidget,
         );
+        await tester.tap(find.text('Confirm'));
+        await pumpUntil(() => find.byType(NetChatPage).evaluate().isNotEmpty);
         expect(find.byType(NetGomokuPage), findsOneWidget);
         expect(find.byType(NetChatPage), findsOneWidget);
         expect(find.text('public while playing'), findsOneWidget);

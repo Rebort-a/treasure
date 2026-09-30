@@ -18,14 +18,12 @@ void main() {
       expect(a.matchPhase.value, RoomMatchPhase.idle);
       a.startMatching();
       await waitFor(() => a.matchPhase.value == RoomMatchPhase.matching);
-      await waitFor(
-        () => wire.where((m) => m.type == MessageType.search).length == 1,
-      );
+      await waitFor(() => wire.where((m) => _isSearchNotice(m)).length == 1);
       a.cancelMatching();
       expect(a.matchPhase.value, RoomMatchPhase.idle);
       await Future<void>.delayed(const Duration(milliseconds: 30));
-      expect(wire.where((m) => m.type == MessageType.search), hasLength(1));
-      expect(wire.where((m) => m.type == MessageType.gameExit), isEmpty);
+      expect(wire.where(_isSearchNotice), hasLength(1));
+      expect(wire.where((m) => m.type == MessageType.exit), isEmpty);
 
       a.startMatching();
       await waitFor(() => a.matchPhase.value == RoomMatchPhase.matching);
@@ -81,3 +79,7 @@ void main() {
     }
   });
 }
+
+bool _isSearchNotice(NetworkMessage message) =>
+    message.type == MessageType.notify &&
+    RoomNotification.tryFromContent(message.content)?.type == NoticeType.search;

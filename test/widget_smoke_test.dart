@@ -94,6 +94,7 @@ void main() {
         server: SocketServer(
           roomName: 'Private',
           roomType: 0,
+          encryptionKey: 'test-key',
           password: 'secret',
         ),
       ),
@@ -173,7 +174,11 @@ void main() {
                 type: type,
                 port: 1234,
                 hasPassword: locked,
-                server: SocketServer(roomName: 'Room', roomType: type),
+                server: SocketServer(
+                  roomName: 'Room',
+                  roomType: type,
+                  encryptionKey: 'test-key',
+                ),
               ),
             );
           } else {

@@ -3,14 +3,15 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../model/app_item_type.dart';
 import '../../model/chat_channel.dart';
 import '../../model/notifiers.dart';
 import '../../game/step.dart';
-import '../network_message.dart';
-import '../session/real_game_session.dart';
-import '../session/turn_game_session.dart';
-import '../connection.dart';
-import '../network_room.dart';
+import '../base/network_message.dart';
+import '../middle/real_game_session.dart';
+import '../middle/turn_game_session.dart';
+import '../base/connection.dart';
+import '../base/network_room.dart';
 import 'net_real_engine.dart';
 import 'net_turn_engine.dart';
 
@@ -67,7 +68,8 @@ class NetworkEngine implements ChatChannel {
   int get identity => identityNotifier.value;
   String get roomName => _roomName;
   int get roomType => _roomType;
-  RoomGameMode get gameMode => _gameMode;
+  RoomGameMode get gameMode =>
+      OnlineItemType.tryFromRoomType(_roomType)?.gameMode ?? RoomGameMode.none;
   int get matchedOpponentId => _matchedOpponentId;
   bool get matchInitiated => _matchInitiated;
   String? get encryptionKey => _encryptionKey;
@@ -78,7 +80,6 @@ class NetworkEngine implements ChatChannel {
 
   late String _roomName = endpoint.name;
   int _roomType = 0;
-  RoomGameMode _gameMode = RoomGameMode.none;
   String? _encryptionKey;
   Connection? _connection;
   Completer<void>? _authentication;
@@ -113,13 +114,23 @@ class NetworkEngine implements ChatChannel {
     required String userName,
     required RoomInfo endpoint,
   }) {
-    if (endpoint.type == RoomInfo.chatType) {
-      return NetworkEngine(userName: userName, endpoint: endpoint);
-    }
-    if (endpoint.type == 4 || endpoint.type == 6) {
-      return NetRealEngine(userName: userName, endpoint: endpoint);
-    }
-    return NetTurnEngine(userName: userName, endpoint: endpoint);
+    final mode =
+        OnlineItemType.tryFromRoomType(endpoint.type)?.gameMode ??
+        RoomGameMode.none;
+    return switch (mode) {
+      RoomGameMode.none => NetworkEngine(
+        userName: userName,
+        endpoint: endpoint,
+      ),
+      RoomGameMode.turn => NetTurnEngine(
+        userName: userName,
+        endpoint: endpoint,
+      ),
+      RoomGameMode.real => NetRealEngine(
+        userName: userName,
+        endpoint: endpoint,
+      ),
+    };
   }
 
   /// 手动输入地址时事先不知道房间类型，认证后沿用同一连接创建对应会话。
@@ -203,7 +214,6 @@ class NetworkEngine implements ChatChannel {
     _matchedOpponentId = 0;
     _matchInitiated = false;
     matchPhase.value = RoomMatchPhase.sending;
-    sendRoomNotice(RoomNotice.matchingPlayers);
     sendNetworkMessage(MessageType.search, '');
   }
 
@@ -231,31 +241,32 @@ class NetworkEngine implements ChatChannel {
         matchPhase.value == RoomMatchPhase.matched) {
       return;
     }
-    if (message.type == MessageType.roomClosed && message.id == 0) {
-      cancelMatching();
-      return;
-    }
-    if (message.type == MessageType.memberLeft && message.id == 0) {
-      try {
-        final memberId =
-            (jsonDecode(message.content) as Map<String, dynamic>)['memberId'];
-        if (memberId == _matchCandidate) {
+    if (message.type == MessageType.notify && message.id == 0) {
+      final notification = RoomNotification.tryFromContent(message.content);
+      if (notification == null) return;
+      if (notification.type == NoticeType.close) {
+        cancelMatching();
+        return;
+      }
+      if (notification.type == NoticeType.left) {
+        if (notification.memberId == _matchCandidate) {
           _matchCandidate = null;
           _matchOffered = false;
         }
-      } catch (_) {}
-      return;
-    }
-    if (message.type == MessageType.search) {
-      if (message.id == identity) {
-        matchPhase.value = RoomMatchPhase.matching;
-      } else if (matchPhase.value == RoomMatchPhase.matching &&
-          _matchCandidate == null) {
-        _matchCandidate = message.id;
-        _matchOffered = true;
-        sendNetworkMessage(MessageType.match, '', recipientId: message.id);
+        return;
       }
-      return;
+      if (notification.type == NoticeType.search) {
+        final memberId = notification.memberId!;
+        if (memberId == identity) {
+          matchPhase.value = RoomMatchPhase.matching;
+        } else if (matchPhase.value == RoomMatchPhase.matching &&
+            _matchCandidate == null) {
+          _matchCandidate = memberId;
+          _matchOffered = true;
+          sendNetworkMessage(MessageType.match, '', recipientId: memberId);
+        }
+        return;
+      }
     }
     if (message.type == MessageType.match &&
         message.id != identity &&
@@ -278,6 +289,24 @@ class NetworkEngine implements ChatChannel {
     _matchOffered = false;
     _waitingForGame = true;
     matchPhase.value = RoomMatchPhase.matched;
+  }
+
+  /// 显示加入/离开/匹配等服务端通知，并同步通知中携带的成员状态。
+  void _handleRoomNotification(NetworkMessage message) {
+    final notification = RoomNotification.tryFromContent(message.content);
+    if (notification == null || message.id != 0) return;
+    final memberId = notification.memberId;
+    switch (notification.type) {
+      case NoticeType.join:
+        final next = Map<int, String>.of(members.value)
+          ..[memberId!] = notification.memberName!;
+        members.value = Map.unmodifiable(next);
+      case NoticeType.left:
+        final next = Map<int, String>.of(members.value)..remove(memberId);
+        members.value = Map.unmodifiable(next);
+      case NoticeType.search || NoticeType.close:
+        break;
+    }
   }
 
   /// 显式连接并等待认证；成功返回后才能把引擎交给聊天室。
@@ -342,13 +371,12 @@ class NetworkEngine implements ChatChannel {
         },
       );
       connection.send(
-        utf8.encode(
-          jsonEncode({
-            'connect': true,
-            'name': userName,
-            'password': endpoint.password ?? '',
-          }),
-        ),
+        NetworkMessage(
+          id: 0,
+          type: MessageType.connect,
+          source: userName,
+          content: jsonEncode({'password': endpoint.password ?? ''}),
+        ).toSocketData(),
       );
       await accepted;
       if (_closed || generation != _generation || identity == 0) {
@@ -401,7 +429,6 @@ class NetworkEngine implements ChatChannel {
           throw const FormatException('invalid member roster');
         }
         _roomType = data['roomType'] as int;
-        _gameMode = RoomGameMode.values.byName(data['gameMode'] as String);
         _roomName = message.source;
         _encryptionKey = data['key'] as String?;
         members.value = Map.unmodifiable(roster);
@@ -417,37 +444,15 @@ class NetworkEngine implements ChatChannel {
       return;
     }
 
-    if (message.type == MessageType.roomClosed && message.id == 0) {
-      _dispatch(message);
-      unawaited(close(reason: RoomFailure.roomClosed));
-      return;
-    }
-    if (message.id == 0 &&
-        (message.type == MessageType.memberJoined ||
-            message.type == MessageType.memberLeft)) {
-      try {
-        final data = jsonDecode(message.content) as Map<String, dynamic>;
-        final id = data['memberId'] as int;
-        final name = data['name'] as String;
-        final next = Map<int, String>.of(members.value);
-        final joined = message.type == MessageType.memberJoined;
-        if (joined) {
-          next[id] = name;
-        } else {
-          next.remove(id);
-        }
-        members.value = Map.unmodifiable(next);
-        messageList.add(
-          NetworkMessage(
-            id: id,
-            type: MessageType.notify,
-            source: name,
-            content:
-                (joined ? RoomNotice.joinedRoom : RoomNotice.leftRoom).content,
-            timestamp: message.timestamp,
-          ),
-        );
-      } catch (_) {
+    if (message.type == MessageType.notify) {
+      if (message.id != 0) return;
+      final notification = RoomNotification.tryFromContent(message.content);
+      if (notification == null) return;
+      _handleRoomNotification(message);
+      if (notification.type == NoticeType.close) {
+        messageList.add(message);
+        _dispatch(message);
+        unawaited(close(reason: RoomFailure.roomClosed));
         return;
       }
     }
@@ -522,16 +527,25 @@ class NetworkEngine implements ChatChannel {
       _listeners.remove(listener);
   void _dispatch(NetworkMessage message) {
     _handleMatching(message);
+    final notification = message.type == MessageType.notify
+        ? RoomNotification.tryFromContent(message.content)
+        : null;
+    final pendingRoomEvent =
+        message.id == 0 &&
+        (notification?.type == NoticeType.left ||
+            notification?.type == NoticeType.close ||
+            notification?.type == NoticeType.search);
     if (_waitingForGame &&
-        !message.isRoomMessage &&
-        const {
-          MessageType.resource,
-          MessageType.sync,
-          MessageType.action,
-          MessageType.gameExit,
-          MessageType.publish,
-          MessageType.text,
-        }.contains(message.type)) {
+        (pendingRoomEvent ||
+            (!message.isRoomMessage &&
+                const {
+                  MessageType.resource,
+                  MessageType.sync,
+                  MessageType.action,
+                  MessageType.exit,
+                  MessageType.publish,
+                  MessageType.text,
+                }.contains(message.type)))) {
       _pendingGameMessages.add(message);
     }
     for (final listener in List.of(_listeners)) {
@@ -557,14 +571,6 @@ class NetworkEngine implements ChatChannel {
     if (trimmed.isNotEmpty) sendNetworkMessage(MessageType.text, trimmed);
   }
 
-  void sendRoomNotice(RoomNotice notice) {
-    // 成员进出由服务器认证和断连事件决定，不能由客户端自行宣布。
-    if (notice == RoomNotice.joinedRoom || notice == RoomNotice.leftRoom) {
-      return;
-    }
-    sendNetworkMessage(MessageType.notify, notice.content);
-  }
-
   void sendNetworkMessage(
     MessageType type,
     String content, {
@@ -572,6 +578,9 @@ class NetworkEngine implements ChatChannel {
     Set<int>? recipientIds,
   }) {
     if (!isJoined) return;
+    if (type == MessageType.notify) {
+      throw ArgumentError('Room notifications are server-generated');
+    }
     final message = NetworkMessage(
       id: identity,
       source: userName,

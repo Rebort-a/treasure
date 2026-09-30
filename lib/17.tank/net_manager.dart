@@ -2,11 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/network/session/real_game_session.dart';
+import '../00.common/model/app_item_type.dart';
+import '../00.common/network/middle/real_game_session.dart';
 import '../00.common/game/map.dart';
-import '../00.common/network/network_message.dart';
-import '../00.common/network/engine/network_engine.dart';
-import '../00.common/network/engine/net_real_engine.dart';
+import '../00.common/network/base/network_message.dart';
+import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/upper/net_real_engine.dart';
 import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -46,7 +47,7 @@ class NetTankManager extends TankGameManager {
   NetTankManager({required NetworkEngine room}) {
     realSession = createRealSession(
       room: room,
-      maxPlayers: 4,
+      maxPlayers: OnlineItemType.tryFromRoomType(room.roomType)?.maxGamePlayers,
       searchHandler: _handleSearch,
       resourceHandler: _handleResource,
       syncHandler: _handleSync,

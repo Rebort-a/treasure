@@ -6,16 +6,15 @@ import 'package:flutter/material.dart';
 import '../00.common/config/network_config.dart';
 import '../00.common/l10n/l10n.dart';
 import '../00.common/l10n/strings.dart';
-import '../00.common/network/network_room.dart';
+import '../00.common/network/base/network_room.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/tool/app_info.dart';
-
 import '../00.common/service/storage_service.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 
 import 'home_manager.dart';
 import 'route.dart';
-import '../00.common/widget/navigator/floating_navigation_bar.dart';
+import 'floating_navigation_bar.dart';
 import 'player_settings.dart';
 
 class HomePage extends StatefulWidget {

@@ -47,7 +47,12 @@ void main() {
       socket = await WebSocket.connect('ws://127.0.0.1:${h.server.port}');
       incoming = StreamIterator<dynamic>(socket);
       socket.add(
-        jsonEncode({'connect': true, 'password': 'secret', 'name': 'A'}),
+        NetworkMessage(
+          id: 0,
+          type: MessageType.connect,
+          source: 'A',
+          content: jsonEncode({'password': 'secret'}),
+        ).toSocketData(),
       );
       expect(await incoming.moveNext(), isTrue);
       final accepted = NetworkMessage.fromSocketData(
@@ -58,7 +63,6 @@ void main() {
       final data = jsonDecode(accepted.content) as Map<String, dynamic>;
       expect(data['clientId'], greaterThan(0));
       expect(data['roomType'], 4);
-      expect(data['gameMode'], 'real');
       expect(data['members'], {'${data['clientId']}': 'A'});
       expect(data['key'], 'room-key');
       expect(h.server.members.length, 1);
@@ -78,7 +82,12 @@ void main() {
       socket = await WebSocket.connect('ws://127.0.0.1:${h.server.port}');
       incoming = StreamIterator<dynamic>(socket);
       socket.add(
-        jsonEncode({'connect': true, 'password': 'wrong', 'name': 'A'}),
+        NetworkMessage(
+          id: 0,
+          type: MessageType.connect,
+          source: 'A',
+          content: jsonEncode({'password': 'wrong'}),
+        ).toSocketData(),
       );
       expect(await incoming.moveNext(), isTrue);
       final message = NetworkMessage.fromSocketData(

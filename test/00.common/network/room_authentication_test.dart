@@ -37,7 +37,6 @@ void _accept(WebSocket socket, int identity) {
       content: jsonEncode({
         'clientId': identity,
         'roomType': 3,
-        'gameMode': 'turn',
         'members': {'$identity': 'Alice'},
         'key': null,
       }),
@@ -142,12 +141,13 @@ void main() {
       final socket = await WebSocketTransformer.upgrade(request);
       sockets.add(socket);
       socket.listen((data) {
-        final text = data is String ? data : utf8.decode(data as List<int>);
-        if ((jsonDecode(text) as Map<String, dynamic>)['connect'] == true) {
+        final bytes = data is String ? utf8.encode(data) : data as List<int>;
+        final message = NetworkMessage.fromSocketData(bytes);
+        if (message?.type == MessageType.connect) {
           handshakes.add(socket);
           if (handshakes.length == 1) _accept(socket, 1);
         } else {
-          incoming.add(text);
+          incoming.add(utf8.decode(bytes));
         }
       });
     });

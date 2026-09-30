@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 import '../../game/step.dart';
-import '../session/turn_game_session.dart';
-import '../network_message.dart';
+import '../middle/turn_game_session.dart';
+import '../base/network_message.dart';
 import 'network_engine.dart';
 
 /// 房间唯一的回合网络引擎；每局对战只创建一个不持有连接的会话。

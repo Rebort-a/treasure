@@ -18,17 +18,24 @@ const _english = [
   'Alice Joined the room',
   'Alice Left the room',
   'Alice Matching players',
-  'Alice Left the game',
+  'Alice Room closed',
 ];
-const _chinese = ['Alice 加入了房间', 'Alice 离开了房间', 'Alice 正在匹配玩家', 'Alice 退出了游戏'];
+const _chinese = ['Alice 加入了房间', 'Alice 离开了房间', 'Alice 正在匹配玩家', 'Alice 房间已关闭'];
 
-NetworkMessage _notice(RoomNotice notice) => NetworkMessage(
-  id: 1,
-  type: MessageType.notify,
-  source: 'Alice',
-  content: notice.content,
-  timestamp: 1234567890000 + notice.code,
-);
+NetworkMessage _notice(NoticeType type) {
+  final needsMember = type != NoticeType.close;
+  return NetworkMessage(
+    id: 0,
+    type: MessageType.notify,
+    source: 'Alice',
+    content: RoomNotification(
+      type: type,
+      memberId: needsMember ? 1 : null,
+      memberName: needsMember ? 'Alice' : null,
+    ).content,
+    timestamp: 1234567890000 + type.index,
+  );
+}
 
 Widget _chat(Locale locale, _Chat channel) => MaterialApp(
   locale: locale,
@@ -44,15 +51,22 @@ void main() {
   tearDown(() => LanguageProvider.instance.resetForTesting());
 
   test('通知使用固定编码，序列化往返不携带翻译文本', () {
-    expect(RoomNotice.values.map((notice) => notice.code), [1, 2, 3, 4]);
-    for (final notice in RoomNotice.values) {
-      final wire = _notice(notice).toSocketData(encryptionKey: 'room-key');
+    expect(NoticeType.values.map((type) => type.code), [1, 2, 3, 4]);
+    for (final notificationType in NoticeType.values) {
+      final wire = _notice(notificationType)
+          .toSocketData(encryptionKey: 'room-key');
       final restored = NetworkMessage.fromSocketData(
         wire,
         encryptionKey: 'room-key',
       )!;
-      expect(restored.content, notice.code.toString());
-      expect(ChatMessage.fromNetworkMessage(restored, 2, 'Bob').notice, notice);
+      expect(
+        RoomNotification.tryFromContent(restored.content)?.type,
+        notificationType,
+      );
+      expect(
+        ChatMessage.fromNetworkMessage(restored, 2, 'Bob').notificationType,
+        notificationType,
+      );
       expect(restored.source, 'Alice');
     }
   });
@@ -66,6 +80,8 @@ void main() {
       '999',
       '1.0',
       'joinedRoom',
+      '{"notice":1}',
+      '{"notice":999}',
       'Joined the room',
       '加入了房间',
       'leave room',
@@ -89,7 +105,7 @@ void main() {
     );
     final chat = ChatMessage.fromNetworkMessage(text, 2, 'Bob');
     expect(chat.content, '1');
-    expect(chat.notice, isNull);
+    expect(chat.notificationType, isNull);
     expect(chat.isSystem, isFalse);
   });
 
@@ -98,7 +114,7 @@ void main() {
     final chinese = _Chat();
     try {
       for (final channel in [english, chinese]) {
-        channel.messageList.addAll(RoomNotice.values.map(_notice));
+        channel.messageList.addAll(NoticeType.values.map(_notice));
         channel.messageList.add(
           NetworkMessage(
             id: 1,
@@ -142,7 +158,7 @@ void main() {
   testWidgets('切换本地语言后已有通知重新翻译，不修改原始消息', (tester) async {
     final channel = _Chat();
     final locale = ValueNotifier(const Locale('en'));
-    channel.messageList.addAll(RoomNotice.values.map(_notice));
+    channel.messageList.addAll(NoticeType.values.map(_notice));
     final original = channel.messageList.value
         .map((m) => m.toJsonString())
         .toList();
@@ -173,7 +189,7 @@ void main() {
     }
   });
 
-  test('真实房间的加入、匹配、退出游戏和离房通知均只发送编码', () async {
+  test('房间加入、搜索和断开通知均由服务端发送', () async {
     HttpOverrides.global = null;
     final h = RoomHarness(3);
     TurnGameSession? game;
@@ -183,11 +199,27 @@ void main() {
       final observer = await h.join('Observer');
       await LanguageProvider.instance.setLocale(AppLocale.zh);
       final alice = await h.join('Alice');
-      List<RoomNotice?> received() => observer.messageList.value
+      List<NoticeType?> received() => observer.messageList.value
           .where((m) => m.type == MessageType.notify && m.source == 'Alice')
-          .map((m) => RoomNotice.fromContent(m.content))
+          .map((m) => RoomNotification.tryFromContent(m.content)?.type)
           .toList();
-      await waitFor(() => received().contains(RoomNotice.joinedRoom));
+      await waitFor(() => received().contains(NoticeType.join));
+      final joined = observer.messageList.value.firstWhere(
+        (message) =>
+            message.type == MessageType.notify &&
+            message.source == 'Alice' &&
+            RoomNotification.tryFromContent(message.content)?.type ==
+                NoticeType.join,
+      );
+      expect(joined.id, 0);
+      expect(
+        RoomNotification.tryFromContent(joined.content)?.type,
+        NoticeType.join,
+      );
+      expect(
+        RoomNotification.tryFromContent(joined.content)?.memberId,
+        alice.identity,
+      );
       game = startGame(
         TurnGameSession(
           room: alice,
@@ -196,7 +228,7 @@ void main() {
           exitHandler: () {},
         ),
       );
-      await waitFor(() => received().contains(RoomNotice.matchingPlayers));
+      await waitFor(() => received().contains(NoticeType.search));
       opponent = startGame(
         TurnGameSession(
           room: observer,
@@ -210,18 +242,32 @@ void main() {
       );
       await LanguageProvider.instance.setLocale(AppLocale.en);
       game.finish();
-      await waitFor(() => received().contains(RoomNotice.leftGame));
       await alice.close();
-      await waitFor(() => received().contains(RoomNotice.leftRoom));
-      expect(received(), [
-        RoomNotice.joinedRoom,
-        RoomNotice.matchingPlayers,
-        RoomNotice.leftGame,
-        RoomNotice.leftRoom,
-      ]);
+      await waitFor(() => received().contains(NoticeType.left));
+      expect(received(), [NoticeType.join, NoticeType.search, NoticeType.left]);
     } finally {
       game?.dispose();
       opponent?.dispose();
+      await h.close();
+    }
+  });
+
+  test('房主关闭房间时服务端发送特殊样式通知', () async {
+    final h = RoomHarness(0);
+    await h.server.start();
+    final room = await h.join('Observer');
+    try {
+      await h.server.stop();
+      await waitFor(
+        () => room.messageList.value.any(
+          (message) =>
+              message.type == MessageType.notify &&
+              RoomNotification.tryFromContent(message.content)?.type ==
+                  NoticeType.close,
+        ),
+      );
+      expect(room.messageList.value.last.id, 0);
+    } finally {
       await h.close();
     }
   });

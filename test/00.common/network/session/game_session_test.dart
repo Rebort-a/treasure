@@ -99,7 +99,7 @@ void main() {
           () => retryA.readyToOpen.value && retryB.readyToOpen.value,
         );
         aRoom.sendNetworkMessage(
-          MessageType.gameExit,
+          MessageType.exit,
           'late old exit',
           recipientIds: {bRoom.identity},
         );

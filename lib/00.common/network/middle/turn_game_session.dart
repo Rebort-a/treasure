@@ -1,6 +1,6 @@
 import '../../game/gamer.dart';
 import '../../game/step.dart';
-import '../network_message.dart';
+import '../base/network_message.dart';
 import 'game_session.dart';
 
 enum TurnResourceMode { none, frontOnly, both }
@@ -83,7 +83,7 @@ class TurnGameSession extends GameSession {
         (message.recipientId != identity && message.recipientId != _enemyId)) {
       return;
     }
-    if (message.type == MessageType.gameExit && message.id == _enemyId) {
+    if (message.type == MessageType.exit && message.id == _enemyId) {
       exitHandler();
       // 对手离开仅结束本次对局，不关闭房间连接。
       finish();
@@ -104,7 +104,7 @@ class TurnGameSession extends GameSession {
   }
 
   @override
-  void memberLeft(int memberId) {
+  void left(int memberId) {
     if (memberId != _enemyId) return;
     finish(sendExit: false);
     exitHandler();

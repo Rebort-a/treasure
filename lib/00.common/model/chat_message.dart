@@ -1,4 +1,4 @@
-import '../network/network_message.dart';
+import '../network/base/network_message.dart';
 
 /// 聊天消息类型
 enum ChatMessageType { text, image, file, system }
@@ -18,7 +18,8 @@ class ChatMessage {
   final int? fileSize;
 
   /// 保留协议编码，不在接收时固定翻译，以便切换语言后重新展示。
-  RoomNotice? get notice => isSystem ? RoomNotice.fromContent(content) : null;
+  NoticeType? get notificationType =>
+      isSystem ? RoomNotification.tryFromContent(content)?.type : null;
 
   const ChatMessage({
     required this.id,

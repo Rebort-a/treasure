@@ -19,7 +19,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
-  String get close => 'Close';
+  String get close => 'Room closed';
 
   @override
   String get ok => 'OK';
@@ -192,9 +192,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disconnected => 'Disconnected';
-
-  @override
-  String get roomClosed => 'Room closed';
 
   @override
   String get cannotReconnect => 'Cannot reconnect to server';

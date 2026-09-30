@@ -12,7 +12,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n.dart';
 import '../../model/chat_channel.dart';
-import '../../network/network_message.dart';
+import '../../network/base/network_message.dart';
 
 import '../image/blur_hash_image.dart';
 
@@ -577,16 +577,16 @@ class _MessageListState extends State<MessageList> {
   }
 
   Widget _systemMsg(ChatMessage msg) {
-    final notice = msg.notice;
-    if (notice == null) return const SizedBox.shrink();
+    final notificationType = msg.notificationType;
+    if (notificationType == null) return const SizedBox.shrink();
     // 使用当前界面的语言，原始消息及用户名保持不变。
     final localizations =
         AppLocalizations.of(context) ?? LanguageProvider.instance.current;
-    final text = switch (notice) {
-      RoomNotice.joinedRoom => localizations.joinedRoom,
-      RoomNotice.leftRoom => localizations.leftRoom,
-      RoomNotice.matchingPlayers => localizations.matchingPlayers,
-      RoomNotice.leftGame => localizations.leftGame,
+    final text = switch (notificationType) {
+      NoticeType.join => localizations.joinedRoom,
+      NoticeType.left => localizations.leftRoom,
+      NoticeType.search => localizations.matchingPlayers,
+      NoticeType.close => localizations.close,
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),

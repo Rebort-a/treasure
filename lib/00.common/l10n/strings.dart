@@ -91,7 +91,7 @@ class S {
 
   // ==================== 通用网络 ====================
   static String get disconnected => _l.disconnected;
-  static String get roomClosed => _l.roomClosed;
+  static String get roomClosed => _l.close;
   static String get cannotReconnect => _l.cannotReconnect;
   static String reconnecting(int cur, int max) => _l.reconnecting(cur, max);
   static String get competitorsWithdraw => _l.competitorsWithdraw;

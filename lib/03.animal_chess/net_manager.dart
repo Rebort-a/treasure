@@ -1,11 +1,11 @@
 import 'dart:convert';
 
-import '../00.common/network/session/turn_game_session.dart';
+import '../00.common/network/middle/turn_game_session.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
-import '../00.common/network/network_message.dart';
-import '../00.common/network/engine/network_engine.dart';
-import '../00.common/network/engine/net_turn_engine.dart';
+import '../00.common/network/base/network_message.dart';
+import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/upper/net_turn_engine.dart';
 
 import 'base.dart';
 import 'foundation_manager.dart';

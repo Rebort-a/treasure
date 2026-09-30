@@ -1,5 +1,5 @@
-import '../session/real_game_session.dart';
-import '../network_message.dart';
+import '../middle/real_game_session.dart';
+import '../base/network_message.dart';
 import 'network_engine.dart';
 
 /// 房间唯一的实时网络引擎；参与者与发布者由当前对局会话维护。

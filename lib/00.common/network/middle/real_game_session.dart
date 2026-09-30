@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../game/step.dart';
-import '../network_message.dart';
+import '../base/network_message.dart';
 import 'game_session.dart';
 
 /// 实时对局的参与者名单、发布者和每轮资源同步由房内玩家维护。
@@ -88,15 +88,19 @@ class RealGameSession extends GameSession {
   @override
   void handleMessage(NetworkMessage message) {
     if (!isActive) return;
-    if (message.type == MessageType.search && message.isRoomMessage) {
+    final notification = message.type == MessageType.notify && message.id == 0
+        ? RoomNotification.tryFromContent(message.content)
+        : null;
+    if (notification?.type == NoticeType.search) {
+      final memberId = notification!.memberId!;
       if (publisherId == identity &&
-          message.id != identity &&
-          !_participants.containsKey(message.id) &&
-          !_invited.contains(message.id) &&
+          memberId != identity &&
+          !_participants.containsKey(memberId) &&
+          !_invited.contains(memberId) &&
           (maxPlayers == null ||
               _participants.length + _invited.length < maxPlayers!)) {
-        _invited.add(message.id);
-        room.sendNetworkMessage(MessageType.match, '', recipientId: message.id);
+        _invited.add(memberId);
+        room.sendNetworkMessage(MessageType.match, '', recipientId: memberId);
       }
       return;
     }
@@ -115,7 +119,7 @@ class RealGameSession extends GameSession {
         !(message.recipientIds?.contains(identity) ?? false)) {
       return;
     }
-    if (message.type == MessageType.gameExit) {
+    if (message.type == MessageType.exit) {
       if (message.id != identity) _removeMember(message.id);
       return;
     }
@@ -196,7 +200,7 @@ class RealGameSession extends GameSession {
   }
 
   @override
-  void memberLeft(int memberId) => _removeMember(memberId);
+  void left(int memberId) => _removeMember(memberId);
 
   bool completeSynchronization() {
     if (!isActive || _awaitingResource || _participants.length < 2) {

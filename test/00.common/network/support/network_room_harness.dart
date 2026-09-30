@@ -18,14 +18,8 @@ class RoomHarness {
     : server = SocketServer(
         roomName: 'Test room',
         roomType: type,
-        gameMode: type == 0
-            ? RoomGameMode.none
-            : (type == 4 || type == 6)
-            ? RoomGameMode.real
-            : RoomGameMode.turn,
-        maxGamePlayers: type == 6 ? 4 : null,
         password: password,
-        encryptionKey: key,
+        encryptionKey: key ?? 'test-key',
       );
 
   Future<NetworkEngine> join(String name, {String? password}) async {

@@ -8,6 +8,20 @@ import 'package:treasure/00.common/model/chat_message.dart';
 /// 网络消息层单测：覆盖解析健壮性（1.1 可空改造）与 XOR 加密往返。
 /// 纯逻辑、无需真实 socket。
 void main() {
+  test('连接认证请求使用 NetworkMessage room 路由', () {
+    final request = NetworkMessage(
+      id: 0,
+      type: MessageType.connect,
+      source: 'Alice',
+      content: jsonEncode({'password': 'secret'}),
+    );
+    final decoded = NetworkMessage.fromSocketData(request.toSocketData());
+    expect(decoded?.type, MessageType.connect);
+    expect(decoded?.source, 'Alice');
+    expect(decoded?.isRoomMessage, isTrue);
+    expect(jsonDecode(decoded!.content), {'password': 'secret'});
+  });
+
   test('纯表情和混合文字都以 text 传输并按普通聊天展示', () {
     for (final content in ['🙂', '你好 👨‍👩‍👧‍👦，一起玩吧']) {
       for (final recipients in <Set<int>?>[

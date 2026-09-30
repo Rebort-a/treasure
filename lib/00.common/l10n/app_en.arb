@@ -64,7 +64,7 @@
   "english": "English",
 
   "disconnected": "Disconnected",
-  "roomClosed": "Room closed",
+  "close": "Room closed",
   "cannotReconnect": "Cannot reconnect to server",
   "reconnecting": "Reconnecting... ({cur}/{max})",
   "@reconnecting": {"placeholders": {"cur": {"type": "int"}, "max": {"type": "int"}}},
