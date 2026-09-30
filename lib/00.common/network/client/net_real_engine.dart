@@ -1,12 +1,16 @@
-import '../middle/real_game_session.dart';
-import '../base/network_message.dart';
+import 'real_game_session.dart';
+import '../protocol/network_message.dart';
 import 'network_engine.dart';
 
 /// 房间唯一的实时网络引擎；参与者与发布者由当前对局会话维护。
 class NetRealEngine extends NetworkEngine {
   RealGameSession? _session;
 
-  NetRealEngine({required super.userName, required super.endpoint});
+  NetRealEngine({
+    required super.userName,
+    required super.endpoint,
+    super.transport,
+  });
 
   RealGameSession createSession({
     int? maxPlayers,

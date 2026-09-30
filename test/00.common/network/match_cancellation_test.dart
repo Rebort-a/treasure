@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 
 import 'support/network_room_harness.dart';
 

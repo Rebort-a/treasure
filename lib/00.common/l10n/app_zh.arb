@@ -21,6 +21,8 @@
   "appsPage": "应用",
   "onlinePage": "联机",
   "roomPassword": "房间密码",
+  "roomEncryptionKey": "加密密钥",
+  "roomEncryptionKeyRequired": "请向房间创建者获取密钥",
   "passwordOptional": "留空则为公开房间",
   "passwordIfNeeded": "房间设有密码时填写",
   "incorrectRoomPassword": "房间密码错误",

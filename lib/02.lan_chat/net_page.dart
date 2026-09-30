@@ -7,7 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../00.common/l10n/strings.dart';
-import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/client/network_engine.dart';
 import '../00.common/widget/component/chat_component.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/style/chat_theme.dart';

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/style/theme.dart';
 import 'package:treasure/01.home/player_settings.dart';
-import 'package:treasure/00.common/network/socket_server.dart';
-import 'package:treasure/00.common/network/network_room.dart';
+import 'package:treasure/00.common/network/server/socket_server.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/01.home/home_manager.dart';
-import 'package:treasure/00.common/widget/navigator/floating_navigation_bar.dart';
+import 'package:treasure/01.home/floating_navigation_bar.dart';
 import 'package:treasure/01.home/home_page.dart';
 import 'package:treasure/01.home/route.dart';
 import 'package:treasure/03.animal_chess/local_page.dart';
@@ -89,6 +90,7 @@ void main() {
         name: 'Private',
         type: 0,
         port: 1234,
+        encryptionKey: 'test-key',
         hasPassword: true,
         password: 'secret',
         server: SocketServer(
@@ -166,13 +168,16 @@ void main() {
         for (final locked in [false, true]) {
           manager.createdRooms.value = [];
           manager.othersRooms.value = [];
-          final type = game ? OnlineItemType.gobang.index : RoomInfo.chatType;
+          final type = game
+              ? OnlineItemType.gobang.index
+              : OnlineItemType.onlyChat.index;
           if (created) {
             manager.createdRooms.add(
               CreatedRoomInfo(
                 name: 'Room',
                 type: type,
                 port: 1234,
+                encryptionKey: 'test-key',
                 hasPassword: locked,
                 server: SocketServer(
                   roomName: 'Room',
@@ -188,6 +193,7 @@ void main() {
                 type: type,
                 address: '192.168.1.2',
                 port: 1234,
+                encryptionKey: 'test-key',
                 hasPassword: locked,
               ),
             );

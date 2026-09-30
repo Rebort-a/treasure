@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/client/network_engine.dart';
 import '../00.common/model/notifiers.dart';
 
 /// 聊天室持有已认证的房间引擎，并独立处理页面生命周期。

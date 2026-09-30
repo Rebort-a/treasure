@@ -1,4 +1,4 @@
-import '../network/base/network_room.dart';
+import '../network/protocol/network_room.dart';
 
 /// 首页可展示的应用类型。
 enum AppItemType {

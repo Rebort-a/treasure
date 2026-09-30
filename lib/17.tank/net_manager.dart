@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../00.common/model/app_item_type.dart';
-import '../00.common/network/middle/real_game_session.dart';
+import '../00.common/network/client/real_game_session.dart';
 import '../00.common/game/map.dart';
-import '../00.common/network/base/network_message.dart';
-import '../00.common/network/upper/network_engine.dart';
-import '../00.common/network/upper/net_real_engine.dart';
+import '../00.common/network/protocol/network_message.dart';
+import '../00.common/network/client/network_engine.dart';
+import '../00.common/network/client/net_real_engine.dart';
 import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';

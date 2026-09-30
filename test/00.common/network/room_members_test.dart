@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/network_message.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
 
 import 'support/network_room_harness.dart';
 
@@ -52,10 +52,11 @@ void main() {
           type: MessageType.connect,
           source: 'A',
           content: jsonEncode({'password': 'secret'}),
-        ).toSocketData(),
+          timestamp: 1,
+        ).toPlainSocketData(),
       );
       expect(await incoming.moveNext(), isTrue);
-      final accepted = NetworkMessage.fromSocketData(
+      final accepted = NetworkMessage.fromPlainSocketData(
         incoming.current as List<int>,
       )!;
       expect(accepted.id, 0);
@@ -87,10 +88,11 @@ void main() {
           type: MessageType.connect,
           source: 'A',
           content: jsonEncode({'password': 'wrong'}),
-        ).toSocketData(),
+          timestamp: 1,
+        ).toPlainSocketData(),
       );
       expect(await incoming.moveNext(), isTrue);
-      final message = NetworkMessage.fromSocketData(
+      final message = NetworkMessage.fromPlainSocketData(
         incoming.current as List<int>,
       )!;
       expect(message.type, MessageType.accept);
@@ -160,6 +162,7 @@ void main() {
           type: MessageType.text,
           source: 'A',
           content: 'private',
+          timestamp: 1,
           recipientIds: {b.identity},
         );
         final restored = NetworkMessage.fromJsonString(message.toJsonString())!;

@@ -48,6 +48,8 @@ class S {
   static String get appsPage => _l.appsPage;
   static String get onlinePage => _l.onlinePage;
   static String get roomPassword => _l.roomPassword;
+  static String get roomEncryptionKey => _l.roomEncryptionKey;
+  static String get roomEncryptionKeyRequired => _l.roomEncryptionKeyRequired;
   static String get passwordOptional => _l.passwordOptional;
   static String get passwordIfNeeded => _l.passwordIfNeeded;
   static String get incorrectRoomPassword => _l.incorrectRoomPassword;

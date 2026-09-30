@@ -2,9 +2,9 @@ import 'package:flutter/foundation.dart';
 
 import '../../model/chat_channel.dart';
 import '../../game/step.dart';
-import '../base/network_message.dart';
+import '../protocol/network_message.dart';
 import '../../model/notifiers.dart';
-import '../upper/network_engine.dart';
+import 'network_engine.dart';
 
 /// 复用房间现有连接的单次游戏会话，生命周期仅覆盖本次对局。
 abstract class GameSession implements ChatChannel {

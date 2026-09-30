@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/session/turn_game_session.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
-import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/network_room.dart';
+import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/02.lan_chat/net_manager.dart';
 import 'package:treasure/05.gobang/net_page.dart';
 
@@ -108,6 +108,7 @@ void main() {
         type: 0,
         address: '127.0.0.1',
         port: h.server.port,
+        encryptionKey: h.server.encryptionKey,
       ),
     );
     try {

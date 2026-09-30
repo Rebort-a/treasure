@@ -1,15 +1,21 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
-import 'package:treasure/00.common/network/engine/net_real_engine.dart';
-import 'package:treasure/00.common/network/engine/net_turn_engine.dart';
-import 'package:treasure/00.common/network/session/real_game_session.dart';
-import 'package:treasure/00.common/network/session/turn_game_session.dart';
-import 'package:treasure/00.common/network/network_room.dart';
+import 'package:treasure/00.common/model/app_item_type.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/net_real_engine.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
+import 'package:treasure/00.common/network/client/real_game_session.dart';
+import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
 
 import '../support/network_room_harness.dart';
 
-RoomInfo endpoint(int type) =>
-    RoomInfo(name: 'room', type: type, address: '127.0.0.1', port: 1);
+RoomInfo endpoint(int type) => RoomInfo(
+  name: 'room',
+  type: type,
+  address: '127.0.0.1',
+  port: 1,
+  encryptionKey: 'test-key',
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -54,9 +60,10 @@ void main() {
       userName: 'Manual',
       endpoint: RoomInfo(
         name: 'direct',
-        type: RoomInfo.chatType,
+        type: OnlineItemType.onlyChat.index,
         address: '127.0.0.1',
         port: harness.server.port,
+        encryptionKey: harness.server.encryptionKey,
       ),
     );
     TurnGameSession? session;
@@ -95,9 +102,10 @@ void main() {
       userName: 'Manual',
       endpoint: RoomInfo(
         name: 'direct',
-        type: RoomInfo.chatType,
+        type: OnlineItemType.onlyChat.index,
         address: '127.0.0.1',
         port: harness.server.port,
+        encryptionKey: harness.server.encryptionKey,
       ),
     );
     RealGameSession? session;

@@ -108,8 +108,7 @@ class NetworkMessage {
   MessageType type;
   String source;
   String content;
-  int? timestamp;
-  String? replyToId;
+  int timestamp;
 
   /// 私聊只指定对方；服务器先向发送者回环，再发给对方。
   final int? recipientId;
@@ -122,8 +121,7 @@ class NetworkMessage {
     required this.type,
     required this.source,
     required this.content,
-    this.timestamp,
-    this.replyToId,
+    required this.timestamp,
     this.recipientId,
     Set<int>? recipientIds,
   }) : recipientIds = recipientIds == null
@@ -170,13 +168,11 @@ class NetworkMessage {
     final source = json['source'];
     final content = json['content'];
     final timestamp = json['timestamp'];
-    final replyToId = json['replyToId'];
     final target = json['recipientId'];
     final targets = json['recipientIds'];
     if ((source != null && source is! String) ||
         (content != null && content is! String) ||
-        (timestamp != null && timestamp is! int) ||
-        (replyToId != null && replyToId is! String) ||
+        timestamp is! int ||
         (target != null && (target is! int || target <= 0)) ||
         (targets != null &&
             (targets is! List || targets.any((id) => id is! int || id <= 0)))) {
@@ -192,8 +188,7 @@ class NetworkMessage {
       type: MessageType.values[typeIndex],
       source: source as String? ?? '',
       content: content as String? ?? '',
-      timestamp: timestamp as int?,
-      replyToId: replyToId as String?,
+      timestamp: timestamp,
       recipientId: target as int?,
       recipientIds: targets == null ? null : Set<int>.from(targets as List),
     );
@@ -214,8 +209,7 @@ class NetworkMessage {
       'type': type.index,
       'source': source,
       'content': content,
-      if (timestamp != null) 'timestamp': timestamp,
-      if (replyToId != null) 'replyToId': replyToId,
+      'timestamp': timestamp,
       'route': isRoomMessage
           ? 'room'
           : isPrivateMessage
@@ -242,26 +236,36 @@ class NetworkMessage {
 
   static NetworkMessage? fromSocketData(
     List<int> data, {
-    String? encryptionKey,
+    required String encryptionKey,
   }) {
-    final decrypted = encryptionKey != null
-        ? xorCrypt(data, encryptionKey)
-        : data;
+    final decrypted = xorCrypt(data, encryptionKey);
     return NetworkMessage.fromJsonString(
       utf8.decode(decrypted, allowMalformed: true),
     );
   }
 
-  List<int> toSocketData({String? encryptionKey}) {
+  static NetworkMessage? fromPlainSocketData(List<int> data) {
+    return NetworkMessage.fromJsonString(
+      utf8.decode(data, allowMalformed: true),
+    );
+  }
+
+  List<int> toSocketData({required String encryptionKey}) {
     final encoded = utf8.encode(toJsonString());
-    return encryptionKey != null ? xorCrypt(encoded, encryptionKey) : encoded;
+    return xorCrypt(encoded, encryptionKey);
+  }
+
+  List<int> toPlainSocketData() {
+    return utf8.encode(toJsonString());
   }
 
   // ==================== XOR 流加密 ====================
 
   /// XOR 加解密（对称运算，加密和解密使用同一函数）
   static List<int> xorCrypt(List<int> data, String key) {
-    if (key.isEmpty) return data;
+    if (key.isEmpty) {
+      throw ArgumentError.value(key, 'key', 'must not be empty');
+    }
     final keyBytes = utf8.encode(key);
     final result = List<int>.filled(data.length, 0);
     for (int i = 0; i < data.length; i++) {

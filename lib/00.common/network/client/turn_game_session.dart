@@ -1,6 +1,6 @@
 import '../../game/gamer.dart';
 import '../../game/step.dart';
-import '../base/network_message.dart';
+import '../protocol/network_message.dart';
 import 'game_session.dart';
 
 enum TurnResourceMode { none, frontOnly, both }

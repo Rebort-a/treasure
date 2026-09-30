@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/session/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/turn_game_session.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
-import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 import 'package:treasure/05.gobang/net_page.dart';
 

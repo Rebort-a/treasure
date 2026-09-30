@@ -7,11 +7,11 @@ import '../../model/app_item_type.dart';
 import '../../model/chat_channel.dart';
 import '../../model/notifiers.dart';
 import '../../game/step.dart';
-import '../base/network_message.dart';
-import '../middle/real_game_session.dart';
-import '../middle/turn_game_session.dart';
-import '../base/connection.dart';
-import '../base/network_room.dart';
+import '../protocol/network_message.dart';
+import 'real_game_session.dart';
+import 'turn_game_session.dart';
+import 'client_transport.dart';
+import '../protocol/network_room.dart';
 import 'net_real_engine.dart';
 import 'net_turn_engine.dart';
 
@@ -58,6 +58,7 @@ class NetworkEngine implements ChatChannel {
   final Duration handshakeTimeout;
   final Duration retryBaseDelay;
   final int maxReconnectAttempts;
+  final ClientTransport _transport;
   final status = ValueNotifier(const RoomStatus(RoomConnectionState.idle));
   final identityNotifier = ValueNotifier(0);
   final members = ValueNotifier<Map<int, String>>(const {});
@@ -72,7 +73,7 @@ class NetworkEngine implements ChatChannel {
       OnlineItemType.tryFromRoomType(_roomType)?.gameMode ?? RoomGameMode.none;
   int get matchedOpponentId => _matchedOpponentId;
   bool get matchInitiated => _matchInitiated;
-  String? get encryptionKey => _encryptionKey;
+  String get encryptionKey => _encryptionKey;
   bool get isJoined =>
       !_closed &&
       identity != 0 &&
@@ -80,8 +81,8 @@ class NetworkEngine implements ChatChannel {
 
   late String _roomName = endpoint.name;
   int _roomType = 0;
-  String? _encryptionKey;
-  Connection? _connection;
+  late String _encryptionKey = endpoint.encryptionKey;
+  ClientConnection? _connection;
   Completer<void>? _authentication;
   Future<void>? _joining;
   Future<void>? _closing;
@@ -107,12 +108,14 @@ class NetworkEngine implements ChatChannel {
     this.handshakeTimeout = const Duration(seconds: 8),
     this.retryBaseDelay = const Duration(seconds: 1),
     this.maxReconnectAttempts = 5,
-  });
+    ClientTransport? transport,
+  }) : _transport = transport ?? createClientTransport();
 
   /// 已发现的房间类型决定连接引擎，认证后的 roomType 仍由服务端确认。
   factory NetworkEngine.forRoom({
     required String userName,
     required RoomInfo endpoint,
+    ClientTransport? transport,
   }) {
     final mode =
         OnlineItemType.tryFromRoomType(endpoint.type)?.gameMode ??
@@ -121,14 +124,17 @@ class NetworkEngine implements ChatChannel {
       RoomGameMode.none => NetworkEngine(
         userName: userName,
         endpoint: endpoint,
+        transport: transport,
       ),
       RoomGameMode.turn => NetTurnEngine(
         userName: userName,
         endpoint: endpoint,
+        transport: transport,
       ),
       RoomGameMode.real => NetRealEngine(
         userName: userName,
         endpoint: endpoint,
+        transport: transport,
       ),
     };
   }
@@ -142,7 +148,8 @@ class NetworkEngine implements ChatChannel {
     required void Function() exitHandler,
   }) {
     if (!isJoined ||
-        endpoint.type != RoomInfo.chatType ||
+        OnlineItemType.tryFromRoomType(endpoint.type) !=
+            OnlineItemType.onlyChat ||
         gameMode != RoomGameMode.turn) {
       throw StateError('Turn room is not authenticated');
     }
@@ -175,7 +182,8 @@ class NetworkEngine implements ChatChannel {
     required void Function(int) exitHandler,
   }) {
     if (!isJoined ||
-        endpoint.type != RoomInfo.chatType ||
+        OnlineItemType.tryFromRoomType(endpoint.type) !=
+            OnlineItemType.onlyChat ||
         gameMode != RoomGameMode.real) {
       throw StateError('Real-time room is not authenticated');
     }
@@ -336,9 +344,9 @@ class NetworkEngine implements ChatChannel {
     final generation = ++_generation;
     _opening = true;
     status.value = RoomStatus(RoomConnectionState.connecting, attempt: attempt);
-    Connection? connection;
+    ClientConnection? connection;
     try {
-      final pending = Connection.connect(endpoint.address, endpoint.port);
+      final pending = _transport.connect(endpoint.address, endpoint.port);
       // Future.timeout 不会取消底层连接；迟到的连接必须立即关闭。
       unawaited(
         pending.then((lateConnection) {
@@ -353,7 +361,6 @@ class NetworkEngine implements ChatChannel {
         throw const RoomJoinException(RoomFailure.cancelled);
       }
       _connection = connection;
-      _encryptionKey = null;
       final authentication = Completer<void>();
       _authentication = authentication;
       final accepted = authentication.future.timeout(handshakeTimeout);
@@ -369,6 +376,9 @@ class NetworkEngine implements ChatChannel {
         onDone: () {
           if (generation == _generation && !_closed) _disconnected();
         },
+        onError: (_) {
+          if (generation == _generation && !_closed) _disconnected();
+        },
       );
       connection.send(
         NetworkMessage(
@@ -376,7 +386,8 @@ class NetworkEngine implements ChatChannel {
           type: MessageType.connect,
           source: userName,
           content: jsonEncode({'password': endpoint.password ?? ''}),
-        ).toSocketData(),
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ).toPlainSocketData(),
       );
       await accepted;
       if (_closed || generation != _generation || identity == 0) {
@@ -404,10 +415,9 @@ class NetworkEngine implements ChatChannel {
   }
 
   void _receive(List<int> bytes) {
-    final message = NetworkMessage.fromSocketData(
-      bytes,
-      encryptionKey: identity == 0 ? null : _encryptionKey,
-    );
+    final message = identity == 0
+        ? NetworkMessage.fromPlainSocketData(bytes)
+        : NetworkMessage.fromSocketData(bytes, encryptionKey: _encryptionKey);
     if (message == null) return;
     if (identity == 0) {
       if (message.type != MessageType.accept || message.id != 0) return;
@@ -430,7 +440,11 @@ class NetworkEngine implements ChatChannel {
         }
         _roomType = data['roomType'] as int;
         _roomName = message.source;
-        _encryptionKey = data['key'] as String?;
+        final key = data['key'];
+        if (key is! String || key.isEmpty || key != endpoint.encryptionKey) {
+          throw const FormatException('invalid encryption key');
+        }
+        _encryptionKey = key;
         members.value = Map.unmodifiable(roster);
         identityNotifier.value = id;
         _authentication?.complete();

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../game/step.dart';
-import '../base/network_message.dart';
+import '../protocol/network_message.dart';
 import 'game_session.dart';
 
 /// 实时对局的参与者名单、发布者和每轮资源同步由房内玩家维护。
@@ -168,6 +168,7 @@ class RealGameSession extends GameSession {
           type: message.type,
           source: message.source,
           content: envelope['data'] as String,
+          timestamp: message.timestamp,
           recipientIds: message.recipientIds,
         ),
       );

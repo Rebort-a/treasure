@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/session/turn_game_session.dart';
-import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/network_room.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 
 import 'support/network_room_harness.dart';
 import 'support/match_game_driver.dart';
@@ -22,6 +22,7 @@ NetworkEngine _client(
     type: 0,
     address: '127.0.0.1',
     port: port,
+    encryptionKey: 'test-key',
     password: password,
   ),
   handshakeTimeout: timeout,
@@ -38,9 +39,10 @@ void _accept(WebSocket socket, int identity) {
         'clientId': identity,
         'roomType': 3,
         'members': {'$identity': 'Alice'},
-        'key': null,
+        'key': 'test-key',
       }),
-    ).toSocketData(),
+      timestamp: 1,
+    ).toPlainSocketData(),
   );
 }
 
@@ -142,12 +144,18 @@ void main() {
       sockets.add(socket);
       socket.listen((data) {
         final bytes = data is String ? utf8.encode(data) : data as List<int>;
-        final message = NetworkMessage.fromSocketData(bytes);
+        final message = NetworkMessage.fromPlainSocketData(bytes);
         if (message?.type == MessageType.connect) {
           handshakes.add(socket);
           if (handshakes.length == 1) _accept(socket, 1);
         } else {
-          incoming.add(utf8.decode(bytes));
+          incoming.add(
+            NetworkMessage.fromSocketData(
+                  bytes,
+                  encryptionKey: 'test-key',
+                )?.toJsonString() ??
+                '',
+          );
         }
       });
     });
@@ -161,7 +169,8 @@ void main() {
           type: MessageType.text,
           source: 'Bob',
           content: '已有聊天',
-        ).toSocketData(),
+          timestamp: 1,
+        ).toSocketData(encryptionKey: 'test-key'),
       );
       await waitFor(
         () => room.messageList.value.any((m) => m.content == '已有聊天'),

@@ -69,6 +69,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get roomPassword => 'Room password';
 
   @override
+  String get roomEncryptionKey => 'Encryption key';
+
+  @override
+  String get roomEncryptionKeyRequired => 'Ask the room host for this key';
+
+  @override
   String get passwordOptional => 'Leave blank for a public room';
 
   @override

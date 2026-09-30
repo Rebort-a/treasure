@@ -3,10 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../base/broadcast_discovery.dart';
-import '../base/network_message.dart';
-import '../base/network_room.dart';
-import 'server_connection.dart';
+import '../broadcast_discovery.dart';
+import '../protocol/network_message.dart';
+import '../protocol/network_room.dart';
 import 'server_transport.dart';
 
 class _RoomClient {
@@ -48,7 +47,15 @@ class SocketServer {
     this.password,
     this.maxClients = 64,
     ServerTransport? transport,
-  }) : _transport = transport ?? createServerTransport();
+  }) : _transport = transport ?? createServerTransport() {
+    if (encryptionKey.isEmpty) {
+      throw ArgumentError.value(
+        encryptionKey,
+        'encryptionKey',
+        'must not be empty',
+      );
+    }
+  }
 
   Future<int> start() {
     if (_isStopping) return Future.error(StateError('Room server has stopped'));
@@ -112,7 +119,7 @@ class SocketServer {
       return;
     }
     try {
-      final request = NetworkMessage.fromSocketData(bytes);
+      final request = NetworkMessage.fromPlainSocketData(bytes);
       if (request != null &&
           request.type == MessageType.connect &&
           request.id == 0 &&
@@ -138,7 +145,8 @@ class SocketServer {
                 'members': _members.map((id, name) => MapEntry('$id', name)),
                 'key': encryptionKey,
               }),
-            ).toSocketData(),
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+            ).toPlainSocketData(),
           );
           final name = _members[client.id]!;
           _notify(
@@ -163,7 +171,8 @@ class SocketServer {
         type: MessageType.accept,
         source: roomName,
         content: jsonEncode({'error': 'invalidPassword'}),
-      ).toSocketData(),
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      ).toPlainSocketData(),
     );
     // 先发送完错误消息，再关闭连接。
     Future<void>.delayed(const Duration(milliseconds: 100), () {
@@ -184,6 +193,7 @@ class SocketServer {
         hasPassword: password != null,
         count: _members.length,
       ),
+      timestamp: DateTime.now().millisecondsSinceEpoch,
     );
   }
 
@@ -192,7 +202,7 @@ class SocketServer {
   void _startBroadcast() {
     if (_isStopping) return;
     _broadcastTimer = Timer.periodic(_discoveryInterval, (_) {
-      Broadcast.sendMessage(_discoveryMessage().toSocketData());
+      Broadcast.sendMessage(_discoveryMessage().toPlainSocketData());
     });
   }
 
@@ -351,6 +361,7 @@ class SocketServer {
       type: MessageType.notify,
       source: roomName,
       content: const RoomNotification(type: NoticeType.close).content,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
     ).toSocketData(encryptionKey: encryptionKey);
 
     // 通知房间关闭，与游戏退出消息分离。
@@ -386,7 +397,8 @@ class SocketServer {
             RoomState.stop,
             encryptionKey: encryptionKey,
           ),
-        ).toSocketData(),
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ).toPlainSocketData(),
       );
     }
     await _transport.close();

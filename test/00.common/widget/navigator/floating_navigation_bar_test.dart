@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/widget/navigator/floating_navigation_bar.dart';
+import 'package:treasure/01.home/floating_navigation_bar.dart';
 
 const _selection = ValueKey('navigation-selection');
 Finder _destination(int index) =>

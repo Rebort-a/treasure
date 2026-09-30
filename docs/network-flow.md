@@ -2,11 +2,14 @@
 
 ## 职责与目录
 
-- `00.common/network/connection.dart`：TCP / WebSocket 字节传输、TCP 分帧和连接关闭。第三方 WebSocket 依赖只在此处导入。
-- `00.common/network/engine/network_engine.dart`：房间唯一的连接所有者，负责认证、重连、成员表、房间聊天、匹配和消息分发；纯聊天房间直接使用它。
-- `00.common/network/engine/net_turn_engine.dart` / `net_real_engine.dart`：继承 `NetworkEngine`；游戏房间在连接建立前选定对应类型，由其管理当前回合或实时对局会话，不另建连接。
-- `00.common/network/session/`：仅在进入对局时创建的短期会话，分别处理回合消息、实时参与者与同步、局内聊天；退出对局只释放会话，房间引擎与大厅聊天继续存在。
-- `00.common/network/socket_server.dart`：认证、权威成员事件和三种消息路由；不管理对局或发布者。
+- `00.common/network/protocol/`：共享的房间与消息数据、TCP 长度前缀编码和分帧；客户端与服务端均可依赖。
+- `00.common/network/broadcast_discovery.dart`：局域网 UDP 发现与广播实现。
+- `00.common/network/server/server_transport.dart`：服务端 TCP / WebSocket 监听，以及单条连接的收发与关闭。
+- `00.common/network/server/socket_server.dart`：房间服务逻辑，负责认证、成员事件和消息路由，不处理底层传输细节。
+- `00.common/network/client/client_transport.dart`：客户端传输选择、建连及单条连接的收发与关闭；第三方 WebSocket 依赖只在此处导入。
+- `00.common/network/client/network_engine.dart`：房间唯一的连接所有者，负责认证、重连、成员表、房间聊天、匹配和消息分发；纯聊天房间直接使用它。
+- `00.common/network/client/net_turn_engine.dart` / `net_real_engine.dart`：继承 `NetworkEngine`；游戏房间在连接建立前选定对应类型，由其管理当前回合或实时对局会话，不另建连接。
+- `00.common/network/client/*_game_session.dart`：仅在进入对局时创建的短期会话，分别处理回合消息、实时参与者与同步、局内聊天；退出对局只释放会话，房间引擎与大厅聊天继续存在。
 - `00.common/model/chat_channel.dart`：聊天组件依赖的公共接口，仅暴露身份、消息记录与发送文本能力。
 - `00.common/widget/component/chat_component.dart`：输入框与滚动控制器由聊天组件自行创建、监听和释放。
 - `01.home/dialog.dart`：主页创建房间弹窗，以及入房表单、等待、错误展示和取消。
@@ -16,9 +19,9 @@
 
 ## 先认证，再打开聊天室
 
-1. 主页打开入房表单；通过 `NetworkEngine.forRoom()` 按已发现的房间类型创建引擎，构造时不建立连接。手动输入地址尚不知道类型时先用 `NetworkEngine` 认证，再根据服务端确认的模式沿用原连接创建回合或实时会话。
-2. 显式调用 join()，建立 Connection 并发送 `connect` 类型的 `NetworkMessage`；用户名放在 `source`，密码放在 JSON `content` 中。
-3. 认证通过后，服务器发送 accept，内容包含 clientId、roomType、members 和 key；客户端根据 roomType 推导游戏模式和游戏人数配置。
+1. 主页打开入房表单；通过 `NetworkEngine.forRoom()` 按已发现的房间类型创建引擎，构造时不建立连接。发现广播必须包含非空 `key`；手动输入地址时也必须提供房间密钥。
+2. 显式调用 join()，建立 Connection 并以明文发送 `connect` 类型的 `NetworkMessage`；用户名放在 `source`，密码放在 JSON `content` 中。
+3. 认证通过后，服务器以明文发送 accept，内容包含 clientId、roomType、members 和必需的 key；客户端校验其与房间密钥一致，后续消息均使用该密钥进行 XOR 处理。
 4. join() 只有在成功解析 accept 后才完成。失败、超时或取消均返回结构化原因并关闭连接，不打开聊天室。
 5. 表单保留错误时的输入。认证成功后退出弹窗，再把同一个 `NetworkEngine` 交给对应项目的 `net_page`（纯聊天房间交给 `NetChatPage`），不能建立第二条连接。
 6. 交接前由主页/弹窗负责关闭连接，交接后由聊天室持有者负责。页面已销毁或用户已取消时，迟到结果不能导航。
@@ -45,7 +48,7 @@
 | recipientId | 私聊指定的唯一对方；由服务器先回环给发送者，再发给对方 |
 | recipientIds | 群组的非空、去重收件集合，一般也包含发送者 |
 | content | 消息内容；结构化内容用 JSON 编码，具体游戏资源由游戏模块解释 |
-| timestamp / replyToId | 可选消息元数据 |
+| timestamp | 必选 Unix 毫秒时间戳 |
 
 - 房间聊天、自动通知和 search：room 范围。
 - text：既能是房间消息，也能是局内私聊或群聊；表情字符与普通文字共用 text，没有独立的 emoji / typing 消息类型。

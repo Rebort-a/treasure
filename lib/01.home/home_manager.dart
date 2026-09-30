@@ -4,11 +4,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../00.common/model/notifiers.dart';
-import '../00.common/network/base/broadcast_discovery.dart';
-import '../00.common/network/base/network_message.dart';
-import '../00.common/network/base/network_room.dart';
-import '../00.common/network/middle/socket_server.dart';
-import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/broadcast_discovery.dart';
+import '../00.common/network/protocol/network_message.dart';
+import '../00.common/network/protocol/network_room.dart';
+import '../00.common/network/server/socket_server.dart';
+import '../00.common/network/client/network_engine.dart';
 import 'room_type_picker.dart';
 import '../00.common/l10n/strings.dart';
 import 'player_settings.dart';
@@ -24,7 +24,7 @@ class CreatedRoomInfo extends RoomInfo {
     required super.type,
     required super.port,
     required this.server,
-    super.encryptionKey,
+    required super.encryptionKey,
     super.hasPassword,
     super.password,
   }) : super(address: 'localhost');
@@ -66,7 +66,7 @@ class HomeManager {
 
   void _handleReceivedMessage(String address, List<int> data) {
     if (_disposed) return;
-    final message = NetworkMessage.fromSocketData(data);
+    final message = NetworkMessage.fromPlainSocketData(data);
     if (message == null) {
       debugPrint('[Home] 丢弃畸形房间广播消息');
       return;
@@ -107,7 +107,7 @@ class HomeManager {
             othersRooms.add(newRoom);
             debugPrint(
               '[Room] Discovered: ${newRoom.name} at ${newRoom.address}:${newRoom.port} '
-              'type=${newRoom.type} encrypted=${newRoom.encryptionKey != null}',
+              'type=${newRoom.type} encrypted=true',
             );
           } else {
             final rooms = [...othersRooms.value];

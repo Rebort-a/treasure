@@ -6,12 +6,11 @@ enum RoomState { start, stop }
 enum RoomGameMode { none, turn, real }
 
 class RoomInfo {
-  static const int chatType = 0;
   final String name;
   final int type;
   final String address;
   final int port;
-  final String? encryptionKey;
+  final String encryptionKey;
   final bool hasPassword;
 
   /// 仅用于连接握手，不参与房间信息的序列化或广播。
@@ -23,11 +22,18 @@ class RoomInfo {
     required this.type,
     required this.address,
     required this.port,
-    this.encryptionKey,
+    required String encryptionKey,
     this.hasPassword = false,
     this.password,
     this.count = 0,
-  });
+  }) : encryptionKey = _requireEncryptionKey(encryptionKey);
+
+  static String _requireEncryptionKey(String key) {
+    if (key.isEmpty) {
+      throw ArgumentError.value(key, 'encryptionKey', 'must not be empty');
+    }
+    return key;
+  }
 
   RoomInfo withPassword(String? value) => RoomInfo(
     name: name,
@@ -46,7 +52,7 @@ class RoomInfo {
       'type': type,
       'address': address,
       'port': port,
-      if (encryptionKey != null) 'key': encryptionKey,
+      'key': encryptionKey,
       'hasPassword': hasPassword,
       'count': count,
     };
@@ -68,8 +74,12 @@ class RoomInfo {
     return json['port'] as int;
   }
 
-  static String? getKeyFromJson(Map<String, dynamic> json) {
-    return json['key'] as String?;
+  static String getKeyFromJson(Map<String, dynamic> json) {
+    final key = json['key'];
+    if (key is! String || key.isEmpty) {
+      throw const FormatException('Missing or invalid encryption key');
+    }
+    return key;
   }
 
   factory RoomInfo.fromJson(Map<String, dynamic> json) {
@@ -92,7 +102,7 @@ class RoomInfo {
     int port,
     int type,
     RoomState operation, {
-    String? encryptionKey,
+    required String encryptionKey,
     bool hasPassword = false,
     int count = 0,
   }) {
@@ -100,7 +110,7 @@ class RoomInfo {
       'port': port,
       'type': type,
       'operation': operation.index,
-      if (encryptionKey != null) 'key': encryptionKey,
+      'key': encryptionKey,
       'hasPassword': hasPassword,
       'count': count,
     };
@@ -110,7 +120,7 @@ class RoomInfo {
     int port,
     int type,
     RoomState operation, {
-    String? encryptionKey,
+    required String encryptionKey,
     bool hasPassword = false,
     int count = 0,
   }) {

@@ -12,7 +12,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n.dart';
 import '../../model/chat_channel.dart';
-import '../../network/base/network_message.dart';
+import '../../network/protocol/network_message.dart';
 
 import '../image/blur_hash_image.dart';
 

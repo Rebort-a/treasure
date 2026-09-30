@@ -212,6 +212,18 @@ abstract class AppLocalizations {
   /// **'Room password'**
   String get roomPassword;
 
+  /// No description provided for @roomEncryptionKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption key'**
+  String get roomEncryptionKey;
+
+  /// No description provided for @roomEncryptionKeyRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask the room host for this key'**
+  String get roomEncryptionKeyRequired;
+
   /// No description provided for @passwordOptional.
   ///
   /// In en, this message translates to:

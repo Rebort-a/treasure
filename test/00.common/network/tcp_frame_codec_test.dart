@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/tcp_frame_codec.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
+import 'package:treasure/00.common/network/protocol/tcp_frame_codec.dart';
 
 void main() {
   group('TcpFrameCodec', () {
@@ -86,6 +86,7 @@ void main() {
         type: MessageType.file,
         source: 'alice',
         content: '{"name":"中文.txt","data":"AA=="}',
+        timestamp: 1,
       );
       final framed = TcpFrameCodec.encode(
         original.toSocketData(encryptionKey: key),

@@ -22,6 +22,8 @@
   "appsPage": "Apps",
   "onlinePage": "Online",
   "roomPassword": "Room password",
+  "roomEncryptionKey": "Encryption key",
+  "roomEncryptionKeyRequired": "Ask the room host for this key",
   "passwordOptional": "Leave blank for a public room",
   "passwordIfNeeded": "Enter if the room is password-protected",
   "incorrectRoomPassword": "Incorrect room password",

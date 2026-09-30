@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
-import 'package:treasure/00.common/network/network_room.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/00.common/widget/navigator/notifier_navigator.dart';
 import 'package:treasure/01.home/home_manager.dart';
 import 'package:treasure/01.home/dialog.dart';
@@ -57,6 +57,7 @@ void main() {
               type: 3,
               address: '127.0.0.1',
               port: h.server.port,
+              encryptionKey: h.server.encryptionKey,
               hasPassword: true,
             ),
           ),
@@ -139,6 +140,7 @@ void main() {
       await tester.enterText(find.byType(TextField).at(0), 'Alice');
       await tester.enterText(_field('IP'), '127.0.0.1');
       await tester.enterText(find.byType(TextField).at(2), '${server.port}');
+      await tester.enterText(_field('Encryption key'), 'test-key');
       await tester.tap(find.text('Join'));
       await _pumpUntil(tester, () => receivedHandshake);
       expect(find.byType(NetChatPage), findsNothing);

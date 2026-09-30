@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/gamer.dart';
 import 'package:treasure/00.common/game/step.dart';
-import 'package:treasure/00.common/network/session/turn_game_session.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 
 import 'support/network_room_harness.dart';

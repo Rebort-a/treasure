@@ -1,7 +1,7 @@
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 import 'package:treasure/00.common/network/broadcast_discovery.dart';
-import 'package:treasure/00.common/network/network_room.dart';
-import 'package:treasure/00.common/network/socket_server.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
+import 'package:treasure/00.common/network/server/socket_server.dart';
 
 Future<void> waitFor(bool Function() condition) async {
   for (var i = 0; i < 400; i++) {
@@ -30,6 +30,7 @@ class RoomHarness {
         type: server.roomType,
         address: '127.0.0.1',
         port: server.port,
+        encryptionKey: server.encryptionKey,
         password: password,
       ),
     );

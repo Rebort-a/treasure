@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/model/app_item_type.dart';
-import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/client/network_engine.dart';
 import '../02.lan_chat/net_page.dart';
 import '../03.animal_chess/local_page.dart';
 import '../03.animal_chess/net_page.dart';

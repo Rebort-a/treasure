@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/network_message.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
 
 import 'support/network_room_harness.dart';
 
@@ -126,6 +126,7 @@ void main() {
       type: type,
       source: 'A',
       content: '',
+      timestamp: 1,
       recipientId: recipientId,
       recipientIds: recipientIds,
     );

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/model/app_item_type.dart';
 import '../00.common/l10n/strings.dart';
-import '../00.common/network/base/network_room.dart';
-import '../00.common/network/upper/network_engine.dart';
+import '../00.common/network/protocol/network_room.dart';
+import '../00.common/network/client/network_engine.dart';
 
 class RoomDialog {
   static void showCreateRoomDialog({
@@ -82,6 +83,7 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
   late final _password = TextEditingController(text: widget.password);
   final _host = TextEditingController();
   final _port = TextEditingController();
+  final _encryptionKey = TextEditingController();
   final _busy = ValueNotifier(false);
   final _error = ValueNotifier<String?>(null);
   NetworkEngine? _engine;
@@ -105,6 +107,7 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
     if (name.isEmpty ||
         (widget.room == null &&
             (_host.text.trim().isEmpty ||
+                _encryptionKey.text.trim().isEmpty ||
                 port == null ||
                 port <= 0 ||
                 port > 65535))) {
@@ -117,9 +120,10 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
         widget.room ??
         RoomInfo(
           name: _host.text.trim(),
-          type: RoomInfo.chatType,
+          type: OnlineItemType.onlyChat.index,
           address: _host.text.trim(),
           port: port!,
+          encryptionKey: _encryptionKey.text.trim(),
         );
     final engine = NetworkEngine.forRoom(
       userName: name,
@@ -162,6 +166,7 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
     _password.dispose();
     _host.dispose();
     _port.dispose();
+    _encryptionKey.dispose();
     _busy.dispose();
     _error.dispose();
     super.dispose();
@@ -199,6 +204,14 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
                   enabled: !busy,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(labelText: S.port),
+                ),
+                TextField(
+                  controller: _encryptionKey,
+                  enabled: !busy,
+                  decoration: InputDecoration(
+                    labelText: S.roomEncryptionKey,
+                    helperText: S.roomEncryptionKeyRequired,
+                  ),
                 ),
               ],
               TextField(

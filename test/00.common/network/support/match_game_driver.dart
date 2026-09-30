@@ -1,5 +1,5 @@
-import 'package:treasure/00.common/network/session/game_session.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/client/game_session.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 
 /// 网络层测试先完成真实匹配协议，再把结果交给被测对局引擎。
 T startGame<T extends GameSession>(T game) {

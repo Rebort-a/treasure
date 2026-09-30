@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import '../00.common/config/network_config.dart';
 import '../00.common/l10n/l10n.dart';
 import '../00.common/l10n/strings.dart';
-import '../00.common/network/base/network_room.dart';
+import '../00.common/model/app_item_type.dart';
+import '../00.common/network/protocol/network_room.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/tool/app_info.dart';
 import '../00.common/service/storage_service.dart';
@@ -272,8 +273,8 @@ class _HomePageState extends State<HomePage> {
     final count = room is CreatedRoomInfo
         ? room.server.members.length
         : room.count;
-    final isGame =
-        type > RoomInfo.chatType && type < OnlineItemType.values.length;
+    final onlineType = OnlineItemType.tryFromRoomType(type);
+    final isGame = onlineType != null && onlineType != OnlineItemType.onlyChat;
     return Card(
       child: ListTile(
         leading: Icon(isGame ? Icons.gamepad : Icons.forum_outlined),
@@ -288,7 +289,7 @@ class _HomePageState extends State<HomePage> {
         ),
         subtitle: Text(
           [
-            if (isGame) S.roomTypeString(OnlineItemType.values[type].name),
+            if (isGame) S.roomTypeString(onlineType.name),
             '${room.address}:${room.port}',
           ].join(' · '),
         ),

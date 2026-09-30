@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/step.dart';
-import 'package:treasure/00.common/network/network_message.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 import 'package:treasure/06.greedy_snake/net_page.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 

@@ -1,4 +1,4 @@
-import '../network/base/network_message.dart';
+import '../network/protocol/network_message.dart';
 import 'notifiers.dart';
 
 /// 聊天展示与输入的公共接口，不负责网络连接。

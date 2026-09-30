@@ -3,11 +3,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../../00.common/network/middle/turn_game_session.dart';
+import '../../00.common/network/client/turn_game_session.dart';
 import '../../00.common/game/step.dart';
-import '../../00.common/network/base/network_message.dart';
-import '../../00.common/network/upper/network_engine.dart';
-import '../../00.common/network/upper/net_turn_engine.dart';
+import '../../00.common/network/protocol/network_message.dart';
+import '../../00.common/network/client/network_engine.dart';
+import '../../00.common/network/client/net_turn_engine.dart';
 import '../../00.common/l10n/strings.dart';
 
 import '../middle/foundation_combat_manager.dart';

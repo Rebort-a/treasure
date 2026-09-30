@@ -1,4 +1,4 @@
-import '../network/base/network_message.dart';
+import '../network/protocol/network_message.dart';
 
 /// 聊天消息类型
 enum ChatMessageType { text, image, file, system }
@@ -60,12 +60,12 @@ class ChatMessage {
     }
 
     return ChatMessage(
-      id: '${message.id}_${message.timestamp ?? 0}',
+      id: '${message.id}_${message.timestamp}',
       senderName: message.source,
       senderId: message.id,
       type: type,
       content: message.content,
-      timestamp: message.timestamp ?? DateTime.now().millisecondsSinceEpoch,
+      timestamp: message.timestamp,
       isMe: isMe,
       isSystem: isSystem,
     );

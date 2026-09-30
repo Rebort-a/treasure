@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/model/chat_channel.dart';
-import 'package:treasure/00.common/network/session/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/turn_game_session.dart';
 import 'package:treasure/00.common/l10n/app_localizations.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/model/chat_message.dart';
-import 'package:treasure/00.common/network/network_message.dart';
+import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/00.common/model/notifiers.dart';
 import 'package:treasure/00.common/widget/component/chat_component.dart';
 
@@ -92,6 +92,7 @@ void main() {
         'type': MessageType.notify.index,
         'source': 'Alice',
         'content': content,
+        'timestamp': 1,
       };
       expect(NetworkMessage.fromJson(json), isNull);
       json['type'] = MessageType.text.index;
@@ -102,6 +103,7 @@ void main() {
       type: MessageType.text,
       source: 'Alice',
       content: '1',
+      timestamp: 1,
     );
     final chat = ChatMessage.fromNetworkMessage(text, 2, 'Bob');
     expect(chat.content, '1');
@@ -121,6 +123,7 @@ void main() {
             type: MessageType.text,
             source: 'Alice',
             content: 'Joined the room',
+            timestamp: 1,
           ),
         );
         channel.messageList.add(
@@ -129,6 +132,7 @@ void main() {
             type: MessageType.text,
             source: 'Alice',
             content: '1',
+            timestamp: 1,
           ),
         );
       }

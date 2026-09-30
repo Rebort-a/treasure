@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/game/step.dart';
-import 'package:treasure/00.common/network/engine/network_engine.dart';
+import 'package:treasure/00.common/network/client/network_engine.dart';
 import 'package:treasure/06.greedy_snake/net_page.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 import 'package:treasure/06.greedy_snake/foundation_widget.dart';
