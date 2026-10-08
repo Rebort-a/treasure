@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 
 import '../base/match_board.dart';
 
-enum MatchFeedback { invalidSwap, hint, shuffled, combo }
-
 class MatchView {
   final BoardFrame frame;
   final int score;
@@ -29,17 +27,22 @@ class MatchView {
       status = board.status;
 }
 
-/// 负责选择、提示和展示帧的生命周期，三消判定始终由纯 Dart 内核完成。
+/// 负责选择和展示帧的生命周期，三消判定始终由纯 Dart 内核完成。
 class MatchManager {
   final view = ValueNotifier<MatchView?>(null);
   final selected = ValueNotifier<int?>(null);
-  final hint = ValueNotifier<(int, int)?>(null);
   final busy = ValueNotifier(false);
-  final feedback = ValueNotifier<MatchFeedback?>(null);
+  final comboMultiplier = ValueNotifier<int?>(null);
+  final comboPraise = ValueNotifier<String?>(null);
+  final bonusTime = ValueNotifier(false);
+  final invalidSwap = ValueNotifier<(int, int)?>(null);
+  final invalidSwapAnimating = ValueNotifier(false);
   MatchBoard? _board;
   SwapResult? _publishedResult;
   int _animationEpoch = 0;
+  int _invalidSwapEpoch = 0;
   bool _disposed = false;
+  final Map<Timer, Completer<void>> _pendingDelays = {};
   bool reduceMotion = false;
 
   MatchManager({bool generate = true, int? seed}) {
@@ -48,17 +51,25 @@ class MatchManager {
 
   MatchBoard? get board => _board;
   bool get canInteract =>
-      !_disposed && !busy.value && _board?.status == MatchStatus.playing;
+      !_disposed &&
+      !busy.value &&
+      !invalidSwapAnimating.value &&
+      _board?.status == MatchStatus.playing;
   bool get canRestart => true;
 
   void restart({int? seed}) {
     if (_disposed || !canRestart) return;
+    _cancelDelays();
     _animationEpoch++;
+    _invalidSwapEpoch++;
     _board = MatchBoard.random(seed: seed);
     busy.value = false;
+    invalidSwap.value = null;
+    invalidSwapAnimating.value = false;
+    comboMultiplier.value = null;
+    comboPraise.value = null;
+    bonusTime.value = false;
     selected.value = null;
-    hint.value = null;
-    feedback.value = null;
     _show(BoardFrame(_board!, FramePhase.settled));
   }
 
@@ -71,30 +82,45 @@ class MatchManager {
       swap(previous, index);
     } else {
       selected.value = index;
-      hint.value = null;
     }
   }
 
   void swap(int a, int b) {
     if (!canInteract) return;
     selected.value = null;
-    hint.value = null;
     final result = _board!.playSwap(a, b);
     if (result == null) {
-      feedback.value = MatchFeedback.invalidSwap;
+      if (_board!.adjacent(a, b) &&
+          _board!.ice[a] == 0 &&
+          _board!.ice[b] == 0) {
+        showInvalidSwap(a, b);
+      }
       return;
     }
     _animate(result);
   }
 
-  void showHint() {
-    if (!canInteract) return;
-    final moves = _board!.legalMoves;
-    if (moves.isNotEmpty) {
-      hint.value = moves.first;
-      selected.value = null;
-      feedback.value = MatchFeedback.hint;
+  void showInvalidSwap(int a, int b) {
+    final board = _board;
+    if (_disposed ||
+        board == null ||
+        !board.adjacent(a, b) ||
+        board.ice[a] > 0 ||
+        board.ice[b] > 0) {
+      return;
     }
+    final epoch = ++_invalidSwapEpoch;
+    invalidSwapAnimating.value = true;
+    invalidSwap.value = (a, b);
+    unawaited(() async {
+      await _delay(const Duration(milliseconds: 180));
+      if (_disposed || epoch != _invalidSwapEpoch) return;
+      invalidSwap.value = null;
+      await _delay(const Duration(milliseconds: 180));
+      if (!_disposed && epoch == _invalidSwapEpoch) {
+        invalidSwapAnimating.value = false;
+      }
+    }());
   }
 
   /// 发布者才生成首次随机棋盘。网络同步发送完整随机状态，接管者无需重抽。
@@ -114,6 +140,7 @@ class MatchManager {
   }
 
   void loadState(Map<String, dynamic> data) {
+    _cancelDelays();
     final next = MatchBoard.fromJson(data);
     SwapResult? result;
     if (_publishedResult != null &&
@@ -123,7 +150,7 @@ class MatchManager {
       _publishedResult = null;
     } else if (_board != null &&
         next.seed == _board!.seed &&
-        next.moveNumber == _board!.moveNumber + 1 &&
+        next.moveNumber > _board!.moveNumber &&
         next.lastSwap != null) {
       // 普通成员用上一步快照重演动画；判定结果仍以发布者快照为准。
       final replay = MatchBoard.fromJson(_board!.toJson());
@@ -136,13 +163,17 @@ class MatchManager {
     }
     _board = next;
     selected.value = null;
-    hint.value = null;
+    _invalidSwapEpoch++;
+    invalidSwap.value = null;
+    invalidSwapAnimating.value = false;
     if (result != null) {
       _animate(result);
     } else {
       _animationEpoch++;
       busy.value = false;
-      feedback.value = null;
+      comboMultiplier.value = null;
+      comboPraise.value = null;
+      bonusTime.value = false;
       _show(BoardFrame(next, FramePhase.settled));
     }
   }
@@ -156,41 +187,149 @@ class MatchManager {
     if (current != null && !_disposed) _show(current.frame);
   }
 
+  String _praiseFor(SwapResult result) {
+    if (result.cascades >= 6 || result.totalCleared >= 48) {
+      return 'Unbelievable';
+    }
+    if (result.cascades >= 4 ||
+        result.specialEffectsTriggered >= 4 ||
+        result.totalCleared >= 32) {
+      return 'Amazing';
+    }
+    if (result.cascades >= 3 ||
+        result.specialEffectsTriggered >= 2 ||
+        result.totalCleared >= 20) {
+      return 'Excellent';
+    }
+    if (result.initialMatchCount >= 4 ||
+        result.cascades >= 2 ||
+        result.totalCleared >= 12) {
+      return 'Great';
+    }
+    return 'Good';
+  }
+
+  Future<void> _delay(Duration duration) {
+    final completer = Completer<void>();
+    late final Timer timer;
+    timer = Timer(duration, () {
+      _pendingDelays.remove(timer);
+      if (!completer.isCompleted) completer.complete();
+    });
+    _pendingDelays[timer] = completer;
+    return completer.future;
+  }
+
+  void _cancelDelays() {
+    final pending = _pendingDelays.entries.toList();
+    _pendingDelays.clear();
+    for (final entry in pending) {
+      entry.key.cancel();
+      if (!entry.value.isCompleted) entry.value.complete();
+    }
+  }
+
+  Future<void> _showPraise(String praise, int epoch) async {
+    comboMultiplier.value = null;
+    comboPraise.value = praise;
+    await _delay(const Duration(milliseconds: 1000));
+    if (!_disposed && epoch == _animationEpoch) {
+      comboPraise.value = null;
+    }
+  }
+
+  void _showPraiseBriefly(String praise, int epoch) {
+    comboMultiplier.value = null;
+    comboPraise.value = praise;
+    unawaited(() async {
+      await _delay(const Duration(milliseconds: 1000));
+      if (!_disposed && epoch == _animationEpoch) {
+        comboPraise.value = null;
+      }
+    }());
+  }
+
   void _animate(SwapResult result) {
+    _cancelDelays();
     final epoch = ++_animationEpoch;
-    feedback.value = result.shuffled
-        ? MatchFeedback.shuffled
-        : result.cascades > 1
-        ? MatchFeedback.combo
-        : null;
-    if (reduceMotion) {
-      busy.value = false;
+    final praise = _praiseFor(result);
+    final hasBonusTime = result.frames.any(
+      (frame) => frame.phase == FramePhase.bonus,
+    );
+    comboPraise.value = null;
+    bonusTime.value = false;
+    if (reduceMotion && !hasBonusTime) {
+      busy.value = true;
+      comboMultiplier.value = null;
       _show(result.frames.last);
+      busy.value = false;
+      _showPraiseBriefly(praise, epoch);
+      return;
+    }
+    if (reduceMotion) {
+      busy.value = true;
+      comboMultiplier.value = null;
+      _show(result.frames.last);
+      unawaited(() async {
+        await _showPraise(praise, epoch);
+        if (_disposed || epoch != _animationEpoch) return;
+        bonusTime.value = true;
+        await _delay(const Duration(milliseconds: 1000));
+        if (!_disposed && epoch == _animationEpoch) {
+          bonusTime.value = false;
+          busy.value = false;
+        }
+      }());
       return;
     }
     busy.value = true;
+    comboMultiplier.value = result.cascades == 0 ? null : 1;
     unawaited(() async {
+      var cascade = 0;
+      var praiseShown = false;
       for (final frame in result.frames) {
         if (_disposed || epoch != _animationEpoch) return;
+        if (frame.phase == FramePhase.bonus && !praiseShown) {
+          await _showPraise(praise, epoch);
+          if (_disposed || epoch != _animationEpoch) return;
+          praiseShown = true;
+          bonusTime.value = true;
+        }
+        if (frame.phase == FramePhase.clear && !bonusTime.value) {
+          cascade++;
+          comboMultiplier.value = cascade;
+        }
         _show(frame);
         if (frame.phase != FramePhase.settled) {
-          await Future<void>.delayed(
+          await _delay(
             Duration(milliseconds: frame.phase == FramePhase.clear ? 180 : 220),
           );
         }
       }
-      if (!_disposed && epoch == _animationEpoch) busy.value = false;
+      if (!praiseShown) {
+        comboMultiplier.value = null;
+        _showPraiseBriefly(praise, epoch);
+      }
+      if (!_disposed && epoch == _animationEpoch) {
+        comboMultiplier.value = null;
+        bonusTime.value = false;
+        busy.value = false;
+      }
     }());
   }
 
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _cancelDelays();
     _animationEpoch++;
     view.dispose();
     selected.dispose();
-    hint.dispose();
     busy.dispose();
-    feedback.dispose();
+    comboMultiplier.dispose();
+    comboPraise.dispose();
+    bonusTime.dispose();
+    invalidSwap.dispose();
+    invalidSwapAnimating.dispose();
   }
 }

@@ -16,26 +16,15 @@ class S {
 
   // ==================== 随机三消与多人合作 ====================
   static String get matchThree => _l.matchThree;
-  static String get matchRulesTitle => _l.matchRulesTitle;
-  static String get matchRules => _l.matchRules;
   static String get matchTeamChat => _l.matchTeamChat;
   static String get matchNewRound => _l.matchNewRound;
   static String get matchSynchronizing => _l.matchSynchronizing;
-  static String get matchGestureHint => _l.matchGestureHint;
-  static String get matchHint => _l.matchHint;
-  static String get matchInvalidSwap => _l.matchInvalidSwap;
-  static String get matchHintShown => _l.matchHintShown;
-  static String get matchShuffled => _l.matchShuffled;
-  static String get matchCombo => _l.matchCombo;
-  static String get matchRandomRound => _l.matchRandomRound;
   static String get matchMoves => _l.matchMoves;
   static String get matchScore => _l.matchScore;
-  static String get matchIce => _l.matchIce;
   static String get matchYourTurn => _l.matchYourTurn;
   static String matchPlayerTurn(String name) => _l.matchPlayerTurn(name);
   static String get matchWon => _l.matchWon;
   static String get matchLost => _l.matchLost;
-  static String get matchBackToRoom => _l.matchBackToRoom;
   static String get coopConfirmLeave => _l.coopConfirmLeave;
   static List<String> get matchAnimalNames => _l.matchAnimals.split('|');
 

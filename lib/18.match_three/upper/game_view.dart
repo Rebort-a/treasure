@@ -32,23 +32,6 @@ class MatchGameView extends StatelessWidget {
         ),
         title: Text(S.matchThree),
         actions: [
-          IconButton(
-            tooltip: S.matchRulesTitle,
-            icon: const Icon(Icons.help_outline_rounded),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => AlertDialog(
-                title: Text(S.matchRulesTitle),
-                content: SingleChildScrollView(child: Text(S.matchRules)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(S.ok),
-                  ),
-                ],
-              ),
-            ),
-          ),
           if (engine != null)
             IconButton(
               tooltip: S.matchTeamChat,
@@ -99,51 +82,74 @@ class MatchGameView extends StatelessWidget {
                       const SizedBox(height: 14),
                       MatchBoardWidget(manager: manager, view: view),
                       const SizedBox(height: 12),
-                      ValueListenableBuilder<bool>(
-                        valueListenable: manager.busy,
-                        builder: (_, busy, __) {
-                          if (!busy && view.status != MatchStatus.playing) {
-                            return _result(context, view);
-                          }
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  S.matchGestureHint,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              OutlinedButton.icon(
-                                key: const ValueKey('match-hint'),
-                                onPressed: manager.canInteract
-                                    ? manager.showHint
-                                    : null,
-                                icon: const Icon(Icons.lightbulb_outline),
-                                label: Text(S.matchHint),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                      ValueListenableBuilder<MatchFeedback?>(
-                        valueListenable: manager.feedback,
-                        builder: (_, feedback, __) => Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            switch (feedback) {
-                              MatchFeedback.invalidSwap => S.matchInvalidSwap,
-                              MatchFeedback.hint => S.matchHintShown,
-                              MatchFeedback.shuffled => S.matchShuffled,
-                              MatchFeedback.combo => S.matchCombo,
-                              null => '',
-                            },
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                          ),
+                      SizedBox(
+                        height: 88,
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: manager.busy,
+                          builder: (_, busy, __) {
+                            if (busy) {
+                              return ValueListenableBuilder<String?>(
+                                valueListenable: manager.comboPraise,
+                                builder: (_, praise, __) {
+                                  if (praise != null) {
+                                    return _celebrationIndicator(
+                                      context,
+                                      praise,
+                                    );
+                                  }
+                                  return ValueListenableBuilder<bool>(
+                                    valueListenable: manager.bonusTime,
+                                    builder: (_, bonusTime, __) {
+                                      if (bonusTime) {
+                                        return _celebrationIndicator(
+                                          context,
+                                          'Bonus Time',
+                                        );
+                                      }
+                                      return ValueListenableBuilder<int?>(
+                                        valueListenable:
+                                            manager.comboMultiplier,
+                                        builder: (_, multiplier, __) =>
+                                            _multiplierIndicator(
+                                              context,
+                                              multiplier ?? 1,
+                                            ),
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            }
+                            return ValueListenableBuilder<String?>(
+                              valueListenable: manager.comboPraise,
+                              builder: (_, praise, __) {
+                                if (praise != null) {
+                                  return _celebrationIndicator(context, praise);
+                                }
+                                return ValueListenableBuilder<bool>(
+                                  valueListenable: manager.invalidSwapAnimating,
+                                  builder: (_, invalidSwapAnimating, __) {
+                                    if (invalidSwapAnimating) {
+                                      return _multiplierIndicator(context, 0);
+                                    }
+                                    final message = switch (view.status) {
+                                      MatchStatus.won => S.matchWon,
+                                      MatchStatus.lost => S.matchLost,
+                                      MatchStatus.playing => null,
+                                    };
+                                    if (message == null) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return _resultIndicator(
+                                      context,
+                                      message,
+                                      view.status,
+                                    );
+                                  },
+                                );
+                              },
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -157,6 +163,70 @@ class MatchGameView extends StatelessWidget {
     );
   }
 
+  Widget _multiplierIndicator(BuildContext context, int multiplier) => Center(
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.close_rounded,
+          size: 34,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        Text(
+          '$multiplier',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _celebrationIndicator(BuildContext context, String text) => Center(
+    child: Text(
+      text,
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+        color: Theme.of(context).colorScheme.primary,
+        fontWeight: FontWeight.w900,
+      ),
+    ),
+  );
+
+  Widget _resultIndicator(
+    BuildContext context,
+    String message,
+    MatchStatus status,
+  ) => Card(
+    color: Theme.of(context).colorScheme.primaryContainer,
+    child: Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            status == MatchStatus.won
+                ? Icons.emoji_events_rounded
+                : Icons.eco_rounded,
+            size: 30,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _header(BuildContext context, MatchView view) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -168,11 +238,6 @@ class MatchGameView extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          S.matchRandomRound,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
         Wrap(
           spacing: 24,
           runSpacing: 8,
@@ -217,7 +282,6 @@ class MatchGameView extends StatelessWidget {
       for (final entry in view.targets.entries)
         _goal(
           context,
-          S.matchAnimalNames[entry.key],
           '${view.collected[entry.key].clamp(0, entry.value)} / ${entry.value}',
           view.collected[entry.key] >= entry.value,
           SizedBox(
@@ -234,7 +298,6 @@ class MatchGameView extends StatelessWidget {
         ),
       _goal(
         context,
-        S.matchIce,
         '${view.iceLeft}',
         view.iceLeft == 0,
         const Icon(Icons.ac_unit_rounded, color: Color(0xFF73B9D8), size: 28),
@@ -242,41 +305,38 @@ class MatchGameView extends StatelessWidget {
     ],
   );
 
-  Widget _goal(
-    BuildContext context,
-    String label,
-    String value,
-    bool done,
-    Widget icon,
-  ) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        icon,
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _goal(BuildContext context, String value, bool done, Widget icon) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelSmall),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+            icon,
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 56,
+              child: done
+                  ? const Center(
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        size: 18,
+                        color: Color(0xFF469D78),
+                      ),
+                    )
+                  : Text(
+                      value,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+            ),
           ],
         ),
-        if (done) ...[
-          const SizedBox(width: 4),
-          const Icon(
-            Icons.check_circle_rounded,
-            size: 18,
-            color: Color(0xFF469D78),
-          ),
-        ],
-      ],
-    ),
-  );
+      );
 
   Widget _team(BuildContext context) {
     final engine = this.engine!;
@@ -317,34 +377,6 @@ class MatchGameView extends StatelessWidget {
       ],
     );
   }
-
-  Widget _result(BuildContext context, MatchView view) => Card(
-    color: Theme.of(context).colorScheme.primaryContainer,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Icon(
-            view.status == MatchStatus.won
-                ? Icons.emoji_events_rounded
-                : Icons.eco_rounded,
-            size: 40,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            view.status == MatchStatus.won ? S.matchWon : S.matchLost,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: engine == null ? manager.restart : onExit,
-            child: Text(engine == null ? S.matchNewRound : S.matchBackToRoom),
-          ),
-        ],
-      ),
-    ),
-  );
 
   void _showChat(BuildContext context) {
     final engine = this.engine!;

@@ -30,9 +30,8 @@ class NetMatchManager extends MatchManager {
   void swap(int a, int b) {
     if (!canInteract) return;
     selected.value = null;
-    hint.value = null;
     if (!board!.canSwap(a, b)) {
-      feedback.value = MatchFeedback.invalidSwap;
+      showInvalidSwap(a, b);
       return;
     }
     turnEngine.submitAction({'from': a, 'to': b});

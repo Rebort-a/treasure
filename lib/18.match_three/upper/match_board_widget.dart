@@ -53,6 +53,13 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
     return row * MatchBoard.side + col;
   }
 
+  int _displayIndex(int index, (int, int)? invalidSwap) {
+    if (invalidSwap == null) return index;
+    if (index == invalidSwap.$1) return invalidSwap.$2;
+    if (index == invalidSwap.$2) return invalidSwap.$1;
+    return index;
+  }
+
   @override
   Widget build(BuildContext context) {
     final frame = widget.view.frame;
@@ -144,92 +151,127 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                         )
                                       : null,
                                 ),
-                                child: frame.ice[index] > 0
-                                    ? const Align(
-                                        alignment: Alignment.bottomRight,
-                                        child: Icon(
-                                          Icons.ac_unit_rounded,
-                                          size: 12,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : null,
                               ),
                             ),
                           ),
-                        for (
-                          var index = 0;
-                          index < frame.pieces.length;
-                          index++
-                        )
-                          if (frame.pieces[index] case final Piece piece)
-                            AnimatedPositioned(
-                              key: ValueKey('piece-${piece.id}'),
-                              duration: duration,
-                              curve: Curves.easeOutCubic,
-                              left: index % MatchBoard.side * cell,
-                              top: index ~/ MatchBoard.side * cell,
-                              width: cell,
-                              height: cell,
-                              child: Semantics(
-                                label:
-                                    '${S.matchAnimalNames[piece.kind]} ${index ~/ MatchBoard.side + 1}, ${index % MatchBoard.side + 1}',
-                                button: true,
-                                onTap: () => widget.manager.selectCell(index),
-                                child: AnimatedScale(
-                                  scale: frame.clearing.contains(index)
-                                      ? 0.45
-                                      : 1,
-                                  duration: duration,
-                                  child: AnimatedOpacity(
-                                    opacity: frame.clearing.contains(index)
-                                        ? 0.15
-                                        : 1,
+                        ValueListenableBuilder<(int, int)?>(
+                          valueListenable: widget.manager.invalidSwap,
+                          builder: (_, invalidSwap, __) => Stack(
+                            children: [
+                              for (
+                                var index = 0;
+                                index < frame.pieces.length;
+                                index++
+                              )
+                                if (frame.pieces[index] case final Piece piece)
+                                  AnimatedPositioned(
+                                    key: ValueKey('piece-${piece.id}'),
                                     duration: duration,
-                                    child: CustomPaint(
-                                      painter: AnimalPiecePainter(
-                                        piece: piece,
-                                        clock: _clock,
-                                        animated: _animate,
+                                    curve: Curves.easeOutCubic,
+                                    left:
+                                        _displayIndex(index, invalidSwap) %
+                                        MatchBoard.side *
+                                        cell,
+                                    top:
+                                        _displayIndex(index, invalidSwap) ~/
+                                        MatchBoard.side *
+                                        cell,
+                                    width: cell,
+                                    height: cell,
+                                    child: Semantics(
+                                      label:
+                                          '${S.matchAnimalNames[piece.kind]} ${index ~/ MatchBoard.side + 1}, ${index % MatchBoard.side + 1}',
+                                      button: true,
+                                      onTap: () =>
+                                          widget.manager.selectCell(index),
+                                      child: AnimatedScale(
+                                        scale: frame.clearing.contains(index)
+                                            ? 0.45
+                                            : 1,
+                                        duration: duration,
+                                        child: AnimatedOpacity(
+                                          opacity:
+                                              frame.clearing.contains(index)
+                                              ? 0.15
+                                              : 1,
+                                          duration: duration,
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              Positioned.fill(
+                                                child: CustomPaint(
+                                                  painter: AnimalPiecePainter(
+                                                    piece: piece,
+                                                    clock: _clock,
+                                                    animated:
+                                                        _animate &&
+                                                        frame.ice[index] == 0,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (frame.ice[index] > 0)
+                                                Positioned.fill(
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(2),
+                                                    child: DecoratedBox(
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            const Color(
+                                                              0xFF9DDBF2,
+                                                            ).withValues(
+                                                              alpha: 0.52,
+                                                            ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        border: Border.all(
+                                                          color:
+                                                              const Color(
+                                                                0xFFD9F5FF,
+                                                              ).withValues(
+                                                                alpha: 0.85,
+                                                              ),
+                                                          width: 1.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
+                            ],
+                          ),
+                        ),
                         ValueListenableBuilder<int?>(
                           valueListenable: widget.manager.selected,
-                          builder: (_, selected, __) =>
-                              ValueListenableBuilder<(int, int)?>(
-                                valueListenable: widget.manager.hint,
-                                builder: (_, hint, __) => IgnorePointer(
-                                  child: Stack(
-                                    children: [
-                                      for (final index in {
-                                        if (selected != null) selected,
-                                        if (hint != null) hint.$1,
-                                        if (hint != null) hint.$2,
-                                      })
-                                        Positioned(
-                                          left: index % MatchBoard.side * cell,
-                                          top: index ~/ MatchBoard.side * cell,
-                                          width: cell,
-                                          height: cell,
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              border: Border.all(
-                                                color: const Color(0xFFFFD65B),
-                                                width: 3,
-                                              ),
-                                            ),
-                                          ),
+                          builder: (_, selected, __) => IgnorePointer(
+                            child: Stack(
+                              children: [
+                                if (selected != null)
+                                  Positioned(
+                                    left: selected % MatchBoard.side * cell,
+                                    top: selected ~/ MatchBoard.side * cell,
+                                    width: cell,
+                                    height: cell,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: const Color(0xFFFFD65B),
+                                          width: 3,
                                         ),
-                                    ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),

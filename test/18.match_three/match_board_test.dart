@@ -6,6 +6,7 @@ import 'package:treasure/18.match_three/base/match_board.dart';
 MatchBoard _pattern(
   Map<int, int> overrides, {
   Map<int, PieceEffect> effects = const {},
+  Set<int> frozen = const {},
 }) {
   final data = MatchBoard.random(seed: 7).toJson();
   data['pieces'] = [
@@ -17,7 +18,7 @@ MatchBoard _pattern(
       ],
   ];
   data['nextId'] = 65;
-  data['ice'] = List.filled(64, 1);
+  data['ice'] = [for (var i = 0; i < 64; i++) frozen.contains(i) ? 1 : 0];
   return MatchBoard.fromJson(data);
 }
 
@@ -81,7 +82,9 @@ void main() {
   });
 
   test('四连在交换落点生成直线特效，消除动物并破除冰层', () {
-    final board = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0});
+    final board = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0}, frozen: {4});
+    expect(board.canSwap(4, 5), isFalse);
+    expect(board.playSwap(4, 5), isNull);
     final result = board.playSwap(10, 2)!;
     final frame = result.frames.firstWhere(
       (frame) => frame.phase == FramePhase.clear,
@@ -89,6 +92,9 @@ void main() {
     expect(frame.pieces[2]!.effect, PieceEffect.row);
     expect(frame.clearing.contains(2), isFalse);
     expect(frame.clearing.containsAll({0, 1, 3}), isTrue);
+    expect(frame.clearing.contains(4), isFalse);
+    expect(frame.pieces[4], isNotNull);
+    expect(frame.ice[4], 0);
     expect(board.collected[0], greaterThanOrEqualTo(3));
     expect(board.iceLeft, lessThan(64));
   });
@@ -145,6 +151,153 @@ void main() {
     );
     expect(pair.canSwap(0, 1), isTrue);
     expect(pair.playSwap(0, 1)!.scoreGained, greaterThan(0));
+  });
+
+  test('炸弹扩展十字范围，特效组合产生联动消除', () {
+    final bombInMatch = _pattern(
+      {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
+      effects: {1: PieceEffect.bomb},
+    );
+    final bombClear = bombInMatch
+        .playSwap(10, 2)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear)
+        .clearing;
+    expect(bombClear, containsAll({0, 1, 3, 8, 9, 10, 17}));
+
+    final columnPair = _pattern(
+      {},
+      effects: {0: PieceEffect.column, 1: PieceEffect.column},
+    );
+    final columnClear = columnPair
+        .playSwap(0, 1)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear)
+        .clearing;
+    expect(columnClear, containsAll({for (var row = 0; row < 8; row++) row * 8}));
+
+    final rowColumnPair = _pattern(
+      {},
+      effects: {0: PieceEffect.row, 1: PieceEffect.column},
+    );
+    final rowColumnClear = rowColumnPair
+        .playSwap(0, 1)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear)
+        .clearing;
+    expect(
+      rowColumnClear,
+      containsAll({for (var row = 0; row < 8; row++) row * 8}),
+    );
+    expect(
+      rowColumnClear,
+      containsAll({for (var row = 0; row < 8; row++) row * 8}),
+    );
+
+    final lineBombPair = _pattern(
+      {},
+      effects: {27: PieceEffect.row, 28: PieceEffect.bomb},
+    );
+    final lineBombClear = lineBombPair
+        .playSwap(27, 28)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear)
+        .clearing;
+    expect(
+      lineBombClear,
+      containsAll({
+        for (var row = 2; row <= 5; row++)
+          for (var col = 0; col < 8; col++) row * 8 + col,
+      }),
+    );
+
+    final doubleBomb = _pattern(
+      {},
+      effects: {27: PieceEffect.bomb, 28: PieceEffect.bomb},
+    );
+    final doubleBombClear = doubleBomb
+        .playSwap(27, 28)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear)
+        .clearing;
+    expect(
+      doubleBombClear,
+      containsAll({
+        for (var row = 0; row <= 6; row++)
+          for (var col = 0; col <= 6; col++) row * 8 + col,
+      }),
+    );
+
+    final rainbowLine = _pattern(
+      {},
+      effects: {0: PieceEffect.rainbow, 1: PieceEffect.row},
+    );
+    final rainbowLineFrame = rainbowLine
+        .playSwap(0, 1)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear);
+    final lineKind = rainbowLineFrame.pieces[0]!.kind;
+    for (var index = 0; index < MatchBoard.cells; index++) {
+      if (rainbowLineFrame.pieces[index]?.kind == lineKind) {
+        expect(
+          rainbowLineFrame.pieces[index]!.effect,
+          anyOf(PieceEffect.row, PieceEffect.column),
+        );
+      }
+    }
+
+    final rainbowBomb = _pattern(
+      {},
+      effects: {0: PieceEffect.rainbow, 1: PieceEffect.bomb},
+    );
+    final rainbowBombFrame = rainbowBomb
+        .playSwap(0, 1)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear);
+    final bombKind = rainbowBombFrame.pieces[0]!.kind;
+    for (var index = 0; index < MatchBoard.cells; index++) {
+      if (rainbowBombFrame.pieces[index]?.kind == bombKind) {
+        expect(rainbowBombFrame.pieces[index]!.effect, PieceEffect.bomb);
+      }
+    }
+  });
+
+  test('通关后剩余步数进入 Bonus Time 并转成直线特效', () {
+    final setup = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0});
+    final data = setup.toJson()
+      ..['targets'] = {'0': 1, '1': 1}
+      ..['collected'] = [0, 1, 0, 0, 0, 0]
+      ..['ice'] = List.filled(MatchBoard.cells, 0)
+      ..['score'] = setup.scoreTarget;
+    data['movesLeft'] = 2;
+    data['moveNumber'] = data['initialMoves'] - 2;
+    final board = MatchBoard.fromJson(data);
+    final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
+
+    final result = board.playSwap(10, 2)!;
+    mirror.playSwap(10, 2);
+
+    expect(board.status, MatchStatus.won);
+    expect(board.movesLeft, 0);
+    expect(board.moveNumber, board.initialMoves);
+    expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+    expect(
+      result.frames.any((frame) => frame.phase == FramePhase.bonus),
+      isTrue,
+    );
+    expect(result.initialMatchCount, 4);
+    expect(
+      result.frames.any(
+        (frame) =>
+            frame.phase == FramePhase.bonus &&
+            frame.pieces.any(
+              (piece) =>
+                  piece?.effect == PieceEffect.row ||
+                  piece?.effect == PieceEffect.column,
+            ),
+      ),
+      isTrue,
+    );
   });
 
   test('步数归零结束，达成全部目标才获胜，结束后不再接受交换', () {

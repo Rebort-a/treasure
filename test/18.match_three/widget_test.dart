@@ -62,7 +62,7 @@ Future<Uint8List> _pixels(
 void main() {
   setUp(() => LanguageProvider.instance.resetForTesting());
 
-  testWidgets('随机目标与棋盘可见，点击提示、交换、重开均有效', (tester) async {
+  testWidgets('随机目标与棋盘可见，交换与重开均有效', (tester) async {
     final manager = MatchManager(seed: 100);
     addTearDown(manager.dispose);
     await tester.pumpWidget(_app(manager));
@@ -70,11 +70,7 @@ void main() {
     expect(find.text(S.matchThree), findsOneWidget);
     expect(manager.board!.pieces.length, 64);
     final before = manager.board!.seed;
-    await tester.ensureVisible(find.byKey(const ValueKey('match-hint')));
-    await tester.tap(find.byKey(const ValueKey('match-hint')));
-    await tester.pump();
-    expect(manager.hint.value, manager.board!.legalMoves.first);
-    final swap = manager.hint.value!;
+    final swap = manager.board!.legalMoves.first;
     await tester.ensureVisible(find.byKey(const ValueKey('match-board')));
     await tester.pump();
     final rect = tester.getRect(find.byKey(const ValueKey('match-board')));
@@ -86,6 +82,21 @@ void main() {
     await tester.tapAt(center(swap.$2));
     await tester.pump();
     expect(manager.board!.moveNumber, 1);
+    expect(manager.comboPraise.value, isNotNull);
+    expect(
+      {
+        'Good',
+        'Great',
+        'Excellent',
+        'Amazing',
+        'Unbelievable',
+      }.contains(manager.comboPraise.value),
+      isTrue,
+    );
+    expect(find.text(manager.comboPraise.value!), findsOneWidget);
+    expect(manager.busy.value, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
     expect(manager.busy.value, isFalse);
     await tester.tap(find.byKey(const ValueKey('match-restart')));
     await tester.pump();
@@ -109,9 +120,54 @@ void main() {
     await tester.dragFrom(center(swap.$1), center(swap.$2) - center(swap.$1));
     await tester.pump();
     expect(manager.board!.moveNumber, 1);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
     await tester.dragFrom(center(7), Offset(cell, 0));
     await tester.pump();
     expect(manager.board!.moveNumber, 1);
+  });
+
+  testWidgets('无效交换会短暂移动动物后复位且不消耗步数', (tester) async {
+    final manager = MatchManager(seed: 100);
+    addTearDown(manager.dispose);
+    final board = manager.board!;
+    final invalidSwap = [
+      for (var index = 0; index < MatchBoard.cells; index++)
+        if (index % MatchBoard.side < MatchBoard.side - 1 &&
+            board.ice[index] == 0 &&
+            board.ice[index + 1] == 0 &&
+            !board.canSwap(index, index + 1))
+          (index, index + 1),
+      for (var index = 0; index < MatchBoard.cells - MatchBoard.side; index++)
+        if (board.ice[index] == 0 &&
+            board.ice[index + MatchBoard.side] == 0 &&
+            !board.canSwap(index, index + MatchBoard.side))
+          (index, index + MatchBoard.side),
+    ].first;
+    final pieceId = board.pieces[invalidSwap.$1]!.id;
+    await tester.pumpWidget(_app(manager, reduceMotion: false));
+    await tester.ensureVisible(find.byKey(const ValueKey('match-board')));
+    await tester.pump();
+    final piece = find.byKey(ValueKey('piece-$pieceId'));
+    final originalPosition = tester.getTopLeft(piece);
+
+    manager.swap(invalidSwap.$1, invalidSwap.$2);
+    expect(manager.board!.moveNumber, 0);
+    expect(manager.canInteract, isFalse);
+    expect(manager.invalidSwapAnimating.value, isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(tester.getTopLeft(piece), isNot(originalPosition));
+    expect(find.text('0'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(manager.invalidSwap.value, isNull);
+    expect(manager.invalidSwapAnimating.value, isTrue);
+    await tester.pump(const Duration(milliseconds: 180));
+    expect(tester.getTopLeft(piece), originalPosition);
+    expect(manager.canInteract, isTrue);
+    expect(manager.invalidSwapAnimating.value, isFalse);
+    expect(find.text('0'), findsNothing);
   });
 
   for (final dark in [false, true]) {
@@ -165,7 +221,9 @@ void main() {
     final swap = manager.board!.legalMoves.first;
     manager.swap(swap.$1, swap.$2);
     expect(manager.busy.value, isTrue);
+    expect(manager.comboMultiplier.value, isNotNull);
     await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('1'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     manager.dispose();
     await tester.pump(const Duration(seconds: 30));

@@ -4,7 +4,9 @@ enum PieceEffect { none, row, column, bomb, rainbow }
 
 enum MatchStatus { playing, won, lost }
 
-enum FramePhase { swap, clear, fall, settled }
+enum FramePhase { swap, bonus, clear, fall, settled }
+
+enum ComboPraise { good, great, excellent, amazing, unbelievable }
 
 class Piece {
   final int id;
@@ -34,8 +36,19 @@ class SwapResult {
   final int cascades;
   final int scoreGained;
   final bool shuffled;
+  final int initialMatchCount;
+  final int totalCleared;
+  final int specialEffectsTriggered;
 
-  const SwapResult(this.frames, this.cascades, this.scoreGained, this.shuffled);
+  const SwapResult(
+    this.frames,
+    this.cascades,
+    this.scoreGained,
+    this.shuffled,
+    this.initialMatchCount,
+    this.totalCleared,
+    this.specialEffectsTriggered,
+  );
 }
 
 /// 纯 Dart 三消内核。所有随机数均来自可序列化的同一条序列，动画不消耗随机数。
@@ -153,6 +166,7 @@ class MatchBoard {
 
   bool canSwap(int a, int b) {
     if (!adjacent(a, b) || pieces[a] == null || pieces[b] == null) return false;
+    if (ice[a] > 0 || ice[b] > 0) return false;
     if (_specialPair(a, b)) return true;
     _swap(a, b);
     final runs = matchRuns();
@@ -319,6 +333,12 @@ class MatchBoard {
               affected.add(row * side + col);
             }
           }
+          final row = index ~/ side;
+          final col = index % side;
+          if (row >= 2) affected.add(index - side * 2);
+          if (row < side - 2) affected.add(index + side * 2);
+          if (col >= 2) affected.add(index - 2);
+          if (col < side - 2) affected.add(index + 2);
         case PieceEffect.rainbow:
           if (!consumedRainbows.contains(index)) {
             affected.addAll([
@@ -338,6 +358,48 @@ class MatchBoard {
       }
     }
     return clear;
+  }
+
+  ({Set<int> cells, int specialEffectsTriggered}) _clearWave({
+    required List<BoardFrame> frames,
+    required Set<int> initial,
+    required Set<int> protected,
+    required int multiplier,
+    Set<int> consumedRainbows = const {},
+  }) {
+    final clear = _expandEffects(
+      initial,
+      protected,
+      consumedRainbows: consumedRainbows,
+    );
+    final crackedIce = <int>{};
+    var specialEffectsTriggered = 0;
+    for (final index in clear) {
+      final piece = pieces[index];
+      if (piece == null) continue;
+      if (piece.effect != PieceEffect.none) specialEffectsTriggered++;
+      collected[piece.kind]++;
+      if (ice[index] > 0) crackedIce.add(index);
+      final row = index ~/ side;
+      final col = index % side;
+      if (row > 0) crackedIce.add(index - side);
+      if (row < side - 1) crackedIce.add(index + side);
+      if (col > 0) crackedIce.add(index - 1);
+      if (col < side - 1) crackedIce.add(index + 1);
+      score += 10 * multiplier;
+      if (piece.effect != PieceEffect.none) score += 40;
+    }
+    for (final index in crackedIce) {
+      if (ice[index] > 0) ice[index]--;
+    }
+    frames.add(BoardFrame(this, FramePhase.clear, clear));
+    for (final index in clear) {
+      pieces[index] = null;
+    }
+    frames.add(BoardFrame(this, FramePhase.fall));
+    _collapse();
+    frames.add(BoardFrame(this, FramePhase.fall));
+    return (cells: clear, specialEffectsTriggered: specialEffectsTriggered);
   }
 
   void _collapse() {
@@ -365,20 +427,98 @@ class MatchBoard {
     moveNumber++;
     lastSwap = (a, b);
     final frames = <BoardFrame>[BoardFrame(this, FramePhase.swap)];
-    var forced = <int>{};
+    final forced = <int>{};
+    final transformedEffects = <int, PieceEffect>{};
     if (special) {
-      forced.addAll({a, b});
-      final rainbowA = pieces[a]!.effect == PieceEffect.rainbow;
-      final rainbowB = pieces[b]!.effect == PieceEffect.rainbow;
+      final effectA = pieces[a]!.effect;
+      final effectB = pieces[b]!.effect;
+      final rainbowA = effectA == PieceEffect.rainbow;
+      final rainbowB = effectB == PieceEffect.rainbow;
       if (rainbowA || rainbowB) {
-        final kind = pieces[rainbowA ? b : a]!.kind;
-        forced.addAll([
-          for (var i = 0; i < cells; i++)
-            if ((rainbowA && rainbowB) || pieces[i]?.kind == kind) i,
-        ]);
+        forced.addAll({a, b});
+        if (rainbowA && rainbowB) {
+          forced.addAll(List.generate(cells, (index) => index));
+        } else {
+          final rainbowIndex = rainbowA ? a : b;
+          final partnerIndex = rainbowA ? b : a;
+          final partnerEffect = pieces[partnerIndex]!.effect;
+          final kind = pieces[partnerIndex]!.kind;
+          final comboEffect =
+              partnerEffect == PieceEffect.row ||
+                  partnerEffect == PieceEffect.column ||
+                  partnerEffect == PieceEffect.bomb
+              ? partnerEffect
+              : null;
+          for (var index = 0; index < cells; index++) {
+            final piece = pieces[index];
+            if (piece?.kind != kind) continue;
+            forced.add(index);
+            if (comboEffect != null &&
+                index != rainbowIndex &&
+                piece!.effect != PieceEffect.rainbow) {
+              transformedEffects[index] = comboEffect == PieceEffect.bomb
+                  ? PieceEffect.bomb
+                  : _next(2) == 0
+                  ? PieceEffect.row
+                  : PieceEffect.column;
+            }
+          }
+        }
+      } else if (effectA != PieceEffect.bomb &&
+          effectB != PieceEffect.bomb) {
+        // 直线特效交换时，分别触发各自的直线效果。
+        forced.add(a);
+        forced.add(b);
+      } else if ((effectA == PieceEffect.bomb) !=
+          (effectB == PieceEffect.bomb)) {
+        // 直线特效与炸弹联动时，沿直线方向额外清除四行或四列。
+        final lineIndex = effectA == PieceEffect.bomb ? b : a;
+        final lineEffect = pieces[lineIndex]!.effect;
+        final vertical = lineEffect == PieceEffect.column;
+        for (var offset = -1; offset <= 2; offset++) {
+          if (vertical) {
+            final col = lineIndex % side + offset;
+            if (col >= 0 && col < side) {
+              for (var row = 0; row < side; row++) {
+                forced.add(row * side + col);
+              }
+            }
+          } else {
+            final row = lineIndex ~/ side + offset;
+            if (row >= 0 && row < side) {
+              for (var col = 0; col < side; col++) {
+                forced.add(row * side + col);
+              }
+            }
+          }
+        }
+      } else {
+        // 双炸弹扩大为以交换中心为中心的 7×7 爆炸。
+        final centerRow = (a ~/ side + b ~/ side) ~/ 2;
+        final centerCol = (a % side + b % side) ~/ 2;
+        for (
+          var row = math.max(0, centerRow - 3);
+          row <= math.min(side - 1, centerRow + 3);
+          row++
+        ) {
+          for (
+            var col = math.max(0, centerCol - 3);
+            col <= math.min(side - 1, centerCol + 3);
+            col++
+          ) {
+            forced.add(row * side + col);
+          }
+        }
       }
     }
+    for (final entry in transformedEffects.entries) {
+      final piece = pieces[entry.key]!;
+      pieces[entry.key] = Piece(piece.id, piece.kind, entry.value);
+    }
     var cascades = 0;
+    final initialMatchCount = matchRuns().expand((run) => run).toSet().length;
+    var totalCleared = 0;
+    var specialEffectsTriggered = 0;
     // 连锁设上限，避免恶意快照或极端随机序列造成无限结算。
     while (cascades < 64) {
       final runs = matchRuns();
@@ -386,32 +526,57 @@ class MatchBoard {
       final created = forced.isEmpty
           ? _createEffects(runs, a, b)
           : <int, PieceEffect>{};
-      final clear = _expandEffects(
-        {...forced, for (final run in runs) ...run},
-        created.keys.toSet(),
-        consumedRainbows: cascades == 0 && special ? {a, b} : {},
-      );
-      forced = {};
-      cascades++;
-      for (final index in clear) {
-        final piece = pieces[index];
-        if (piece == null) continue;
-        collected[piece.kind]++;
-        if (ice[index] > 0) ice[index]--;
-        score += 10 * cascades;
-        if (piece.effect != PieceEffect.none) score += 40;
-      }
       for (final entry in created.entries) {
         final old = pieces[entry.key]!;
         pieces[entry.key] = Piece(old.id, old.kind, entry.value);
       }
-      frames.add(BoardFrame(this, FramePhase.clear, clear));
-      for (final index in clear) {
-        pieces[index] = null;
+      final wave = _clearWave(
+        frames: frames,
+        initial: {...forced, for (final run in runs) ...run},
+        protected: created.keys.toSet(),
+        multiplier: cascades + 1,
+        consumedRainbows: cascades == 0 && special ? {a, b} : {},
+      );
+      forced.clear();
+      cascades++;
+      totalCleared += wave.cells.length;
+      specialEffectsTriggered += wave.specialEffectsTriggered;
+    }
+    final bonusMoves = status == MatchStatus.won ? movesLeft : 0;
+    if (bonusMoves > 0) {
+      movesLeft = 0;
+      moveNumber += bonusMoves;
+      for (var move = 0; move < bonusMoves; move++) {
+        final index = _next(cells);
+        final piece = pieces[index]!;
+        pieces[index] = Piece(
+          piece.id,
+          piece.kind,
+          _next(2) == 0 ? PieceEffect.row : PieceEffect.column,
+        );
+        frames.add(BoardFrame(this, FramePhase.bonus));
+        final bonusForced = {index};
+        var bonusCascade = 0;
+        while (bonusCascade < 64) {
+          final bonusRuns = matchRuns();
+          if (bonusRuns.isEmpty && bonusForced.isEmpty) break;
+          final created = bonusForced.isEmpty
+              ? _createEffects(bonusRuns, a, b)
+              : <int, PieceEffect>{};
+          for (final entry in created.entries) {
+            final old = pieces[entry.key]!;
+            pieces[entry.key] = Piece(old.id, old.kind, entry.value);
+          }
+          _clearWave(
+            frames: frames,
+            initial: {...bonusForced, for (final run in bonusRuns) ...run},
+            protected: created.keys.toSet(),
+            multiplier: cascades + bonusCascade + 1,
+          );
+          bonusForced.clear();
+          bonusCascade++;
+        }
       }
-      frames.add(BoardFrame(this, FramePhase.fall));
-      _collapse();
-      frames.add(BoardFrame(this, FramePhase.fall));
     }
     _ensurePlayable();
     frames.add(BoardFrame(this, FramePhase.settled));
@@ -420,6 +585,9 @@ class MatchBoard {
       cascades,
       score - previousScore,
       reshuffles != previousShuffles,
+      initialMatchCount,
+      totalCleared,
+      specialEffectsTriggered,
     );
   }
 
