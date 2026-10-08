@@ -17,6 +17,7 @@ enum AppItemType {
   memoryCard,
   schulte,
   tank,
+  matchThree,
 }
 
 /// 可创建局域网房间的类型；枚举顺序对应 roomType 整数编码。
@@ -27,7 +28,8 @@ enum OnlineItemType {
   gobang,
   greedySnake,
   weiqi,
-  tank;
+  tank,
+  matchThree;
 
   static OnlineItemType? tryFromRoomType(int roomType) {
     if (roomType < 0 || roomType >= values.length) return null;
@@ -43,6 +45,7 @@ extension AppItemTypeOnlineType on AppItemType {
     AppItemType.greedySnake => OnlineItemType.greedySnake,
     AppItemType.weiqi => OnlineItemType.weiqi,
     AppItemType.tank => OnlineItemType.tank,
+    AppItemType.matchThree => OnlineItemType.matchThree,
     AppItemType.sudoku ||
     AppItemType.guess ||
     AppItemType.threeTiles ||
@@ -56,6 +59,8 @@ extension AppItemTypeOnlineType on AppItemType {
 }
 
 extension OnlineItemTypeMetadata on OnlineItemType {
+  bool get cooperativeTurns => this == OnlineItemType.matchThree;
+
   RoomGameMode get gameMode => switch (this) {
     OnlineItemType.onlyChat => RoomGameMode.none,
     OnlineItemType.greedySnake || OnlineItemType.tank => RoomGameMode.real,

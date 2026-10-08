@@ -16,6 +16,52 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
 
+  for (final type in [0, 3]) {
+    test('公开房间入口结束对局但不关闭连接（房间类型：$type）', () async {
+      final h = RoomHarness(type);
+      final games = <NetTurnEngine>[];
+      await h.server.start();
+      try {
+        final a = await h.join('A');
+        final b = await h.join('B');
+        final chat = a.chat;
+        if (type == 3) {
+          for (final room in [a, b]) {
+            games.add(
+              startGame(
+                configureTurnEngine(
+                  room: room,
+                  resourceMode: TurnResourceMode.none,
+                  actionHandler: (_, __) {},
+                  exitHandler: () {},
+                ),
+              ),
+            );
+          }
+          await waitFor(() => games.every((game) => game.isActive));
+        }
+        chat.finishActiveGame();
+        if (games.isNotEmpty) {
+          await waitFor(() => games.every((game) => game.ended.value));
+        }
+        expect(a.isJoined, isTrue);
+        expect(b.isJoined, isTrue);
+        expect(a.chat, same(chat));
+        chat.sendText('结束后仍可聊天');
+        await waitFor(
+          () => b.messageList.value.any(
+            (message) => message.content == '结束后仍可聊天',
+          ),
+        );
+      } finally {
+        for (final game in games) {
+          game.releaseGame();
+        }
+        await h.close();
+      }
+    });
+  }
+
   test('服务端启动期间停止会关闭迟到端口，重复停止共享同一结果', () async {
     final h = RoomHarness(3);
     final starting = h.server.start();

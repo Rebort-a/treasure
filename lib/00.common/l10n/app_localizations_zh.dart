@@ -1202,4 +1202,76 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get minecraft => '我的世界';
+
+  @override
+  String get matchThree => '消消乐';
+
+  @override
+  String get matchRulesTitle => '玩法说明';
+
+  @override
+  String get matchRules =>
+      '点击两个相邻动物，或滑动交换。横向或纵向连成三个即可消除；无效交换不扣步数。\n\n四连生成横/竖直线特效，五连生成彩虹，T/L 形生成炸弹。特效被消除时会连锁触发；两个特效可以直接交换，彩虹与普通动物交换可清除该种动物。\n\n在步数用完前，达成分数、收集指定动物并清除所有冰层。每局棋盘、目标和步数随机生成；无可用交换时自动免费洗牌。\n\n多人合作共享同一棋盘与步数，按玩家顺序一人一步，仅合法交换推进回合。其他人离开后可继续，中途加入会同步当前局面。';
+
+  @override
+  String get matchTeamChat => '对局聊天';
+
+  @override
+  String get matchNewRound => '随机新局';
+
+  @override
+  String get matchSynchronizing => '正在同步共同棋盘…';
+
+  @override
+  String get matchGestureHint => '点击相邻动物或滑动交换';
+
+  @override
+  String get matchHint => '提示';
+
+  @override
+  String get matchInvalidSwap => '这个交换不能消除，不扣步数';
+
+  @override
+  String get matchHintShown => '试试交换金色框中的两个动物';
+
+  @override
+  String get matchShuffled => '没有可用交换，已免费洗牌';
+
+  @override
+  String get matchCombo => '连锁消除！';
+
+  @override
+  String get matchRandomRound => '随机挑战 · 每局都是新棋盘';
+
+  @override
+  String get matchMoves => '剩余步数';
+
+  @override
+  String get matchScore => '目标分数';
+
+  @override
+  String get matchIce => '剩余冰层';
+
+  @override
+  String get matchYourTurn => '轮到你了，一起完成目标！';
+
+  @override
+  String matchPlayerTurn(String name) {
+    return '轮到 $name 操作';
+  }
+
+  @override
+  String get matchWon => '目标全部达成！';
+
+  @override
+  String get matchLost => '步数用完了，再来挑战一局吧';
+
+  @override
+  String get matchBackToRoom => '返回聊天室';
+
+  @override
+  String get coopConfirmLeave => '退出当前对局？其他成员可以继续，你将返回聊天室。';
+
+  @override
+  String get matchAnimals => '青蛙|狐狸|小猫|小鸡|小猪|猫头鹰';
 }

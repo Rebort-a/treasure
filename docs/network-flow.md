@@ -6,19 +6,44 @@
 - `00.common/network/broadcast_discovery.dart`：局域网 UDP 发现与广播实现。
 - `00.common/network/server/server_abstract.dart`：服务端 TCP / WebSocket 监听，以及单条连接的收发与关闭。
 - `00.common/network/server/socket_server.dart`：房间服务逻辑，负责认证、成员事件和消息路由，不处理底层传输细节。
-- `00.common/network/client/client_abstract.dart`：客户端传输选择、建连及单条连接的收发与关闭；第三方 WebSocket 依赖只在此处导入。
+- `00.common/network/client/base/client_abstract.dart`：客户端传输选择、建连及单条连接的收发与关闭；第三方 WebSocket 依赖只在此处导入。
 - `00.common/network/client/socket_client.dart`：唯一的连接所有者（A），负责认证、重连、成员表与协议收发；认证至页面创建之间按序暂存消息，不持有聊天或对局记录。
 - `00.common/network/client/room_chat_engine.dart`：认证后创建的房间聊天处理器（B），持有房间聊天记录，并直接管理多人匹配候选、拒绝、超时换人和对局消息交接，不拥有连接；不再单独设置 `room_matcher.dart`。
-- `00.common/network/client/game_engine.dart`：C/D 共用的局内生命周期逻辑；引擎保持不变，每局重新配置、结束并清理回调。
-- `00.common/network/client/net_turn_engine.dart` / `net_real_engine.dart`：继承 `RoomChatEngine` 的回合制／实时引擎（C/D），直接处理本局规则与同步，并额外持有各自的对局聊天记录；不创建局内 session。
+- `00.common/network/client/base/game_engine.dart`：C/D 共用的局内生命周期逻辑；引擎保持不变，每局重新配置、结束并清理回调。
+- `00.common/network/client/net_turn_engine.dart`：双人前后手回合制引擎，保留现有对战游戏的接口。
+- `00.common/network/client/base/net_multi_engine.dart`：多人引擎公共基类，复用房间聊天与 GameEngine，统一入局事务、名单、发布者接管与资源封装；不创建局内 session。
+- `00.common/network/client/net_real_engine.dart`：实时引擎沿用多人基类，由具体游戏实现实时动作/同步回调。
+- `00.common/network/client/net_multi_turn_engine.dart`：N 人合作回合引擎，轮转操作者、校验动作修订、发布共同快照并等待全员 ready；独立保存对局聊天。消消乐使用该引擎，房间形态仍为回合制。
 - `00.common/widget/component/chat_component.dart`：输入框与滚动控制器由聊天组件自行创建、监听和释放。
 - `01.home/dialog.dart`：主页创建房间弹窗，以及入房表单、等待、错误展示和取消。
 - `02.lan_chat/net_page.dart`：所有房间统一进入的聊天室，展示聊天和重连状态；可选注入游戏页面工厂，提供匹配卡片和成功后的跳转。
 - `02.lan_chat/net_manager.dart` / `attachment_menu.dart`：聊天室导航与附件交互；附件插件集中在 `attachment_menu.dart` 导入，不再放在公共模块。
-- `00.common/widget/navigator/online_game_host.dart`：通用单局生命周期容器，通过回调创建和释放 Manager、构建游戏 UI，处理返回／投降及结束后的退场；不包含聊天室，也不拥有房间连接。
+- `00.common/network/widget/online_game_host.dart`：通用单局生命周期容器，通过回调创建和释放 Manager、构建游戏 UI，处理返回／投降及结束后的退场；不包含聊天室，也不拥有房间连接。
 - `01.home/route.dart`：装配聊天室和具体游戏的入口。聊天室与游戏彼此不导入，公共模块也不反向引用应用模块。
 
 旧的 RoomSession 与独立 reconnect_policy 已移除。连接不因发现信息预先选择子类；认证成功后，按服务端确认的类型创建 B/C/D。成员表由连接维护，房间与对局聊天记录由相应引擎分别维护。
+
+### 客户端入口与内部实现
+
+```text
+00.common/network/
+  client/
+    socket_client.dart          连接与认证入口
+    room_chat_engine.dart       房间聊天与匹配入口
+    net_turn_engine.dart        双人回合对战入口
+    net_real_engine.dart        实时游戏入口
+    net_multi_turn_engine.dart  多人合作回合入口
+    base/
+      client_abstract.dart      内部 TCP/WebSocket 传输
+      game_engine.dart          内部单局生命周期复用
+      net_multi_engine.dart     内部多人入局与名单同步
+  widget/
+    online_game_host.dart       联机页面的生命周期容器
+  protocol/                    共享协议
+  server/                      服务端实现
+```
+
+应用只依赖 `client/` 中的公开入口及 `network/widget/` 中的联机组件，不直接 import/export `client/base/`。聊天室通过 `RoomChatEngine.finishActiveGame()` 结束当前对局，不再自行判断内部 mixin 类型。客户端、协议和服务端实现不反向引用 widget 层；不保留旧目录的转发 export 文件。
 
 ## 先认证，再打开聊天室
 
@@ -69,7 +94,7 @@
 
 客户端 `search` 是可重复发起的房间请求，不参与 ACK/重发；服务器原样广播并另发 `notify/search` 用于展示。匹配引擎锁定一个候选人并私聊 `match`；对方忙碌时私聊 `reject`，发起者尝试下一候选。双方同时邀请时由较小成员 ID 保持发起身份。`gameId` 标识对局，`match.messageId` 标识本次邀请，后续控制同时校验两者，旧邀请和旧局消息不能串入新事务。初始邀请无响应时尽快换人；进入确认阶段后等待至少一个完整 ACK 重发窗口。
 
-初始匹配与实时中途入局使用同一套阶段：
+初始匹配与多人（实时/合作回合）中途入局使用同一套阶段：
 
 ```text
 发起方                     应答方

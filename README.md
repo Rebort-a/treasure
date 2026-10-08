@@ -70,6 +70,7 @@ The codebase follows the principle of simplicity and zero dependencies. Whether 
 | 15 | **Memory Match** | 记忆翻牌 | Local | 翻牌配对记忆 | 难度/网格选择、计时挑战 |
 | 16 | **Schulte** | 舒尔特 | Local | 注意力方格训练 | 规则/不规则模式、全屏棋盘、点击反馈 |
 | 17 | **Tank Battle** | 坦克战 | Local + LAN | 合作防守坦克战 | 双摇杆自由瞄准射击、局域网联机防守 |
+| 18 | **Match Three** | 消消乐 | Local + LAN | 随机棋盘与目标、多人轮流合作 | 原创动物待机动画、连锁消除、特殊棋子、共享步数与中途加入 |
 
 > `01.home` — Home page router, not listed above.
 
@@ -83,7 +84,7 @@ All modules follow a consistent **three-layer architecture** with two organizati
 
 ### Pattern A: Standard Framework | 标准框架
 
-Each layer is a subdirectory. Used by complex modules (`04.elemental_battle`, `13.minecraft`):
+Each layer is a subdirectory. Used by complex modules (`04.elemental_battle`, `13.minecraft`, `18.match_three`):
 
 各层为独立子目录，用于复杂模块：
 
@@ -194,7 +195,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 
 | 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
 |------|---------|---------|---------|----------|
-| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/client_abstract.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
+| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/base/client_abstract.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
 | `image_picker` | 聊天发送图片<br/>Send images in chat | `00.common/widget/component/room_attachment_picker.dart` | 删除图片选择适配代码并隐藏相册选项<br/>Remove the image-picker adapter and hide the album option | 聊天无法发送图片<br/>Cannot send images |
 | `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `00.common/widget/component/room_attachment_picker.dart`、`00.common/widget/component/chat_component.dart` | 删除文件选择/保存适配代码<br/>Remove the file-picker adapter | 聊天无法发送和保存文件<br/>Cannot send and save files |
 | `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/service/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |

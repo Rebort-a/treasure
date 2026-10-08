@@ -24,6 +24,8 @@ import '../15.memory_card/page.dart';
 import '../16.schulte/page.dart';
 import '../17.tank/local_page.dart';
 import '../17.tank/net_page.dart';
+import '../18.match_three/upper/local_page.dart';
+import '../18.match_three/upper/net_page.dart';
 
 export '../00.common/model/app_item_type.dart';
 
@@ -60,6 +62,8 @@ extension AppItemTypeRoute on AppItemType {
         return SchultePage();
       case AppItemType.tank:
         return LocalTankPage();
+      case AppItemType.matchThree:
+        return const LocalMatchThreePage();
     }
   }
 }
@@ -72,6 +76,7 @@ extension _OnlineGamePages on OnlineItemType {
     OnlineItemType.greedySnake => NetGreedySnakePage(room: room),
     OnlineItemType.weiqi => GoNetPage(room: room),
     OnlineItemType.tank => NetTankPage(room: room),
+    OnlineItemType.matchThree => NetMatchThreePage(room: room),
     OnlineItemType.onlyChat => throw StateError('Chat rooms have no game page'),
   };
 }

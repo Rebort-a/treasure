@@ -1,5 +1,5 @@
 import 'package:treasure/00.common/network/client/socket_client.dart';
-import 'package:treasure/00.common/network/client/client_abstract.dart';
+import 'package:treasure/00.common/network/client/base/client_abstract.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/model/notifiers.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';

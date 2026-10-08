@@ -1210,4 +1210,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get minecraft => 'Minecraft';
+
+  @override
+  String get matchThree => 'Match Three';
+
+  @override
+  String get matchRulesTitle => 'How to play';
+
+  @override
+  String get matchRules =>
+      'Tap two adjacent animals or swipe to swap. Match at least three in a row or column. Invalid swaps cost no moves.\n\nFour creates a line effect, five creates a rainbow, and T/L matches create a bomb. Cleared effects trigger chain reactions. Two effects can be swapped directly; swapping a rainbow with an animal clears that kind.\n\nReach the score, collect the required animals and clear all ice before moves run out. Each round has a random board, goals and move budget. Dead boards shuffle automatically for free.\n\nCo-op players share one board and move budget, taking one valid move per turn. Remaining players can continue after others leave. Late joiners receive the current board.';
+
+  @override
+  String get matchTeamChat => 'Team chat';
+
+  @override
+  String get matchNewRound => 'New random round';
+
+  @override
+  String get matchSynchronizing => 'Synchronizing the shared board…';
+
+  @override
+  String get matchGestureHint => 'Tap adjacent animals or swipe to swap';
+
+  @override
+  String get matchHint => 'Hint';
+
+  @override
+  String get matchInvalidSwap => 'No match: no moves used';
+
+  @override
+  String get matchHintShown => 'Try swapping the two highlighted animals';
+
+  @override
+  String get matchShuffled => 'No available moves: shuffled for free';
+
+  @override
+  String get matchCombo => 'Chain reaction!';
+
+  @override
+  String get matchRandomRound => 'Random challenge · A fresh board every round';
+
+  @override
+  String get matchMoves => 'Moves left';
+
+  @override
+  String get matchScore => 'Score goal';
+
+  @override
+  String get matchIce => 'Ice left';
+
+  @override
+  String get matchYourTurn => 'Your turn — reach the goals together!';
+
+  @override
+  String matchPlayerTurn(String name) {
+    return '$name\'s turn';
+  }
+
+  @override
+  String get matchWon => 'All goals completed!';
+
+  @override
+  String get matchLost => 'Out of moves. Try another random challenge!';
+
+  @override
+  String get matchBackToRoom => 'Back to the room';
+
+  @override
+  String get coopConfirmLeave =>
+      'Leave this game and return to chat? Other players can continue.';
+
+  @override
+  String get matchAnimals => 'Frog|Fox|Cat|Chick|Pig|Owl';
 }

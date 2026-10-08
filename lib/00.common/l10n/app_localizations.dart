@@ -2299,6 +2299,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minecraft'**
   String get minecraft;
+
+  /// No description provided for @matchThree.
+  ///
+  /// In en, this message translates to:
+  /// **'Match Three'**
+  String get matchThree;
+
+  /// No description provided for @matchRulesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'How to play'**
+  String get matchRulesTitle;
+
+  /// No description provided for @matchRules.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap two adjacent animals or swipe to swap. Match at least three in a row or column. Invalid swaps cost no moves.\n\nFour creates a line effect, five creates a rainbow, and T/L matches create a bomb. Cleared effects trigger chain reactions. Two effects can be swapped directly; swapping a rainbow with an animal clears that kind.\n\nReach the score, collect the required animals and clear all ice before moves run out. Each round has a random board, goals and move budget. Dead boards shuffle automatically for free.\n\nCo-op players share one board and move budget, taking one valid move per turn. Remaining players can continue after others leave. Late joiners receive the current board.'**
+  String get matchRules;
+
+  /// No description provided for @matchTeamChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Team chat'**
+  String get matchTeamChat;
+
+  /// No description provided for @matchNewRound.
+  ///
+  /// In en, this message translates to:
+  /// **'New random round'**
+  String get matchNewRound;
+
+  /// No description provided for @matchSynchronizing.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronizing the shared board…'**
+  String get matchSynchronizing;
+
+  /// No description provided for @matchGestureHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap adjacent animals or swipe to swap'**
+  String get matchGestureHint;
+
+  /// No description provided for @matchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hint'**
+  String get matchHint;
+
+  /// No description provided for @matchInvalidSwap.
+  ///
+  /// In en, this message translates to:
+  /// **'No match: no moves used'**
+  String get matchInvalidSwap;
+
+  /// No description provided for @matchHintShown.
+  ///
+  /// In en, this message translates to:
+  /// **'Try swapping the two highlighted animals'**
+  String get matchHintShown;
+
+  /// No description provided for @matchShuffled.
+  ///
+  /// In en, this message translates to:
+  /// **'No available moves: shuffled for free'**
+  String get matchShuffled;
+
+  /// No description provided for @matchCombo.
+  ///
+  /// In en, this message translates to:
+  /// **'Chain reaction!'**
+  String get matchCombo;
+
+  /// No description provided for @matchRandomRound.
+  ///
+  /// In en, this message translates to:
+  /// **'Random challenge · A fresh board every round'**
+  String get matchRandomRound;
+
+  /// No description provided for @matchMoves.
+  ///
+  /// In en, this message translates to:
+  /// **'Moves left'**
+  String get matchMoves;
+
+  /// No description provided for @matchScore.
+  ///
+  /// In en, this message translates to:
+  /// **'Score goal'**
+  String get matchScore;
+
+  /// No description provided for @matchIce.
+  ///
+  /// In en, this message translates to:
+  /// **'Ice left'**
+  String get matchIce;
+
+  /// No description provided for @matchYourTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'Your turn — reach the goals together!'**
+  String get matchYourTurn;
+
+  /// No description provided for @matchPlayerTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}\'s turn'**
+  String matchPlayerTurn(String name);
+
+  /// No description provided for @matchWon.
+  ///
+  /// In en, this message translates to:
+  /// **'All goals completed!'**
+  String get matchWon;
+
+  /// No description provided for @matchLost.
+  ///
+  /// In en, this message translates to:
+  /// **'Out of moves. Try another random challenge!'**
+  String get matchLost;
+
+  /// No description provided for @matchBackToRoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to the room'**
+  String get matchBackToRoom;
+
+  /// No description provided for @coopConfirmLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave this game and return to chat? Other players can continue.'**
+  String get coopConfirmLeave;
+
+  /// No description provided for @matchAnimals.
+  ///
+  /// In en, this message translates to:
+  /// **'Frog|Fox|Cat|Chick|Pig|Owl'**
+  String get matchAnimals;
 }
 
 class _AppLocalizationsDelegate

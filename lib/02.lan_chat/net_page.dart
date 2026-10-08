@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../00.common/l10n/strings.dart';
 import '../00.common/model/app_item_type.dart';
-import '../00.common/network/client/game_engine.dart';
 import '../00.common/network/client/socket_client.dart';
 import '../00.common/network/client/room_chat_engine.dart';
 import '../00.common/widget/component/chat_component.dart';
@@ -106,7 +105,7 @@ class _NetChatPageState extends State<NetChatPage> {
     _manager.dispose();
     final route = _gameRoute;
     if (route != null) {
-      if (_engine case GameEngine game) game.finishGame();
+      _engine.finishActiveGame();
       // 导航栈整体卸载或强制离房时，游戏页可能仍在卸载。
       // 等它释放 Manager 后再销毁共享通知器，避免子组件使用已销毁的状态。
       unawaited(route.completed.then((_) => _disposeRoom()));

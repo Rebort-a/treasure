@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
-import 'package:treasure/00.common/network/client/game_engine.dart';
+import 'package:treasure/00.common/network/client/base/game_engine.dart';
 import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
-import 'package:treasure/00.common/widget/navigator/online_game_host.dart';
+import 'package:treasure/00.common/network/widget/online_game_host.dart';
 import 'package:treasure/01.home/route.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 

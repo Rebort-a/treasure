@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../00.common/network/client/socket_client.dart';
-import '../../00.common/widget/navigator/online_game_host.dart';
+import '../../00.common/network/widget/online_game_host.dart';
 import '../middle/foundation_combat_widget.dart';
 
 import '../../00.common/game/step.dart';

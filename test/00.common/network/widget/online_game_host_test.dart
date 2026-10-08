@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
-import 'package:treasure/00.common/widget/navigator/online_game_host.dart';
+import 'package:treasure/00.common/network/widget/online_game_host.dart';
 
-import '../../network/support/match_game_driver.dart';
-import '../../network/support/network_room_harness.dart';
+import '../support/match_game_driver.dart';
+import '../support/network_room_harness.dart';
 
 void main() {
   testWidgets('容器重建不重复创建 Manager，释放始终配对创建时的回调', (tester) async {

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../game/gamer.dart';
 import '../../game/step.dart';
 import '../protocol/network_message.dart';
-import 'game_engine.dart';
+import 'base/game_engine.dart';
 import 'room_chat_engine.dart';
 import 'socket_client.dart';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/network/client/socket_client.dart';
-import '../00.common/widget/navigator/online_game_host.dart';
+import '../00.common/network/widget/online_game_host.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/component/chat_component.dart';

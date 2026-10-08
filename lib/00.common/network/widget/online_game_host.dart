@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../l10n/strings.dart';
-import '../../network/client/game_engine.dart';
-import '../../network/client/net_turn_engine.dart';
+import '../client/base/game_engine.dart';
+import '../client/net_turn_engine.dart';
+import '../client/net_multi_turn_engine.dart';
 
 typedef OnlineGameViewBuilder<M extends Object> = Widget Function(
   BuildContext context,
@@ -40,6 +41,7 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
   late final void Function(M manager) _disposeManager;
   bool _exitScheduled = false;
   bool _confirming = false;
+  bool get _turnBased => _game is NetTurnEngine || _game is NetMultiTurnEngine;
 
   @override
   void initState() {
@@ -72,7 +74,7 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
 
   Future<void> _requestExit() async {
     if (_game.ended.value || _confirming) return;
-    if (_game is! NetTurnEngine) {
+    if (!_turnBased) {
       _game.leavePage();
       return;
     }
@@ -81,8 +83,12 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
       final surrender = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(S.surrender),
-          content: Text(S.confirmSurrender),
+          title: Text(_game is NetMultiTurnEngine ? S.leave : S.surrender),
+          content: Text(
+            _game is NetMultiTurnEngine
+                ? S.coopConfirmLeave
+                : S.confirmSurrender,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, true),
@@ -109,8 +115,8 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
     builder: (context, ended, _) => PopScope(
       canPop: ended,
       onPopInvokedWithResult: (didPop, _) {
-        // 回合制返回即投降，实时游戏仍通过可见退出按钮退场。
-        if (!didPop && _game is NetTurnEngine) unawaited(_requestExit());
+        // 双人对战返回即投降，合作回合返回只退出个人；实时仍使用可见退出按钮。
+        if (!didPop && _turnBased) unawaited(_requestExit());
       },
       child: widget.pageBuilder(context, _manager, () {
         unawaited(_requestExit());

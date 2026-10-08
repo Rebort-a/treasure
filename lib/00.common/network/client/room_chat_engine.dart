@@ -5,10 +5,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../model/notifiers.dart';
+import '../../model/app_item_type.dart';
 import '../protocol/network_message.dart';
 import '../protocol/network_room.dart';
+import 'base/game_engine.dart';
 import 'net_real_engine.dart';
 import 'net_turn_engine.dart';
+import 'net_multi_turn_engine.dart';
 import 'socket_client.dart';
 
 enum RoomMatchPhase { idle, sending, matching, matched }
@@ -26,7 +29,11 @@ class RoomChatEngine {
     if (!client.isJoined) throw StateError('Room is not authenticated');
     return switch (client.gameMode) {
       RoomGameMode.none => RoomChatEngine(client),
-      RoomGameMode.turn => NetTurnEngine(client),
+      RoomGameMode.turn =>
+        OnlineItemType.tryFromRoomType(client.roomType)?.cooperativeTurns ==
+                true
+            ? NetMultiTurnEngine(client)
+            : NetTurnEngine(client),
       RoomGameMode.real => NetRealEngine(client),
     };
   }
@@ -43,6 +50,7 @@ class RoomChatEngine {
   final LinkedHashSet<int> _searchCandidates = LinkedHashSet<int>();
   final Set<int> _triedCandidates = {};
   Timer? _candidateTimer;
+  Timer? _cooperativeOfferTimer;
   int? _candidateId;
   String? _candidateOfferId;
   String? _candidateGameId;
@@ -71,6 +79,8 @@ class RoomChatEngine {
   ValueNotifier<Map<int, String>> get members => client.members;
   ValueNotifier<int> get identityNotifier => client.identityNotifier;
   ValueNotifier<RoomStatus> get status => client.status;
+  bool get _cooperativeTurns =>
+      OnlineItemType.tryFromRoomType(roomType)?.cooperativeTurns == true;
 
   RoomChatEngine(this.client) {
     if (!client.isJoined) throw StateError('Room is not authenticated');
@@ -150,6 +160,8 @@ class RoomChatEngine {
   }
 
   void cancelMatching() {
+    _cooperativeOfferTimer?.cancel();
+    _cooperativeOfferTimer = null;
     _dropCandidate(retryOthers: false);
     if (matchPhase.value != RoomMatchPhase.idle &&
         matchPhase.value != RoomMatchPhase.matched &&
@@ -356,7 +368,29 @@ class RoomChatEngine {
   }
 
   void _offerNextCandidate() {
+    if (_cooperativeTurns) {
+      if (matchPhase.value != RoomMatchPhase.matching || _candidateId != null) {
+        return;
+      }
+      // 合作局优先接受正在进行的队伍邀请；短暂汇集同时准备者，再由最小 ID 发起。
+      // 否则四人同时准备容易先拆成两份互不相关的双人棋盘。
+      _cooperativeOfferTimer ??= Timer(const Duration(milliseconds: 120), () {
+        _cooperativeOfferTimer = null;
+        _offerCandidateNow();
+      });
+      return;
+    }
+    _offerCandidateNow();
+  }
+
+  void _offerCandidateNow() {
     if (matchPhase.value != RoomMatchPhase.matching || _candidateId != null) {
+      return;
+    }
+    if (_cooperativeTurns &&
+        _searchCandidates.any(
+          (id) => id < identity && !_triedCandidates.contains(id),
+        )) {
       return;
     }
     for (final id in _searchCandidates) {
@@ -433,9 +467,12 @@ class RoomChatEngine {
     _searchCandidates.remove(id);
     _triedCandidates.remove(id);
     if (_candidateId == id) _dropCandidate(retryOthers: true);
+    if (_cooperativeTurns) _offerNextCandidate();
   }
 
   void _completeMatch(int opponent, {required bool initiated}) {
+    _cooperativeOfferTimer?.cancel();
+    _cooperativeOfferTimer = null;
     _candidateTimer?.cancel();
     _candidateTimer = null;
     _cancelCandidateDeliveries();
@@ -444,6 +481,26 @@ class RoomChatEngine {
     _candidateId = null;
     _candidateOfferId = null;
     _candidateGameId = null;
+    if (_cooperativeTurns && initiated) {
+      // 首次匹配期间到达的其他准备请求，移交给即将启动的多人发布者处理。
+      // 这些成员还没入局，仍需走完整的预留/提交事务，不能直接放进名单。
+      for (final id in _searchCandidates) {
+        if (id == identity ||
+            id == opponent ||
+            !members.value.containsKey(id)) {
+          continue;
+        }
+        _pendingGameMessages.add(
+          NetworkMessage(
+            id: id,
+            source: members.value[id]!,
+            type: MessageType.search,
+            content: '',
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+      }
+    }
     _searchCandidates.clear();
     _triedCandidates.clear();
     matchedOpponentId = opponent;
@@ -493,6 +550,12 @@ class RoomChatEngine {
   void removeGameMessageListener(void Function(NetworkMessage) listener) =>
       _gameListeners.remove(listener);
 
+  /// 房间页面卸载时结束借用连接的对局；纯聊天室无需处理，不关闭连接或销毁 Manager。
+  /// 应用只调用房间入口，无需依赖内部的局内生命周期 mixin。
+  void finishActiveGame() {
+    if (this case GameEngine game) game.finishGame();
+  }
+
   void sendText(String text) {
     final trimmed = text.trim();
     if (trimmed.isNotEmpty) {
@@ -525,6 +588,7 @@ class RoomChatEngine {
     _gameListeners.clear();
     _pendingGameMessages.clear();
     _candidateTimer?.cancel();
+    _cooperativeOfferTimer?.cancel();
     _cancelCandidateDeliveries();
     client.deliveryFailure.removeListener(_deliveryFailed);
     client.deliveryConfirmed.removeListener(_deliveryConfirmed);

@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../../model/app_item_type.dart';
 import '../protocol/network_message.dart';
 import '../protocol/network_room.dart';
-import 'client_abstract.dart';
+import 'base/client_abstract.dart';
 
 enum RoomConnectionState {
   idle,
