@@ -1,5 +1,5 @@
 name: treasure
-description: "A cross-platform game collection: 15 local games (7 with LAN multiplayer) + 1 LAN chat room. Pure-Dart 3D engine, zero-config LAN play."
+description: "A Flutter game lab: 16 games and LAN chat, self-built Dart game cores, voxel rendering, and multiplayer synchronization."
 publishing_to: 'none'
 
 version: 1.3.0+8

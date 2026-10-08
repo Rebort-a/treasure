@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -7,7 +8,11 @@ class GoFoundationWidget extends StatelessWidget {
   final GoFoundationalManager manager;
   final void Function(int index)? onGridSelected;
 
-  const GoFoundationWidget({super.key, required this.manager, this.onGridSelected});
+  const GoFoundationWidget({
+    super.key,
+    required this.manager,
+    this.onGridSelected,
+  });
 
   @override
   Widget build(BuildContext context) => Center(child: _buildBoard());
@@ -142,7 +147,9 @@ class GoFoundationWidget extends StatelessWidget {
         cellSize: cellSize,
         offset: offset,
         stoneRadius: stoneRadius,
-        onTap: () => onGridSelected != null ? onGridSelected!(index) : manager.placePiece(index),
+        onTap: () => onGridSelected != null
+            ? onGridSelected!(index)
+            : manager.placePiece(index),
       );
     }).toList();
   }

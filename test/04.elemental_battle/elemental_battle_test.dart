@@ -237,7 +237,11 @@ void main() {
       test('技能数量与类型匹配', () {
         for (final type in EnergyType.values) {
           final energy = Energy(name: 'test', type: type);
-          expect(energy.skills.length, 5, reason: '${type.name} should have 5 skills');
+          expect(
+            energy.skills.length,
+            5,
+            reason: '${type.name} should have 5 skills',
+          );
         }
       });
 
@@ -278,7 +282,11 @@ void main() {
         final attacker = Energy(name: 'atk', type: EnergyType.metal);
         final defender = Energy(name: 'def', type: EnergyType.earth);
 
-        final attack = EnergyCombat.handleAttackEffect(attacker, defender, false);
+        final attack = EnergyCombat.handleAttackEffect(
+          attacker,
+          defender,
+          false,
+        );
         expect(attack, attacker.attackTotal);
       });
 
@@ -286,7 +294,11 @@ void main() {
         final attacker = Energy(name: 'atk', type: EnergyType.metal);
         final defender = Energy(name: 'def', type: EnergyType.water);
 
-        final defence = EnergyCombat.handleDefenceEffect(attacker, defender, false);
+        final defence = EnergyCombat.handleDefenceEffect(
+          attacker,
+          defender,
+          false,
+        );
         expect(defence, defender.defenceTotal);
       });
 
@@ -317,8 +329,14 @@ void main() {
         expect(CombatResult.attackerWin.reversed, CombatResult.defenderWin);
         expect(CombatResult.defenderWin.reversed, CombatResult.attackerWin);
         expect(CombatResult.undecided.reversed, CombatResult.undecided);
-        expect(CombatResult.attackerEscape.reversed, CombatResult.defenderEscape);
-        expect(CombatResult.defenderEscape.reversed, CombatResult.attackerEscape);
+        expect(
+          CombatResult.attackerEscape.reversed,
+          CombatResult.defenderEscape,
+        );
+        expect(
+          CombatResult.defenderEscape.reversed,
+          CombatResult.attackerEscape,
+        );
       });
     });
   });

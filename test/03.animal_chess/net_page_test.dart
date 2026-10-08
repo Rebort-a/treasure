@@ -38,9 +38,7 @@ void main() {
       expect(h.server.members.length, 2);
 
       rear = chess.NetManager(room: b)..turnEngine.startFromRoom();
-      await waitFor(
-        () => rear!.turnEngine.gameStep.value == GameStep.action,
-      );
+      await waitFor(() => rear!.turnEngine.gameStep.value == GameStep.action);
       expect(front.turnEngine.ended.value, isFalse);
       expect(rear.turnEngine.ended.value, isFalse);
     } finally {

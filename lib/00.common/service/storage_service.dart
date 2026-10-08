@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'json_store.dart';
+
 /// 本地 JSON 文件存储服务。
 ///
 /// 数据按项目保存在 `.treasure/<project>/<name>.json`。
-class StorageService {
+class StorageService implements JsonStore {
   static final StorageService instance = StorageService._();
   StorageService._();
 
@@ -49,6 +51,7 @@ class StorageService {
     }
   }
 
+  @override
   Future<Map<String, dynamic>> read(
     String name, {
     String project = '00.common',
@@ -64,6 +67,7 @@ class StorageService {
     }
   }
 
+  @override
   Future<void> write(
     String name,
     Map<String, dynamic> data, {

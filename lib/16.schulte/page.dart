@@ -54,12 +54,12 @@ class _SchultePageState extends State<SchultePage>
 
   @override
   Widget build(BuildContext context) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (bool didPop, Object? result) {
-          if (!didPop) _manager.leavePage();
-        },
-        child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
-      );
+    canPop: false,
+    onPopInvokedWithResult: (bool didPop, Object? result) {
+      if (!didPop) _manager.leavePage();
+    },
+    child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+  );
 
   AppBar _buildAppBar() {
     return AppBar(
@@ -121,16 +121,16 @@ class _SchultePageState extends State<SchultePage>
               valueListenable: _manager.board,
               builder: (_, board, __) =>
                   ValueListenableBuilder<SchulteTapFeedback?>(
-                valueListenable: _manager.tapFeedback,
-                builder: (_, feedback, __) => CustomPaint(
-                  size: Size(w, h),
-                  painter: SchulteBoardPainter(
-                    board: board,
-                    feedback: feedback,
-                    progress: _ctrl,
+                    valueListenable: _manager.tapFeedback,
+                    builder: (_, feedback, __) => CustomPaint(
+                      size: Size(w, h),
+                      painter: SchulteBoardPainter(
+                        board: board,
+                        feedback: feedback,
+                        progress: _ctrl,
+                      ),
+                    ),
                   ),
-                ),
-              ),
             ),
           );
         },

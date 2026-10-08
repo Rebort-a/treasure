@@ -1,21 +1,25 @@
-import 'package:flutter/material.dart';
-
 import '../../00.common/game/entity.dart';
 import '../../00.common/l10n/strings.dart';
 
 import 'elemental.dart';
-import 'dialog.dart';
 import '../base/energy.dart';
+
+/// 道具效果只描述规则，图标与选择弹窗由界面层提供。
+enum PropEffect {
+  none,
+  recoverHealth,
+  upgradeAttack,
+  upgradeDefence,
+  returnHome,
+}
 
 class MapProp {
   final EntityType id;
   final String name;
   final String description;
   final String icon;
-  final IconData? type;
+  final PropEffect effect;
   final int price;
-  void Function(BuildContext context, Elemental elemental, VoidCallback after)
-  handler;
   int count = 0;
 
   MapProp({
@@ -23,10 +27,39 @@ class MapProp {
     required this.name,
     required this.description,
     required this.icon,
-    required this.type,
+    required this.effect,
     required this.price,
-    required this.handler,
   });
+
+  /// 只对已有的五行使用道具，成功后消耗一件；无效果或缺货不扣库存。
+  bool applyTo(Elemental elemental, EnergyType target) {
+    if (count <= 0 ||
+        effect == PropEffect.none ||
+        effect == PropEffect.returnHome ||
+        !elemental.getAppointAptitude(target)) {
+      return false;
+    }
+    switch (effect) {
+      case PropEffect.recoverHealth:
+        elemental.recoverAppoint(target, Energy.healthStep);
+      case PropEffect.upgradeAttack:
+        elemental.upgradeAppointAttribute(target, AttributeType.atk);
+      case PropEffect.upgradeDefence:
+        elemental.upgradeAppointAttribute(target, AttributeType.def);
+      case PropEffect.none:
+      case PropEffect.returnHome:
+        return false;
+    }
+    count--;
+    return true;
+  }
+
+  /// 导航类道具由界面层执行行为，库存消耗仍在模型中统一校验。
+  bool consume() {
+    if (count <= 0) return false;
+    count--;
+    return true;
+  }
 }
 
 class PropCollection {
@@ -44,9 +77,8 @@ class PropCollection {
     name: '',
     description: '',
     icon: '',
-    type: null,
+    effect: PropEffect.none,
     price: 0,
-    handler: (context, elemental, after) {},
   );
 
   static MapProp hospital = MapProp(
@@ -54,19 +86,8 @@ class PropCollection {
     name: S.potion,
     description: S.potionDesc,
     icon: '💊',
-    type: Icons.local_hospital,
+    effect: PropEffect.recoverHealth,
     price: 10,
-    handler: (context, elemental, after) {
-      ElementalDialog.showSelectEnergyDialog(
-        context: context,
-        elemental: elemental,
-        onSelected: (index) {
-          after();
-          elemental.recoverAppoint(index, Energy.healthStep);
-        },
-        available: false,
-      );
-    },
   );
 
   static MapProp sword = MapProp(
@@ -74,19 +95,8 @@ class PropCollection {
     name: S.sword,
     description: S.swordDesc,
     icon: '🗡️',
-    type: Icons.colorize,
+    effect: PropEffect.upgradeAttack,
     price: 10,
-    handler: (context, elemental, after) {
-      ElementalDialog.showSelectEnergyDialog(
-        context: context,
-        elemental: elemental,
-        onSelected: (index) {
-          after();
-          elemental.upgradeAppointAttribute(index, AttributeType.atk);
-        },
-        available: false,
-      );
-    },
   );
 
   static MapProp shield = MapProp(
@@ -94,27 +104,15 @@ class PropCollection {
     name: S.shield,
     description: S.shieldDesc,
     icon: '🛡️',
-    type: Icons.shield,
+    effect: PropEffect.upgradeDefence,
     price: 10,
-    handler: (context, elemental, after) {
-      ElementalDialog.showSelectEnergyDialog(
-        context: context,
-        elemental: elemental,
-        onSelected: (index) {
-          after();
-          elemental.upgradeAppointAttribute(index, AttributeType.def);
-        },
-        available: false,
-      );
-    },
   );
   static MapProp scroll = MapProp(
     id: EntityType.scroll,
     name: S.scroll,
     description: S.scrollDesc,
     icon: '📜',
-    type: null,
+    effect: PropEffect.returnHome,
     price: 10,
-    handler: (context, elemental, after) {},
   );
 }

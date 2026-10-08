@@ -9,7 +9,7 @@ import '../../00.common/network/protocol/network_message.dart';
 import '../../00.common/network/client/socket_client.dart';
 import '../../00.common/l10n/strings.dart';
 
-import '../middle/foundation_combat_manager.dart';
+import 'foundation_combat_manager.dart';
 import '../middle/elemental.dart';
 import '../base/energy.dart';
 

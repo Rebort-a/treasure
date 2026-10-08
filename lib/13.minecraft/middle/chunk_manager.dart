@@ -14,6 +14,7 @@ class ChunkManager {
   static const int chunkSize = Constants.chunkBlockCount * Constants.blockSize;
   static const int horizontalDistance = Constants.loadChunkHorizontalCount;
   static const int verticalDistance = Constants.loadChunkVerticalCount;
+
   /// 已生成区块缓存，按访问顺序排列（队首=最久未访问）。命中或生成时
   /// 重新插入到队尾以更新 LRU 顺序，超出 [Constants.maxArchivedChunks]
   /// 后从队首淘汰冷区块。
@@ -35,8 +36,7 @@ class ChunkManager {
   }
 
   /// 指定 (x, z) 列的地表高度（仅地形，不含结构），用于选择出生点。
-  int surfaceHeightAt(int x, int z) =>
-      _worldGenerator.surfaceHeightAt(x, z);
+  int surfaceHeightAt(int x, int z) => _worldGenerator.surfaceHeightAt(x, z);
 
   /// 区块更新
   void updateChunks(Vector3 playerPos) {

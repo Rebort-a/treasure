@@ -70,12 +70,28 @@ class RegionGenerator {
     var maxSize = min(total - 1, (total / n * 2).ceil());
 
     for (int attempt = 0; attempt < _maxAttempts; attempt++) {
-      final cells = _tryGenerate(cols, rows, n, minSize, maxSize, total, random);
+      final cells = _tryGenerate(
+        cols,
+        rows,
+        n,
+        minSize,
+        maxSize,
+        total,
+        random,
+      );
       if (cells != null) return _buildBoard(cols, rows, cells, random);
     }
     maxSize = total;
     for (int attempt = 0; attempt < _maxAttempts; attempt++) {
-      final cells = _tryGenerate(cols, rows, n, minSize, maxSize, total, random);
+      final cells = _tryGenerate(
+        cols,
+        rows,
+        n,
+        minSize,
+        maxSize,
+        total,
+        random,
+      );
       if (cells != null) return _buildBoard(cols, rows, cells, random);
     }
     return _buildUniformBoard(cols, rows, n, random);
@@ -83,7 +99,12 @@ class RegionGenerator {
 
   /// 生成目标大小列表，sum=total，每个 ∈ [minSize, maxSize]
   static List<int>? _generateSizes(
-      int n, int minSize, int maxSize, int total, Random random) {
+    int n,
+    int minSize,
+    int maxSize,
+    int total,
+    Random random,
+  ) {
     if (n * minSize > total || n * maxSize < total) return null;
     final sizes = List<int>.filled(n, minSize);
     final capacities = List<int>.filled(n, maxSize - minSize);
@@ -91,7 +112,7 @@ class RegionGenerator {
     while (remaining > 0) {
       final candidates = [
         for (int i = 0; i < n; i++)
-          if (capacities[i] > 0) i
+          if (capacities[i] > 0) i,
       ];
       if (candidates.isEmpty) return null;
       final idx = candidates[random.nextInt(candidates.length)];
@@ -140,7 +161,8 @@ class RegionGenerator {
       int md = 1 << 30;
       for (int i = 0; i < picks.length; i++) {
         for (int j = i + 1; j < picks.length; j++) {
-          final d = (picks[i].col - picks[j].col).abs() +
+          final d =
+              (picks[i].col - picks[j].col).abs() +
               (picks[i].row - picks[j].row).abs();
           if (d < md) md = d;
         }
@@ -198,7 +220,11 @@ class RegionGenerator {
         if (size[best] >= sizes[best]) break;
         final nc = cur.col + d.dx;
         final nr = cur.row + d.dy;
-        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows && grid[nc][nr] == -1) {
+        if (nc >= 0 &&
+            nc < cols &&
+            nr >= 0 &&
+            nr < rows &&
+            grid[nc][nr] == -1) {
           grid[nc][nr] = best;
           size[best]++;
           remaining--;
@@ -301,7 +327,13 @@ class RegionGenerator {
 
   /// flood fill 统计 regionId 连通格子数（从 start 起）
   static int _floodCount(
-      List<List<int>> grid, int cols, int rows, int regionId, int sc, int sr) {
+    List<List<int>> grid,
+    int cols,
+    int rows,
+    int regionId,
+    int sc,
+    int sr,
+  ) {
     if (grid[sc][sr] != regionId) return 0;
     final visited = List.generate(cols, (_) => List<bool>.filled(rows, false));
     final queue = <Cell>[(col: sc, row: sr)];
@@ -329,7 +361,11 @@ class RegionGenerator {
 
   /// 由 cells 构造棋盘：数字 1~N 打乱、质心、字号随区域大小
   static SchulteBoard _buildBoard(
-      int cols, int rows, List<List<Cell>> cells, Random random) {
+    int cols,
+    int rows,
+    List<List<Cell>> cells,
+    Random random,
+  ) {
     final n = cells.length;
     final numbers = List<int>.generate(n, (i) => i + 1)..shuffle(random);
     int minArea = 1 << 30, maxArea = 0;
@@ -344,13 +380,15 @@ class RegionGenerator {
     for (int i = 0; i < n; i++) {
       final list = cells[i];
       if (list.isEmpty) {
-        regions.add(SchulteRegion(
-          id: i,
-          number: numbers[i],
-          cells: const [],
-          centroid: Offset.zero,
-          fontSize: 16,
-        ));
+        regions.add(
+          SchulteRegion(
+            id: i,
+            number: numbers[i],
+            cells: const [],
+            centroid: Offset.zero,
+            fontSize: 16,
+          ),
+        );
         continue;
       }
       double sumX = 0, sumY = 0;
@@ -363,20 +401,26 @@ class RegionGenerator {
           ? 0.0
           : (list.length - minArea) / (maxArea - minArea);
       final fs = (16.0 + 16.0 * t).clamp(16.0, 32.0);
-      regions.add(SchulteRegion(
-        id: i,
-        number: numbers[i],
-        cells: list,
-        centroid: centroid,
-        fontSize: fs.toDouble(),
-      ));
+      regions.add(
+        SchulteRegion(
+          id: i,
+          number: numbers[i],
+          cells: list,
+          centroid: centroid,
+          fontSize: fs.toDouble(),
+        ),
+      );
     }
     return SchulteBoard(cols: cols, rows: rows, regions: regions);
   }
 
   /// 兜底：均分区域（算法失败时保证不崩溃，每区域至少 1 格）
   static SchulteBoard _buildUniformBoard(
-      int cols, int rows, int n, Random random) {
+    int cols,
+    int rows,
+    int n,
+    Random random,
+  ) {
     final total = cols * rows;
     final nn = n > total ? total : n; // 防御 n>total
     final perRegion = total ~/ nn;

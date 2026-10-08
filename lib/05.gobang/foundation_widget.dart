@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -9,7 +10,11 @@ class FoundationalWidget extends StatelessWidget {
   final FoundationalManager manager;
   final void Function(int index)? onGridSelected;
 
-  const FoundationalWidget({super.key, required this.manager, this.onGridSelected});
+  const FoundationalWidget({
+    super.key,
+    required this.manager,
+    this.onGridSelected,
+  });
 
   @override
   Widget build(BuildContext context) => Center(child: _buildChessBoard());
@@ -95,7 +100,9 @@ class FoundationalWidget extends StatelessWidget {
           );
         } else {
           return GestureDetector(
-            onTap: () => onGridSelected != null ? onGridSelected!(index) : manager.placePiece(index),
+            onTap: () => onGridSelected != null
+                ? onGridSelected!(index)
+                : manager.placePiece(index),
             child: Container(color: Colors.transparent),
           );
         }

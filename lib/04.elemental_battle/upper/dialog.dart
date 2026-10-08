@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../00.common/l10n/strings.dart';
-import 'elemental.dart';
+import '../middle/elemental.dart';
 import '../base/energy.dart';
 import '../base/skill.dart';
 

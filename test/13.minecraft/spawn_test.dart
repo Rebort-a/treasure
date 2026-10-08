@@ -24,8 +24,8 @@ import 'package:treasure/13.minecraft/middle/chunk_manager.dart';
     }
   }
   final player = Player(
-        position: Vector3(x.toDouble(), topY + 5.25, z.toDouble()),
-      )..isGrounded = false;
+    position: Vector3(x.toDouble(), topY + 5.25, z.toDouble()),
+  )..isGrounded = false;
   // 自由下落 + 落地
   for (var i = 0; i < 80; i++) {
     player.update(0.016, cm.getCollisionBlocks(player));
@@ -54,11 +54,7 @@ void main() {
       final cm = ChunkManager(seed: seed);
       final (topY, player) = spawnAndDrop(cm, 23, 23);
 
-      expect(
-        player.isGrounded,
-        isTrue,
-        reason: 'seed=$seed 未落地',
-      );
+      expect(player.isGrounded, isTrue, reason: 'seed=$seed 未落地');
       // 落地后眼高应稳定在 topY+3.25（脚踩在 topY+1 顶面）
       expect(
         (player.position.y - (topY + 3.25)).abs(),

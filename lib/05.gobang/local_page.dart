@@ -59,7 +59,8 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
               switch (value) {
                 case 'restart':
                   final oldFaction = _manager.aiFaction;
-                  final winnerIsAi = _vsAi &&
+                  final winnerIsAi =
+                      _vsAi &&
                       oldFaction != null &&
                       _manager.board.lastWinner == oldFaction;
                   final newFaction = winnerIsAi

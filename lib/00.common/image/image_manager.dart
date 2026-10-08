@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'dart:async';
 
 import '../game/entity.dart';
@@ -18,9 +19,8 @@ class ImageSplitter {
   }
 
   Future<ImageInfo> loadImageInfo() async {
-    final ImageStream stream = AssetImage(
-      imagePath,
-    ).resolve(ImageConfiguration.empty);
+    final ImageStream stream = AssetImage(imagePath)
+        .resolve(ImageConfiguration.empty);
     final Completer<ImageInfo> completer = Completer<ImageInfo>();
     ImageStreamListener? listener;
 

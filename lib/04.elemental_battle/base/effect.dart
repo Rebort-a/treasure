@@ -44,10 +44,7 @@ enum EffectID {
 }
 
 // 效果类型
-enum EffectType {
-  limited,
-  infinite,
-}
+enum EffectType { limited, infinite }
 
 // 效果
 class CombatEffect {

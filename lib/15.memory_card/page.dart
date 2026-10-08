@@ -14,15 +14,12 @@ class MemoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (bool didPop, Object? result) {
-          if (!didPop) _manager.leavePage();
-        },
-        child: Scaffold(
-          appBar: _buildAppBar(),
-          body: _buildBody(),
-        ),
-      );
+    canPop: false,
+    onPopInvokedWithResult: (bool didPop, Object? result) {
+      if (!didPop) _manager.leavePage();
+    },
+    child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+  );
 
   AppBar _buildAppBar() {
     return AppBar(
@@ -103,8 +100,10 @@ class MemoryPage extends StatelessWidget {
                     child: IconButton(
                       iconSize: 96,
                       onPressed: _manager.resetGame,
-                      icon: const Icon(Icons.replay_circle_filled,
-                          color: Colors.deepPurple),
+                      icon: const Icon(
+                        Icons.replay_circle_filled,
+                        color: Colors.deepPurple,
+                      ),
                     ),
                   )
                 : const SizedBox.shrink(),
@@ -165,8 +164,7 @@ class CardView extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.shade400),
         boxShadow: const [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 2, offset: Offset(1, 1)),
+          BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(1, 1)),
         ],
       ),
       alignment: Alignment.center,
@@ -185,8 +183,7 @@ class CardView extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.indigo.shade700),
         boxShadow: const [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 2, offset: Offset(1, 1)),
+          BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(1, 1)),
         ],
       ),
       alignment: Alignment.center,

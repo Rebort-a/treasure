@@ -172,7 +172,10 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
         final availW = constraints.maxWidth;
         final availH = constraints.maxHeight;
         final w = (availW / cellSize).floor().clamp(1, 60);
-        final h = ((availH - _bottomPanelReserved) / cellSize).floor().clamp(1, 60);
+        final h = ((availH - _bottomPanelReserved) / cellSize).floor().clamp(
+          1,
+          60,
+        );
         if (!_mapInitialized) {
           _mapInitialized = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {

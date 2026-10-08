@@ -70,8 +70,10 @@ void main() {
     test('tryPlace 已有棋子位置失败', () {
       final cells = emptyBoard();
       cells[idx(4, 4)] = StoneState.black;
-      expect(GoRules.tryPlace(cells, size, idx(4, 4), StoneState.white).ok,
-          isFalse);
+      expect(
+        GoRules.tryPlace(cells, size, idx(4, 4), StoneState.white).ok,
+        isFalse,
+      );
     });
   });
 
@@ -106,11 +108,10 @@ void main() {
     test('候选仅在已有棋子周围 radius 内', () {
       final cells = emptyBoard();
       cells[idx(4, 4)] = StoneState.black;
-      final cands = GoSearchBoard(cells, size).generateCandidates(
-        StoneState.white,
-        StoneState.white,
-        radius: 2,
-      );
+      final cands = GoSearchBoard(
+        cells,
+        size,
+      ).generateCandidates(StoneState.white, StoneState.white, radius: 2);
       expect(cands, contains(idx(3, 3)));
       expect(cands, contains(idx(6, 6)));
       expect(cands, isNot(contains(idx(0, 0))));
@@ -123,11 +124,10 @@ void main() {
       cells[idx(5, 4)] = StoneState.black;
       cells[idx(4, 3)] = StoneState.black;
       cells[idx(4, 5)] = StoneState.black;
-      final cands = GoSearchBoard(cells, size).generateCandidates(
-        StoneState.white,
-        StoneState.white,
-        radius: 2,
-      );
+      final cands = GoSearchBoard(
+        cells,
+        size,
+      ).generateCandidates(StoneState.white, StoneState.white, radius: 2);
       expect(cands, isNot(contains(idx(4, 4))));
     });
 
@@ -149,10 +149,16 @@ void main() {
   group('GoEvaluator', () {
     test('提子差：己方棋子多则 evaluate 更高', () {
       final empty = emptyBoard();
-      final e1 = GoEvaluator.evaluate(GoSearchBoard(empty, size), StoneState.black);
+      final e1 = GoEvaluator.evaluate(
+        GoSearchBoard(empty, size),
+        StoneState.black,
+      );
       final cells = emptyBoard();
       cells[idx(4, 4)] = StoneState.black;
-      final e2 = GoEvaluator.evaluate(GoSearchBoard(cells, size), StoneState.black);
+      final e2 = GoEvaluator.evaluate(
+        GoSearchBoard(cells, size),
+        StoneState.black,
+      );
       expect(e2, greaterThan(e1));
     });
 

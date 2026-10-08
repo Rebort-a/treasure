@@ -1,20 +1,21 @@
 <p align="center">
   <h1 align="center">🧰 Treasure</h1>
   <p align="center">
-    <b>A treasure for developers, featuring multiple cross-platform applications built with Flutter</b><br/>
-    <i>个人开发者的百宝箱，包含多个基于Flutter构建的跨平台应用程序</i>
+    <b>A Flutter game lab: learn the rules, explore the engine, play over LAN</b><br/>
+    <b>六端为一，无界互联</b><br/>
+    <i>Flutter 游戏实验室：理解游戏规则，探索自研内核，体验局域网联机</i>
   </p>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter" alt="Flutter">
-  <img src="https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart" alt="Dart">
-  <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform">
+  <img src="https://img.shields.io/badge/Flutter-3.47.2-blue?logo=flutter" alt="Flutter 3.47.2">
+  <img src="https://img.shields.io/badge/Dart-%5E3.13.0-0175C2?logo=dart" alt="Dart ^3.13.0">
+  <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/📱_16_Applications-FF6B6B?style=for-the-badge" alt="16 Applications">
+  <img src="https://img.shields.io/badge/🎮_16_Games_+_LAN_Chat-FF6B6B?style=for-the-badge" alt="16 Games + LAN Chat">
   <img src="https://img.shields.io/badge/🖥️_Pure_Dart_3D_Engine-9B59B6?style=for-the-badge" alt="Pure Dart 3D Engine">
   <img src="https://img.shields.io/badge/📡_Zero_Config_LAN_Play-2ECC71?style=for-the-badge" alt="Zero Config LAN">
 </p>
@@ -27,26 +28,50 @@
 >
 > No install. No download. Just open and play.
 >
-> 六端合一，无界通信，无需安装，即刻体验web端。
+> 无需安装，即刻体验单机游戏。Web 联机需要手动输入原生端房主的地址，且受浏览器连接策略限制；平台能力并不完全相同，见下方说明。
 
 ### Preview | 预览
 
 | | | |
 |:---:|:---:|:---:|
-| ![Home](docs/images/screenshots/game_show_0.png) | ![Board Games](docs/images/screenshots/game_show_1.png) | ![Action Games](docs/images/screenshots/game_show_2.png) |
+| ![Gobang](docs/images/screenshots/gobang.png) | ![Go](docs/images/screenshots/go.png) | ![Three Tiles](docs/images/screenshots/three_tiles.png) |
 | ![LAN Chat](docs/images/gifs/lan_chat.gif) | ![Spaceship](docs/images/gifs/spaceship.gif) | ![Minecraft](docs/images/gifs/minecraft.gif) |
+
+静态图片裁剪自仓库原有截图，展示历史版本玩法，不作为当前版本的视觉验收结果。| Static previews are cropped from existing repository screenshots and illustrate earlier versions.
 
 ---
 
 ## 💡 What Is This? | 这是什么？
 
-A collection of cross-platform applications built with Flutter — from a simple Gobang to a 3D Minecraft engine powered by pure Dart. Every app is reverse-engineered and rebuilt from scratch. | 基于 Flutter 构建的跨平台应用合集，从单机五子棋到纯 Dart 驱动的 3D 我的世界引擎，拆解每一款应用背后的原理并进行复刻。
+A game lab for Flutter developers, from Gobang rules and AI to multiplayer synchronization and a Dart-powered voxel renderer. The primary goal is to make game internals readable and testable; LAN play is the shared hands-on experience. | 面向 Flutter 开发者的游戏实验室，从五子棋规则与 AI，到多人状态同步和 Dart 体素渲染。主目标是让游戏内核可阅读、可验证，局域网联机是贯穿各模块的实践场景。
 
-All apps share a unified framework with consistent design philosophy and directory structure, with clear separation between data, logic, and UI layers. Master one, and you can seamlessly pick up the next. | 所有应用复用统一的框架，遵循一致的设计理念与目录结构，数据、逻辑、UI 三层严格分离，学完一款即可无缝衔接下一款。
+Modules share networking, lifecycle hosts and UI components. Complex games use data / logic / UI directories; small games keep a simpler file layout. Some older managers still mix presentation responsibilities; see the [architecture guide](docs/architecture.md) for enforced boundaries and remaining work. | 模块共享网络、生命周期容器与界面组件，复杂游戏按数据/逻辑/UI 分目录，小游戏保留精简文件组织。旧模块仍有展示职责混合，已实施的约束与后续工作见[架构说明](docs/architecture.md)。
 
-Six platforms, one codebase. No central server required — LAN multiplayer works out of the box. | 六端合一，无需中心服务器，开箱即联。
+Six platform targets, one codebase. A native player hosts the room locally; no central server is required. | 一份代码面向六个平台，原生端玩家在本地建立房间，无需中心服务器。
 
-The codebase follows the principle of simplicity and zero dependencies. Whether networking or 3D rendering, everything is hand-crafted with zero third-party dependencies. Reusable code is fully abstracted and shared. | 代码遵循简约与零依赖原则，无论是网络通信还是 3D 渲染，全部手写实现，可复用代码充分抽象共享。
+Game rules and rendering algorithms are implemented in Dart. Convenience plugins are few and isolated in adapters rather than spread through game logic. | 游戏规则与渲染算法由 Dart 实现，少量便利插件集中在适配文件中，不分散到游戏内核；这不是整个应用“零依赖”的承诺。
+
+### Start Here | 推荐阅读入口
+
+| 想了解什么 | 从哪里开始 |
+|---|---|
+| 游戏规则、合法交换与确定性局面 | `lib/18.match_three/base/match_board.dart` |
+| 数据内核如何驱动界面 | `lib/18.match_three/middle/match_manager.dart` |
+| 多人回合、快照与同步确认 | `lib/00.common/network/client/net_multi_turn_engine.dart` |
+| 房间连接与单局资源如何分离 | `lib/00.common/network/widget/online_game_host.dart` |
+| 3D 投影、裁剪与面合并 | [体素引擎说明](lib/13.minecraft/README.md) |
+
+### Platform Capabilities | 平台能力与边界
+
+| 能力 | Android / iOS | Windows / macOS / Linux | Web |
+|---|---|---|---|
+| 单机游戏 | 支持 | 支持 | 支持 |
+| 建立局域网房间 | 支持，依赖系统权限和网络环境 | 支持，需放行防火墙 | 不支持 |
+| UDP 房间发现 | 支持，依赖网络允许广播 | 支持，依赖网络允许广播 | 不支持，手动输入地址 |
+| 加入局域网房间 | 支持 | 支持 | 使用 WebSocket，受浏览器策略限制 |
+| 本地设置和游戏记录 | 应用文档目录中的 `.treasure/` | 当前工作目录中的 `.treasure/` | 当前不持久化 |
+
+“支持”表示当前代码实现的能力，不代表已完成所有设备与系统版本的实机验收。HTTPS 页面连接局域网明文 WebSocket 可能被浏览器拦截。房间密码用于入房校验；XOR 不能提供可靠的机密性或完整性保护，请仅在可信局域网中使用。
 
 ---
 
@@ -148,7 +173,8 @@ lib/
 ├── 14.tower_defense/ # Tower defense (flat)
 ├── 15.memory_card/  # Memory match (flat)
 ├── 16.schulte/      # Schulte grid (flat)
-└── 17.tank/         # Tank battle (flat)
+├── 17.tank/         # Tank battle (flat)
+└── 18.match_three/  # Cooperative match-three (layered)
 ```
 
 ---
@@ -185,7 +211,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 - **Message Routing** — `recipientId` / `recipientIds` target private or group messages; `gameId` isolates matches, with ACK, retry and deduplication for directed game messages. | 私聊与群聊定向转发；`gameId` 隔离对局，局内消息有 ACK、重发和去重，搜索与房间聊天没有。
 - **Game Admission** — Reserved invitations commit only after application-level confirmation; real-time newcomers share the current game ID, with rollback and resynchronization on failure. | 邀请先预留、确认后入局；实时中途加入复用当前对局 ID，失败时撤销并重新同步。
 - **Reconnection** — Exponential backoff (1s→2s→4s→8s→16s, max 5 attempts) | 指数退避重连
-- **Encryption** — XOR stream encryption with room-shared key (lightweight; key exchanged via LAN discovery, not a secure channel — defends against casual snooping only) | 轻量加密传输（密钥经局域网发现交换，非安全信道，仅防偶然嗅探）
+- **Transport Security** — XOR with a room-shared key exchanged in the handshake is obfuscation, not secure transport. Use trusted LANs only. | 房间共享密钥在握手中交换；XOR 仅用于混淆，不提供安全传输保证。
 
 ---
 
@@ -196,9 +222,10 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 | 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
 |------|---------|---------|---------|----------|
 | `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/base/client_abstract.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
-| `image_picker` | 聊天发送图片<br/>Send images in chat | `00.common/widget/component/room_attachment_picker.dart` | 删除图片选择适配代码并隐藏相册选项<br/>Remove the image-picker adapter and hide the album option | 聊天无法发送图片<br/>Cannot send images |
-| `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `00.common/widget/component/room_attachment_picker.dart`、`00.common/widget/component/chat_component.dart` | 删除文件选择/保存适配代码<br/>Remove the file-picker adapter | 聊天无法发送和保存文件<br/>Cannot send and save files |
+| `image_picker` | 聊天发送图片<br/>Send images in chat | `02.lan_chat/attachment_menu.dart` | 删除图片选择适配代码并隐藏相册选项<br/>Remove the image-picker adapter and hide the album option | 聊天无法发送图片<br/>Cannot send images |
+| `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `02.lan_chat/attachment_menu.dart`、`00.common/widget/component/chat_component.dart` | 删除文件选择/保存适配代码<br/>Remove the file-picker adapter | 聊天无法发送和保存文件<br/>Cannot send and save files |
 | `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/service/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |
+| `package_info_plus` | 读取应用版本<br/>Read app version | `00.common/tool/app_info.dart` | 删除插件调用并提供静态版本值<br/>Replace the plugin call with a static version | 版本信息需要手动维护<br/>Version information needs manual maintenance |
 
 `http` 已移除直接依赖；锁文件中仍由部分插件间接引入。房间密码是入房校验，不是安全传输保证；协议及安全边界见 [联机流程说明](docs/network-flow.md)。
 
@@ -212,7 +239,8 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 
 ### Prerequisites | 前置条件
 
-- [Flutter SDK](https://flutter.dev/docs/get-started/install) ≥ 3.x
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) **3.47.2**，与 `.fvmrc` 和 CI 保持一致。
+- Dart **^3.13.0**，以 `pubspec.yaml` 的 SDK 约束为准。
 
 ### Run | 运行
 
@@ -245,8 +273,13 @@ flutter build ios --release
 ### Test | 测试
 
 ```bash
-flutter test
+dart format --output=none --set-exit-if-changed lib test scripts
+flutter analyze lib
+flutter test --coverage
+dart run scripts/coverage_report.dart --check
 ```
+
+CI 检查格式、静态分析、测试和覆盖率下限，并构建 Web；发布流程额外构建原生平台。性能基准和手动实机流程见[质量与验收说明](docs/quality.md)。
 
 ---
 
@@ -255,6 +288,10 @@ flutter test
 | Module | Link |
 |--------|------|
 | 🧊 Minecraft 3D Engine | [lib/13.minecraft/README.md](lib/13.minecraft/README.md) |
+| 🏗️ Architecture | [docs/architecture.md](docs/architecture.md) |
+| ✅ Quality & Acceptance | [docs/quality.md](docs/quality.md) |
+| 📡 Network Flow | [docs/network-flow.md](docs/network-flow.md) |
+| 🎮 Match Three | [docs/match-three.md](docs/match-three.md) |
 | 🤝 Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 📋 Changelog | [CHANGELOG.md](CHANGELOG.md) |
 

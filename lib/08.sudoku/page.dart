@@ -37,8 +37,7 @@ class SudokuPage extends StatelessWidget {
 
   AppBar _buildAppBar(bool isNightMode) {
     return AppBar(
-      title:
-          Text(S.sudoku, style: isNightMode ? MagicTheme.titleStyle : null),
+      title: Text(S.sudoku, style: isNightMode ? MagicTheme.titleStyle : null),
       backgroundColor: isNightMode
           ? MagicTheme.magicBackground.withValues(alpha: 0.7)
           : null,
@@ -89,8 +88,7 @@ class SudokuPage extends StatelessWidget {
       child: IconButton(
         icon: Icon(icon, color: isNightMode ? MagicTheme.gold : null, size: 22),
         onPressed: onPressed,
-        hoverColor:
-            isNightMode ? MagicTheme.gold.withValues(alpha: 0.2) : null,
+        hoverColor: isNightMode ? MagicTheme.gold.withValues(alpha: 0.2) : null,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 44, minHeight: 48),
       ),
@@ -626,9 +624,8 @@ class NumberCards extends StatelessWidget {
           decoration: BoxDecoration(
             color: isNightMode
                 ? const Color(0xFFD4AF37).withValues(alpha: 0.5) // 夜间金色半透明
-                : Theme.of(
-                    context,
-                  ).primaryColor.withValues(alpha: 0.1), // 白天主题色半透明
+                : Theme.of(context).primaryColor
+                      .withValues(alpha: 0.1), // 白天主题色半透明
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Theme.of(context).primaryColor, width: 1),
           ),

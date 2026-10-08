@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../00.common/widget/canvas/grid_boundary.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
@@ -130,9 +131,8 @@ class ThreeTilesPage extends StatelessWidget {
               width: cardRealSize,
               height: cardRealSize,
               decoration: BoxDecoration(
-                color: Color(
-                  card.type.info.color,
-                ).withValues(alpha: card.enable ? 1 : 0.3),
+                color: Color(card.type.info.color)
+                    .withValues(alpha: card.enable ? 1 : 0.3),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: card.hint ? Colors.yellow : Colors.grey,

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'dialog.dart';
+import 'prop_icon.dart';
+
 import '../../00.common/l10n/strings.dart';
 import '../middle/prop.dart';
 import '../middle/player.dart';
 
 class PackagePage extends StatefulWidget {
   final NormalPlayer player;
-  const PackagePage({super.key, required this.player});
+  final VoidCallback? onReturnHome;
+
+  const PackagePage({super.key, required this.player, this.onReturnHome});
 
   @override
   State<PackagePage> createState() => _PackagePageState();
@@ -109,15 +114,7 @@ class _PackagePageState extends State<PackagePage> {
               ],
             ),
             ElevatedButton(
-              onPressed: _selectedItem.count > 0
-                  ? () => setState(
-                      () => _selectedItem.handler(
-                        context,
-                        widget.player,
-                        consumeItem,
-                      ),
-                    )
-                  : null,
+              onPressed: _selectedItem.count > 0 ? _useSelectedItem : null,
               child: Text(S.use),
             ),
           ],
@@ -126,10 +123,25 @@ class _PackagePageState extends State<PackagePage> {
     );
   }
 
-  void consumeItem() {
-    setState(() {
-      _selectedItem.count--;
-    });
+  void _useSelectedItem() {
+    final item = _selectedItem;
+    if (item.effect == PropEffect.none) return;
+    if (item.effect == PropEffect.returnHome) {
+      final returnHome = widget.onReturnHome;
+      if (returnHome == null || !item.consume()) return;
+      returnHome();
+      Navigator.pop(context);
+      return;
+    }
+    ElementalDialog.showSelectEnergyDialog(
+      context: context,
+      elemental: widget.player,
+      available: false,
+      onSelected: (target) {
+        if (!mounted) return;
+        setState(() => item.applyTo(widget.player, target));
+      },
+    );
   }
 
   Widget _buildItemTile(MapProp? item) {
@@ -194,7 +206,8 @@ class _PackagePageState extends State<PackagePage> {
   }
 
   Widget _buildItemTypeIcon(MapProp item) {
-    return item.type != null
+    final icon = propIcon(item);
+    return icon != null
         ? Align(
             alignment: Alignment.bottomLeft,
             child: Container(
@@ -202,7 +215,7 @@ class _PackagePageState extends State<PackagePage> {
                 color: Colors.grey,
                 borderRadius: BorderRadius.circular(5),
               ),
-              child: Icon(item.type),
+              child: Icon(icon),
             ),
           )
         : const Center();

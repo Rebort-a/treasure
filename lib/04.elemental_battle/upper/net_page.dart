@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../00.common/network/client/socket_client.dart';
 import '../../00.common/network/widget/online_game_host.dart';
-import '../middle/foundation_combat_widget.dart';
+import 'foundation_combat_widget.dart';
 
 import '../../00.common/game/step.dart';
 import '../../00.common/widget/component/chat_component.dart';

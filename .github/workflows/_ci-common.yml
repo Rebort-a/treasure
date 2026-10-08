@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze & Test
+    name: Format, Analyze & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -28,13 +28,29 @@ jobs:
           restore-keys: pub-${{ runner.os }}-
 
       - run: flutter pub get
-      - run: flutter analyze
+      - name: Check Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test scripts
+      - run: flutter analyze lib
       - run: flutter test --coverage
+      - name: Check critical coverage
+        run: dart run scripts/coverage_report.dart --check --json=coverage/summary.json
       - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: coverage
-          path: coverage/lcov.info
+          path: |
+            coverage/lcov.info
+            coverage/summary.json
+          retention-days: 14
+      # CPU 微基准仅记录趋势，不用共享运行器上的绝对耗时阻断提交。
+      - name: Record deterministic CPU benchmarks
+        run: dart run scripts/benchmark.dart --json=build/quality/benchmark.json
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v6
+        with:
+          name: benchmarks
+          path: build/quality/benchmark.json
           retention-days: 14
 
   build-web:

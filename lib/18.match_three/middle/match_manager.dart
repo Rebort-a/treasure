@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../00.common/service/json_store.dart';
 import '../../00.common/service/storage_service.dart';
 import '../base/match_board.dart';
 
@@ -30,6 +31,7 @@ class MatchView {
 
 /// 负责选择和展示帧的生命周期，三消判定始终由纯 Dart 内核完成。
 class MatchManager {
+  final JsonStore _storage;
   final view = ValueNotifier<MatchView?>(null);
   final selected = ValueNotifier<int?>(null);
   final busy = ValueNotifier(false);
@@ -49,7 +51,8 @@ class MatchManager {
   late final Future<void> _highScoreLoaded;
   bool reduceMotion = false;
 
-  MatchManager({bool generate = true, int? seed}) {
+  MatchManager({bool generate = true, int? seed, JsonStore? storage})
+    : _storage = storage ?? StorageService.instance {
     _highScoreLoaded = _loadHighScore();
     if (generate) restart(seed: seed);
   }
@@ -63,10 +66,7 @@ class MatchManager {
   bool get canRestart => true;
 
   Future<void> _loadHighScore() async {
-    final data = await StorageService.instance.read(
-      'match_three',
-      project: '18.match_three',
-    );
+    final data = await _storage.read('match_three', project: '18.match_three');
     final score = data['highScore'];
     if (!_disposed && score is int && score >= 0) {
       highScore.value = score;
@@ -85,7 +85,7 @@ class MatchManager {
     }
     highScore.value = board.score;
     brokeRecord.value = true;
-    await StorageService.instance.write('match_three', {
+    await _storage.write('match_three', {
       'highScore': board.score,
     }, project: '18.match_three');
   }

@@ -193,8 +193,7 @@ void main() {
       for (int i = 0; i < size; i++) {
         cells[idx(i, 0)] = (i % 2 == 0) ? 1 : 2;
       }
-      final cands =
-          boardFrom(cells).generateCandidates(1, radius: 2, topK: 5);
+      final cands = boardFrom(cells).generateCandidates(1, radius: 2, topK: 5);
       expect(cands.length, lessThanOrEqualTo(5));
     });
 
@@ -213,8 +212,12 @@ void main() {
       for (int c = 1; c <= 4; c++) {
         cells[idx(7, c)] = 1;
       } // self 四连
-      final move =
-          SearchEngine.search(boardFrom(cells), 1, AiDifficulty.normal, 1500);
+      final move = SearchEngine.search(
+        boardFrom(cells),
+        1,
+        AiDifficulty.normal,
+        1500,
+      );
       expect(move, isNotNull);
       expect(boardFrom(cells).canWin(move!, 1), isTrue);
     });
@@ -224,8 +227,12 @@ void main() {
       for (int c = 1; c <= 4; c++) {
         cells[idx(7, c)] = 2;
       } // enemy 四连（两端开放）
-      final move =
-          SearchEngine.search(boardFrom(cells), 1, AiDifficulty.normal, 1500);
+      final move = SearchEngine.search(
+        boardFrom(cells),
+        1,
+        AiDifficulty.normal,
+        1500,
+      );
       expect(move, isNotNull);
       expect([idx(7, 0), idx(7, 5)], contains(move));
     });
@@ -236,8 +243,12 @@ void main() {
       for (int c = 1; c <= 4; c++) {
         cells[idx(7, c)] = 2;
       } // enemy 四连右端开放
-      final move =
-          SearchEngine.search(boardFrom(cells), 1, AiDifficulty.normal, 1500);
+      final move = SearchEngine.search(
+        boardFrom(cells),
+        1,
+        AiDifficulty.normal,
+        1500,
+      );
       // enemy 只能在 col5 成五，AI 必须堵 col5
       expect(move, idx(7, 5));
     });
@@ -246,16 +257,19 @@ void main() {
       final cells = emptyBoard();
       cells[idx(7, 7)] = 1;
       cells[idx(7, 8)] = 2;
-      final move =
-          SearchEngine.search(boardFrom(cells), 1, AiDifficulty.easy, 600);
+      final move = SearchEngine.search(
+        boardFrom(cells),
+        1,
+        AiDifficulty.easy,
+        600,
+      );
       expect(move, isNotNull);
       expect(cells[move!], 0); // 必须是空位
     });
 
     test('空盘 AI 返回天元（不卡回合）', () {
       final board = SearchBoard(List<int>.filled(15 * 15, 0), 15);
-      final move =
-          SearchEngine.search(board, 1, AiDifficulty.normal, 1500);
+      final move = SearchEngine.search(board, 1, AiDifficulty.normal, 1500);
       expect(move, (15 ~/ 2) * 15 + 15 ~/ 2); // 天元 (7,7)
     });
   });

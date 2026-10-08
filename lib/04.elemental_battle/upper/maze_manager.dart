@@ -18,7 +18,7 @@ import '../middle/common.dart';
 import '../middle/elemental.dart';
 import '../middle/enemy.dart';
 import '../middle/player.dart';
-import '../middle/dialog.dart';
+import 'dialog.dart';
 import 'cast_page.dart';
 import 'local_combat_page.dart';
 import '../upper/package_page.dart';
@@ -75,7 +75,6 @@ class MazeManager {
   MazeManager() {
     _generateMap(); // 生成地图
     _startActive(); // 添加键盘响应，启动定时器
-    _fillPropHandler(); // 填充玩家的道具作用
   }
 
   void _generateMap() {
@@ -258,14 +257,6 @@ class MazeManager {
     }
   }
 
-  void _fillPropHandler() {
-    player.props[EntityType.scroll]?.handler = (context, elemental, after) {
-      after();
-      _backToMain();
-      Navigator.pop(context);
-    };
-  }
-
   // 玩家操作
   void switchPlayerNext() => player.switchNextAlive();
   void movePlayerUp() => _movePlayer(Direction.up);
@@ -274,7 +265,10 @@ class MazeManager {
   void movePlayerRight() => _movePlayer(Direction.right);
 
   void navigateToPackagePage(BuildContext context) {
-    _navigateAndSetActive(context, PackagePage(player: player));
+    _navigateAndSetActive(
+      context,
+      PackagePage(player: player, onReturnHome: _backToMain),
+    );
   }
 
   void navigateToStorePage(BuildContext context) {

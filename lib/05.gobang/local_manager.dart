@@ -37,11 +37,7 @@ class LocalManager extends FoundationalManager {
   void toggleAi(bool on, {TurnGamerType? faction}) {
     if (on) {
       final f = faction ?? board.currentGamer.value;
-      _ai = AiController(
-        size: board.size,
-        faction: f,
-        difficulty: _difficulty,
-      );
+      _ai = AiController(size: board.size, faction: f, difficulty: _difficulty);
       _maybeAiMove();
     } else {
       _ai?.dispose();

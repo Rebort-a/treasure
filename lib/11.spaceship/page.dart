@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/widget/button/cool_button.dart';
@@ -507,16 +508,14 @@ class GamePainter extends CustomPainter {
         player.position + Offset(player.size.width / 2, player.size.height / 2);
     final radius = player.size.width * 0.7;
 
-    _paint.color = PropTypeExtension.getColor(
-      PropType.shield,
-    ).withValues(alpha: 0.5);
+    _paint.color = PropTypeExtension.getColor(PropType.shield)
+        .withValues(alpha: 0.5);
     _paint.style = PaintingStyle.stroke;
     _paint.strokeWidth = 2;
     canvas.drawCircle(center, radius, _paint);
 
-    _paint.color = PropTypeExtension.getColor(
-      PropType.shield,
-    ).withValues(alpha: 0.3);
+    _paint.color = PropTypeExtension.getColor(PropType.shield)
+        .withValues(alpha: 0.3);
     canvas.drawCircle(center, radius * 1.14, _paint);
   }
 

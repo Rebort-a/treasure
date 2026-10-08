@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'prop_icon.dart';
+
 import '../../00.common/widget/banner/banner_template.dart';
 import '../../00.common/l10n/strings.dart';
 import '../middle/prop.dart';
@@ -119,7 +121,8 @@ class _StorePageState extends State<StorePage> {
   }
 
   Widget _buildItemTypeIcon(MapProp item) {
-    return item.type != null
+    final icon = propIcon(item);
+    return icon != null
         ? Align(
             alignment: Alignment.bottomLeft,
             child: Container(
@@ -127,7 +130,7 @@ class _StorePageState extends State<StorePage> {
                 color: Colors.grey,
                 borderRadius: BorderRadius.circular(5),
               ),
-              child: Icon(item.type),
+              child: Icon(icon),
             ),
           )
         : const Center();

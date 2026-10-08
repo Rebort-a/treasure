@@ -79,8 +79,7 @@ void main() {
       expect(
         seenA.any(
           (m) =>
-              m.type == MessageType.confirm &&
-              m.content.startsWith('commit:'),
+              m.type == MessageType.confirm && m.content.startsWith('commit:'),
         ),
         isTrue,
       );

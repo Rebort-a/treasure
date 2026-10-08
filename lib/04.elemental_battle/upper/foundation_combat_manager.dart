@@ -6,11 +6,12 @@ import '../../00.common/game/gamer.dart';
 import '../../00.common/l10n/strings.dart';
 import '../../00.common/widget/dialog/template_dialog.dart';
 import '../../00.common/model/notifiers.dart';
-import 'elemental.dart';
+import '../middle/elemental.dart';
 import '../base/skill.dart';
-import 'common.dart';
+import '../middle/common.dart';
 import 'dialog.dart';
 
+/// 战斗界面协调器，包含弹窗与导航职责，因此放在界面层。
 abstract class FoundationalCombatManager {
   static final conationNames = {
     ConationType.attack: S.attack,

@@ -57,11 +57,13 @@ class _GoLocalPageState extends State<GoLocalPage> {
                   _manager.resign();
                 case 'restart':
                   final oldFaction = _manager.aiFaction;
-                  final winnerIsAi = _vsAi &&
+                  final winnerIsAi =
+                      _vsAi &&
                       oldFaction != null &&
                       _manager.board.lastWinner == oldFaction;
-                  final newFaction =
-                      winnerIsAi ? StoneState.black : StoneState.white;
+                  final newFaction = winnerIsAi
+                      ? StoneState.black
+                      : StoneState.white;
                   setState(() {
                     if (_vsAi) _manager.toggleAi(false);
                     _manager.restart();

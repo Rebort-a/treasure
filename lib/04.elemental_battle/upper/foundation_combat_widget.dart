@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../00.common/l10n/strings.dart';
 import 'foundation_combat_manager.dart';
-import 'elemental.dart';
-import 'common.dart';
+import '../middle/elemental.dart';
+import '../middle/common.dart';
 
 class FoundationalCombatWidget {
   final FoundationalCombatManager combatManager;

@@ -1,9 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+
 import '../../00.common/game/gamer.dart';
 
-import '../middle/foundation_combat_manager.dart';
+import 'foundation_combat_manager.dart';
 import '../middle/common.dart';
 import '../middle/elemental.dart';
 import '../base/skill.dart';

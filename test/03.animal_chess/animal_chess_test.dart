@@ -6,12 +6,18 @@ void main() {
   group('Animal Chess', () {
     group('吃子规则 canEat', () {
       // 辅助方法：创建指定类型的动物
-      Animal animal(AnimalType type, [TurnGamerType owner = TurnGamerType.front]) {
+      Animal animal(
+        AnimalType type, [
+        TurnGamerType owner = TurnGamerType.front,
+      ]) {
         return Animal(type: type, owner: owner, isHidden: false);
       }
 
       test('大象吃狮子', () {
-        expect(animal(AnimalType.elephant).canEat(animal(AnimalType.lion)), isTrue);
+        expect(
+          animal(AnimalType.elephant).canEat(animal(AnimalType.lion)),
+          isTrue,
+        );
       });
 
       test('狮子吃狗', () {
@@ -23,11 +29,17 @@ void main() {
       });
 
       test('老鼠吃大象（特殊规则）', () {
-        expect(animal(AnimalType.mouse).canEat(animal(AnimalType.elephant)), isTrue);
+        expect(
+          animal(AnimalType.mouse).canEat(animal(AnimalType.elephant)),
+          isTrue,
+        );
       });
 
       test('大象不能吃老鼠（特殊规则）', () {
-        expect(animal(AnimalType.elephant).canEat(animal(AnimalType.mouse)), isFalse);
+        expect(
+          animal(AnimalType.elephant).canEat(animal(AnimalType.mouse)),
+          isFalse,
+        );
       });
 
       test('同类相吃返回 true', () {
@@ -52,9 +64,17 @@ void main() {
               // 鼠 vs 象 → 鼠能吃象
               expect(a.canEat(b), isTrue);
             } else if (i < j) {
-              expect(a.canEat(b), isTrue, reason: '${types[i].name} should eat ${types[j].name}');
+              expect(
+                a.canEat(b),
+                isTrue,
+                reason: '${types[i].name} should eat ${types[j].name}',
+              );
             } else {
-              expect(a.canEat(b), isFalse, reason: '${types[i].name} should NOT eat ${types[j].name}');
+              expect(
+                a.canEat(b),
+                isFalse,
+                reason: '${types[i].name} should NOT eat ${types[j].name}',
+              );
             }
           }
         }
@@ -68,91 +88,160 @@ void main() {
 
       group('进入河流', () {
         test('大象可以进入河流', () {
-          expect(animal(AnimalType.elephant).canMoveTo(CellType.land, CellType.river), isTrue);
+          expect(
+            animal(AnimalType.elephant)
+                .canMoveTo(CellType.land, CellType.river),
+            isTrue,
+          );
         });
 
         test('狗可以进入河流', () {
-          expect(animal(AnimalType.dog).canMoveTo(CellType.land, CellType.river), isTrue);
+          expect(
+            animal(AnimalType.dog).canMoveTo(CellType.land, CellType.river),
+            isTrue,
+          );
         });
 
         test('老鼠可以进入河流', () {
-          expect(animal(AnimalType.mouse).canMoveTo(CellType.land, CellType.river), isTrue);
+          expect(
+            animal(AnimalType.mouse).canMoveTo(CellType.land, CellType.river),
+            isTrue,
+          );
         });
 
         test('狮子不能进入河流', () {
-          expect(animal(AnimalType.lion).canMoveTo(CellType.land, CellType.river), isFalse);
+          expect(
+            animal(AnimalType.lion).canMoveTo(CellType.land, CellType.river),
+            isFalse,
+          );
         });
 
         test('老虎不能进入河流', () {
-          expect(animal(AnimalType.tiger).canMoveTo(CellType.land, CellType.river), isFalse);
+          expect(
+            animal(AnimalType.tiger).canMoveTo(CellType.land, CellType.river),
+            isFalse,
+          );
         });
 
         test('豹不能进入河流', () {
-          expect(animal(AnimalType.leopard).canMoveTo(CellType.land, CellType.river), isFalse);
+          expect(
+            animal(AnimalType.leopard).canMoveTo(CellType.land, CellType.river),
+            isFalse,
+          );
         });
 
         test('狼不能进入河流', () {
-          expect(animal(AnimalType.wolf).canMoveTo(CellType.land, CellType.river), isFalse);
+          expect(
+            animal(AnimalType.wolf).canMoveTo(CellType.land, CellType.river),
+            isFalse,
+          );
         });
 
         test('猫不能进入河流', () {
-          expect(animal(AnimalType.cat).canMoveTo(CellType.land, CellType.river), isFalse);
+          expect(
+            animal(AnimalType.cat).canMoveTo(CellType.land, CellType.river),
+            isFalse,
+          );
         });
       });
 
       group('使用桥梁', () {
         test('地面上的非大象动物可以过桥', () {
-          expect(animal(AnimalType.lion).canMoveTo(CellType.land, CellType.bridge), isTrue);
-          expect(animal(AnimalType.tiger).canMoveTo(CellType.land, CellType.bridge), isTrue);
-          expect(animal(AnimalType.mouse).canMoveTo(CellType.land, CellType.bridge), isTrue);
+          expect(
+            animal(AnimalType.lion).canMoveTo(CellType.land, CellType.bridge),
+            isTrue,
+          );
+          expect(
+            animal(AnimalType.tiger).canMoveTo(CellType.land, CellType.bridge),
+            isTrue,
+          );
+          expect(
+            animal(AnimalType.mouse).canMoveTo(CellType.land, CellType.bridge),
+            isTrue,
+          );
         });
 
         test('大象不能过桥', () {
-          expect(animal(AnimalType.elephant).canMoveTo(CellType.land, CellType.bridge), isFalse);
+          expect(
+            animal(AnimalType.elephant)
+                .canMoveTo(CellType.land, CellType.bridge),
+            isFalse,
+          );
         });
 
         test('水中的老鼠可以过桥', () {
-          expect(animal(AnimalType.mouse).canMoveTo(CellType.river, CellType.bridge), isTrue);
+          expect(
+            animal(AnimalType.mouse).canMoveTo(CellType.river, CellType.bridge),
+            isTrue,
+          );
         });
 
         test('水中的非老鼠动物不能过桥', () {
-          expect(animal(AnimalType.dog).canMoveTo(CellType.river, CellType.bridge), isFalse);
-          expect(animal(AnimalType.elephant).canMoveTo(CellType.river, CellType.bridge), isFalse);
+          expect(
+            animal(AnimalType.dog).canMoveTo(CellType.river, CellType.bridge),
+            isFalse,
+          );
+          expect(
+            animal(AnimalType.elephant)
+                .canMoveTo(CellType.river, CellType.bridge),
+            isFalse,
+          );
         });
       });
 
       group('攀爬树木', () {
         test('豹可以爬树', () {
-          expect(animal(AnimalType.leopard).canMoveTo(CellType.land, CellType.tree), isTrue);
+          expect(
+            animal(AnimalType.leopard).canMoveTo(CellType.land, CellType.tree),
+            isTrue,
+          );
         });
 
         test('猫可以爬树', () {
-          expect(animal(AnimalType.cat).canMoveTo(CellType.land, CellType.tree), isTrue);
+          expect(
+            animal(AnimalType.cat).canMoveTo(CellType.land, CellType.tree),
+            isTrue,
+          );
         });
 
         test('老鼠可以爬树', () {
-          expect(animal(AnimalType.mouse).canMoveTo(CellType.land, CellType.tree), isTrue);
+          expect(
+            animal(AnimalType.mouse).canMoveTo(CellType.land, CellType.tree),
+            isTrue,
+          );
         });
 
         test('狮子不能爬树', () {
-          expect(animal(AnimalType.lion).canMoveTo(CellType.land, CellType.tree), isFalse);
+          expect(
+            animal(AnimalType.lion).canMoveTo(CellType.land, CellType.tree),
+            isFalse,
+          );
         });
 
         test('大象不能爬树', () {
-          expect(animal(AnimalType.elephant).canMoveTo(CellType.land, CellType.tree), isFalse);
+          expect(
+            animal(AnimalType.elephant).canMoveTo(CellType.land, CellType.tree),
+            isFalse,
+          );
         });
       });
 
       group('普通地面移动', () {
         test('所有动物都可以在地面上移动', () {
           for (final type in AnimalType.values) {
-            expect(animal(type).canMoveTo(CellType.land, CellType.land), isTrue);
+            expect(
+              animal(type).canMoveTo(CellType.land, CellType.land),
+              isTrue,
+            );
           }
         });
 
         test('所有动物都可以走上道路', () {
           for (final type in AnimalType.values) {
-            expect(animal(type).canMoveTo(CellType.land, CellType.road), isTrue);
+            expect(
+              animal(type).canMoveTo(CellType.land, CellType.road),
+              isTrue,
+            );
           }
         });
       });

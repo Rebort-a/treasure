@@ -79,7 +79,8 @@ class BlurHash {
             final py = (y * height / sampleH).floor();
             final idx = (py * width + px) * 4;
 
-            final basis = normFactor *
+            final basis =
+                normFactor *
                 cos(pi * cx * x / sampleW) *
                 cos(pi * cy * y / sampleH);
 
@@ -101,18 +102,25 @@ class BlurHash {
 
     // 量化最大值
     final maxVal = _findMaxVal(factors);
-    final quantMaxVal = max(0, min(82, (maxVal > 0 ? (63.0 * maxVal / 1.0).floor() : 0)));
+    final quantMaxVal = max(
+      0,
+      min(82, (maxVal > 0 ? (63.0 * maxVal / 1.0).floor() : 0)),
+    );
     buf.write(_encodeBase83(quantMaxVal, 1));
 
-    final realMaxVal = quantMaxVal > 0 ? quantMaxVal / 16.0 + 1.0 / 16.0 : 1.0 / 16.0;
+    final realMaxVal = quantMaxVal > 0
+        ? quantMaxVal / 16.0 + 1.0 / 16.0
+        : 1.0 / 16.0;
 
     for (final factor in factors) {
-      buf.write(_encodeBase83(
-        _signPow(factor[0] / realMaxVal, 0.5) * 19 * 19 +
-            _signPow(factor[1] / realMaxVal, 0.5) * 19 +
-            _signPow(factor[2] / realMaxVal, 0.5),
-        2,
-      ));
+      buf.write(
+        _encodeBase83(
+          _signPow(factor[0] / realMaxVal, 0.5) * 19 * 19 +
+              _signPow(factor[1] / realMaxVal, 0.5) * 19 +
+              _signPow(factor[2] / realMaxVal, 0.5),
+          2,
+        ),
+      );
     }
 
     return buf.toString();
@@ -133,7 +141,12 @@ class BlurHash {
   /// 从 BlurHash 解码为 RGBA 像素数据
   ///
   /// 返回 [width] x [height] 的 RGBA 像素（默认 32x32）
-  static Uint8List decode(String hash, int width, int height, {double punch = 1.0}) {
+  static Uint8List decode(
+    String hash,
+    int width,
+    int height, {
+    double punch = 1.0,
+  }) {
     if (hash.length < 6) throw const FormatException('Invalid BlurHash');
 
     final sizeFlag = _decodeBase83(hash.substring(0, 1));
@@ -227,7 +240,9 @@ class BlurHash {
     );
     final picture = recorder.endRecording();
     final scaled = await picture.toImage(w, h);
-    final byteData = await scaled.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final byteData = await scaled.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
 
     image.dispose();
     scaled.dispose();

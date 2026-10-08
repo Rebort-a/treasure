@@ -40,7 +40,7 @@ void main() {
       test('gameOver 后不能落子', () {
         // 先构造五连
         for (int i = 0; i < 5; i++) {
-          board.placePiece(idx(7, i));     // 黑
+          board.placePiece(idx(7, i)); // 黑
           if (i < 4) board.placePiece(idx(8, i)); // 白
         }
         expect(board.gameOver, isTrue);
@@ -56,7 +56,7 @@ void main() {
         // 黑: (7,0) (7,1) (7,2) (7,3) (7,4)
         // 白: (8,0) (8,1) (8,2) (8,3)
         for (int i = 0; i < 5; i++) {
-          board.placePiece(idx(7, i));     // 黑
+          board.placePiece(idx(7, i)); // 黑
           if (i < 4) board.placePiece(idx(8, i)); // 白
         }
         expect(board.gameOver, isTrue);
@@ -64,7 +64,7 @@ void main() {
 
       test('纵向五连 → 黑胜', () {
         for (int i = 0; i < 5; i++) {
-          board.placePiece(idx(i, 7));     // 黑
+          board.placePiece(idx(i, 7)); // 黑
           if (i < 4) board.placePiece(idx(i, 8)); // 白
         }
         expect(board.gameOver, isTrue);
@@ -72,7 +72,7 @@ void main() {
 
       test('右斜五连（↘）→ 黑胜', () {
         for (int i = 0; i < 5; i++) {
-          board.placePiece(idx(i, i));         // 黑: (0,0)(1,1)(2,2)(3,3)(4,4)
+          board.placePiece(idx(i, i)); // 黑: (0,0)(1,1)(2,2)(3,3)(4,4)
           if (i < 4) board.placePiece(idx(i, i + 5)); // 白
         }
         expect(board.gameOver, isTrue);
@@ -80,7 +80,7 @@ void main() {
 
       test('左斜五连（↙）→ 黑胜', () {
         for (int i = 0; i < 5; i++) {
-          board.placePiece(idx(i, 4 - i));     // 黑: (0,4)(1,3)(2,2)(3,1)(4,0)
+          board.placePiece(idx(i, 4 - i)); // 黑: (0,4)(1,3)(2,2)(3,1)(4,0)
           if (i < 4) board.placePiece(idx(i, 10 + i)); // 白
         }
         expect(board.gameOver, isTrue);
@@ -88,7 +88,7 @@ void main() {
 
       test('四子不触发胜利', () {
         for (int i = 0; i < 4; i++) {
-          board.placePiece(idx(7, i));     // 黑
+          board.placePiece(idx(7, i)); // 黑
           if (i < 3) board.placePiece(idx(8, i)); // 白
         }
         // 第4手白还没下，此时白3手，checkWin还没检查
@@ -98,7 +98,7 @@ void main() {
 
       test('超过五子也触发胜利（六连）', () {
         for (int i = 0; i < 6; i++) {
-          board.placePiece(idx(7, i));     // 黑
+          board.placePiece(idx(7, i)); // 黑
           if (i < 5) board.placePiece(idx(8, i)); // 白
         }
         expect(board.gameOver, isTrue);
@@ -165,7 +165,7 @@ void main() {
       test('五子在边缘', () {
         // 横向五子在第一行
         for (int i = 0; i < 5; i++) {
-          board.placePiece(idx(0, i));     // 黑
+          board.placePiece(idx(0, i)); // 黑
           if (i < 4) board.placePiece(idx(1, i)); // 白
         }
         expect(board.gameOver, isTrue);

@@ -38,11 +38,12 @@ void main() {
     await h.server.start();
     final room = await h.join('A');
     final engine = RoomChatEngine.forClient(room) as NetTurnEngine;
-    NetTurnEngine create() => engine..configureGame(
-      resourceMode: TurnResourceMode.none,
-      actionHandler: (_, __) {},
-      exitHandler: () {},
-    );
+    NetTurnEngine create() => engine
+      ..configureGame(
+        resourceMode: TurnResourceMode.none,
+        actionHandler: (_, __) {},
+        exitHandler: () {},
+      );
     try {
       final first = create();
       expect(identical(first.client, room), isTrue);

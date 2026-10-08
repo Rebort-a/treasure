@@ -7,7 +7,7 @@ class NetMatchManager extends MatchManager {
   final NetMultiTurnEngine turnEngine;
   bool _released = false;
 
-  NetMatchManager({required SocketClient room})
+  NetMatchManager({required SocketClient room, super.storage})
     : turnEngine = NetMultiTurnEngine.forClient(room),
       super(generate: false) {
     turnEngine.configureTurns(
