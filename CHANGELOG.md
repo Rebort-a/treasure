@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [1.3.0] - 2026-10-08
+Improve Match Three gameplay, bonus effects, score records, and animations
+
+### Added
+- improve match-three gameplay and feedback
+- add cooperative match-three gameplay
+- add randomized match-three with multiplayer turn gameplay
+- refine floating navigation visuals and show destination labels
+- redesign home navigation and room-based multiplayer
+- differentiate enemy tank sizes and clarify invincibility visual
+- show centered restart icon when memory card game ends
+- overhaul tank battle gameplay
+- free-angle movement with dual-stick aim and fire
+
+### Fixed
+- localize room notifications on receiving clients
+- refine snake and tank network gameplay
+
+### Changed
+- unify network engines and compose game lifecycles
+- organize network client server and protocol modules
+- reorganize networking and home routing
+- reorganize home settings and online game architecture
+- improve reliability and test coverage
+
 ## [1.2.2] - 2026-09-09
 
 ### Added
