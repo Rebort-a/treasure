@@ -73,10 +73,16 @@ Widget _navigation({
 }
 
 void main() {
-  testWidgets('选中背景紧贴图标，保持椭圆尺寸并随标签滑动', (tester) async {
+  testWidgets('选中背景略微拉长，贴近底板边框并随标签滑动', (tester) async {
     await tester.pumpWidget(_navigation());
     final selection = find.byKey(_selection);
-    expect(tester.getSize(selection), const Size(50, 40));
+    expect(tester.getSize(selection), const Size(66, 48));
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('navigation-surface')),
+    );
+    final selectionRect = tester.getRect(selection);
+    expect(selectionRect.top - surface.top, 4);
+    expect(surface.bottom - selectionRect.bottom, 4);
     expect(
       tester.getSize(selection).width,
       lessThan(tester.getSize(_destination(0)).width),
@@ -89,7 +95,7 @@ void main() {
 
     await tester.tap(_destination(2));
     await tester.pumpAndSettle();
-    expect(tester.getSize(selection), const Size(50, 40));
+    expect(tester.getSize(selection), const Size(66, 48));
     expect(
       (tester.getCenter(selection) - tester.getCenter(_destination(2)))
           .distance,
@@ -98,6 +104,32 @@ void main() {
   });
 
   for (final dark in [false, true]) {
+    for (final style in FloatingNavigationBarBackground.values) {
+      testWidgets('底板细边框与选中阴影色调一致（深色：$dark，背景：$style）', (tester) async {
+        await tester.pumpWidget(
+          _navigation(dark: dark, backgroundStyle: style),
+        );
+        final decoration =
+            tester
+                    .widget<DecoratedBox>(
+                      find.byKey(const ValueKey('navigation-surface')),
+                    )
+                    .decoration
+                as BoxDecoration;
+        final selectionDecoration =
+            tester.widget<DecoratedBox>(find.byKey(_selection)).decoration
+                as BoxDecoration;
+        expect(
+          decoration.border,
+          Border.all(color: selectionDecoration.color!),
+        );
+        expect(
+          selectionDecoration.color!.a,
+          closeTo(dark ? 0.12 : 0.08, 0.001),
+        );
+      });
+    }
+
     testWidgets('默认半透明背景不启用模糊（深色：$dark）', (tester) async {
       await tester.pumpWidget(_navigation(dark: dark));
       expect(find.byType(BackdropFilter), findsNothing);
@@ -217,8 +249,13 @@ void main() {
       );
       expect(glass.left, 16);
       expect(glass.right, 304);
-      expect(glass.height, 56);
+      expect(glass.height, greaterThan(56));
       expect(glass.bottom, 640 - 34 - 12);
+      for (final destination in _destinations) {
+        final label = tester.getRect(find.text(destination.label));
+        expect(label.top, greaterThan(glass.top));
+        expect(label.bottom, lessThan(glass.bottom));
+      }
       await tester.tap(_destination(2));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -237,29 +274,38 @@ void main() {
     expect(glass.center.dx, 400);
   });
 
-  testWidgets('三个标签始终只显示居中图标，不显示文字', (tester) async {
+  testWidgets('图标下方显示标签，仅当前标签加粗，切换时同步更新', (tester) async {
     await tester.pumpWidget(_navigation());
-    expect(find.text('Apps'), findsNothing);
-    expect(find.text('Online'), findsNothing);
-    expect(find.text('Settings'), findsNothing);
     for (var index = 0; index < 3; index++) {
-      expect(
-        tester.getCenter(
-          find.descendant(of: _destination(index), matching: find.byType(Icon)),
-        ),
-        tester.getCenter(_destination(index)),
+      final label = find.text(_destinations[index].label);
+      expect(label, findsOneWidget);
+      final iconRect = tester.getRect(
+        find.descendant(of: _destination(index), matching: find.byType(Icon)),
       );
+      final labelRect = tester.getRect(label);
+      expect(labelRect.top, greaterThan(iconRect.bottom));
+      expect(labelRect.center.dx, closeTo(iconRect.center.dx, 0.1));
+      final text = tester.widget<Text>(label);
+      expect(
+        text.style!.fontWeight,
+        index == 0 ? FontWeight.bold : FontWeight.normal,
+      );
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
     }
     expect(tester.widget<DecoratedBox>(find.byKey(_selection)).child, isNull);
     await tester.tap(_destination(2));
     await tester.pumpAndSettle();
-    expect(find.text('Settings'), findsNothing);
-    expect(find.text('Apps'), findsNothing);
-    expect(find.text('Online'), findsNothing);
-    expect(
-      tester.getCenter(find.byIcon(Icons.settings)),
-      tester.getCenter(_destination(2)),
-    );
+    for (var index = 0; index < 3; index++) {
+      expect(
+        tester
+            .widget<Text>(find.text(_destinations[index].label))
+            .style!
+            .fontWeight,
+        index == 2 ? FontWeight.bold : FontWeight.normal,
+      );
+    }
+    expect(find.byIcon(Icons.settings), findsOneWidget);
     expect(find.byTooltip('Settings'), findsOneWidget);
   });
 
@@ -306,7 +352,10 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.lan), findsOneWidget);
-    expect(find.text('Online'), findsNothing);
+    expect(
+      tester.widget<Text>(find.text('Online')).style!.fontWeight,
+      FontWeight.bold,
+    );
   });
 
   for (final dark in [false, true]) {

@@ -46,7 +46,14 @@ void main() {
             ModalRoute.of(tester.element(find.byType(HomePage)))!.isCurrent,
             isTrue,
           );
-          expect(find.text('Apps'), findsOneWidget);
+          // 导航栏也展示同名标签，限定查找顶栏标题以验证返回后的当前页面。
+          expect(
+            find.descendant(
+              of: find.byType(AppBar),
+              matching: find.text('Apps'),
+            ),
+            findsOneWidget,
+          );
           expect(tester.takeException(), isNull);
         }
       });
