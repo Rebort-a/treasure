@@ -84,73 +84,7 @@ class MatchGameView extends StatelessWidget {
                       const SizedBox(height: 12),
                       SizedBox(
                         height: 88,
-                        child: ValueListenableBuilder<bool>(
-                          valueListenable: manager.busy,
-                          builder: (_, busy, __) {
-                            if (busy) {
-                              return ValueListenableBuilder<String?>(
-                                valueListenable: manager.comboPraise,
-                                builder: (_, praise, __) {
-                                  if (praise != null) {
-                                    return _celebrationIndicator(
-                                      context,
-                                      praise,
-                                    );
-                                  }
-                                  return ValueListenableBuilder<bool>(
-                                    valueListenable: manager.bonusTime,
-                                    builder: (_, bonusTime, __) {
-                                      if (bonusTime) {
-                                        return _celebrationIndicator(
-                                          context,
-                                          'Bonus Time',
-                                        );
-                                      }
-                                      return ValueListenableBuilder<int?>(
-                                        valueListenable:
-                                            manager.comboMultiplier,
-                                        builder: (_, multiplier, __) =>
-                                            _multiplierIndicator(
-                                              context,
-                                              multiplier ?? 1,
-                                            ),
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            }
-                            return ValueListenableBuilder<String?>(
-                              valueListenable: manager.comboPraise,
-                              builder: (_, praise, __) {
-                                if (praise != null) {
-                                  return _celebrationIndicator(context, praise);
-                                }
-                                return ValueListenableBuilder<bool>(
-                                  valueListenable: manager.invalidSwapAnimating,
-                                  builder: (_, invalidSwapAnimating, __) {
-                                    if (invalidSwapAnimating) {
-                                      return _multiplierIndicator(context, 0);
-                                    }
-                                    final message = switch (view.status) {
-                                      MatchStatus.won => S.matchWon,
-                                      MatchStatus.lost => S.matchLost,
-                                      MatchStatus.playing => null,
-                                    };
-                                    if (message == null) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return _resultIndicator(
-                                      context,
-                                      message,
-                                      view.status,
-                                    );
-                                  },
-                                );
-                              },
-                            );
-                          },
-                        ),
+                        child: _statusIndicator(context, view),
                       ),
                     ],
                   ),
@@ -182,6 +116,78 @@ class MatchGameView extends StatelessWidget {
       ],
     ),
   );
+
+  Widget _statusIndicator(BuildContext context, MatchView view) =>
+      ValueListenableBuilder<bool>(
+        valueListenable: manager.busy,
+        builder: (context, busy, _) => ValueListenableBuilder<bool>(
+          valueListenable: manager.bonusTime,
+          builder: (context, bonusTime, _) {
+            final showingBonus = view.status == MatchStatus.won && bonusTime;
+            final showingResult = !busy && view.status != MatchStatus.playing;
+            if (showingBonus || showingResult) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: manager.brokeRecord,
+                builder: (context, brokeRecord, _) {
+                  final isNewWinningRecord =
+                      view.status == MatchStatus.won && brokeRecord;
+                  final message = bonusTime
+                      ? S.matchBonusTime
+                      : isNewWinningRecord
+                      ? S.matchNewRecord
+                      : view.status == MatchStatus.won
+                      ? S.matchWon
+                      : S.matchLost;
+                  final resultStatus = view.status == MatchStatus.won
+                      ? MatchStatus.won
+                      : MatchStatus.lost;
+                  return _resultIndicator(context, message, resultStatus);
+                },
+              );
+            }
+            if (busy) {
+              return ValueListenableBuilder<String?>(
+                valueListenable: manager.comboPraise,
+                builder: (context, praise, _) {
+                  if (praise != null) {
+                    return _celebrationIndicator(context, praise);
+                  }
+                  return ValueListenableBuilder<int?>(
+                    valueListenable: manager.comboMultiplier,
+                    builder: (context, multiplier, _) =>
+                        _multiplierIndicator(context, multiplier ?? 1),
+                  );
+                },
+              );
+            }
+            return ValueListenableBuilder<String?>(
+              valueListenable: manager.comboPraise,
+              builder: (context, praise, _) {
+                if (praise != null) {
+                  return _celebrationIndicator(context, praise);
+                }
+                return ValueListenableBuilder<bool>(
+                  valueListenable: manager.invalidSwapAnimating,
+                  builder: (context, invalidSwapAnimating, _) {
+                    if (invalidSwapAnimating) {
+                      return _multiplierIndicator(context, 0);
+                    }
+                    final message = switch (view.status) {
+                      MatchStatus.won => S.matchWon,
+                      MatchStatus.lost => S.matchLost,
+                      MatchStatus.playing => null,
+                    };
+                    if (message == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return _resultIndicator(context, message, view.status);
+                  },
+                );
+              },
+            );
+          },
+        ),
+      );
 
   Widget _celebrationIndicator(BuildContext context, String text) => Center(
     child: Text(
@@ -242,7 +248,7 @@ class MatchGameView extends StatelessWidget {
           spacing: 24,
           runSpacing: 8,
           children: [
-            _metric(S.matchMoves, '${view.movesLeft}'),
+            _movesMetric(context, view.movesLeft),
             _metric(S.matchScore, '${view.score} / ${view.scoreTarget}'),
           ],
         ),
@@ -275,68 +281,136 @@ class MatchGameView extends StatelessWidget {
     ],
   );
 
-  Widget _goals(BuildContext context, MatchView view) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
+  Widget _movesMetric(BuildContext context, int movesLeft) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      for (final entry in view.targets.entries)
-        _goal(
-          context,
-          '${view.collected[entry.key].clamp(0, entry.value)} / ${entry.value}',
-          view.collected[entry.key] >= entry.value,
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: CustomPaint(
-              painter: AnimalPiecePainter(
-                piece: Piece(entry.key + 1, entry.key),
-                clock: const AlwaysStoppedAnimation(0),
-                animated: false,
-              ),
+      Text(
+        S.matchMoves,
+        style: const TextStyle(color: Colors.white70, fontSize: 12),
+      ),
+      ClipRect(
+        child: AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 320),
+          transitionBuilder: (child, animation) => AnimatedBuilder(
+            animation: animation,
+            child: child,
+            builder: (context, child) {
+              final offsetY = animation.status == AnimationStatus.reverse
+                  ? animation.value - 1
+                  : 1 - animation.value;
+              return FractionalTranslation(
+                translation: Offset(0, offsetY),
+                child: child,
+              );
+            },
+          ),
+          child: Text(
+            '$movesLeft',
+            key: ValueKey(movesLeft),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
-      _goal(
-        context,
-        '${view.iceLeft}',
-        view.iceLeft == 0,
-        const Icon(Icons.ac_unit_rounded, color: Color(0xFF73B9D8), size: 28),
       ),
     ],
   );
 
-  Widget _goal(BuildContext context, String value, bool done, Widget icon) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            icon,
-            const SizedBox(width: 6),
-            SizedBox(
-              width: 56,
-              child: done
-                  ? const Center(
-                      child: Icon(
-                        Icons.check_circle_rounded,
-                        size: 18,
-                        color: Color(0xFF469D78),
-                      ),
-                    )
-                  : Text(
-                      value,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
+  Widget _goals(BuildContext context, MatchView view) => LayoutBuilder(
+    builder: (context, constraints) {
+      final iconSize = (constraints.maxWidth - 16) / MatchBoard.side;
+      final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+      final valueWidth = 56 * textScale;
+      return Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final entry in view.targets.entries)
+            _goal(
+              context,
+              '${view.collected[entry.key].clamp(0, entry.value)} / ${entry.value}',
+              view.collected[entry.key] >= entry.value,
+              SizedBox(
+                width: iconSize,
+                height: iconSize,
+                child: CustomPaint(
+                  painter: AnimalPiecePainter(
+                    piece: Piece(entry.key + 1, entry.key),
+                    clock: const AlwaysStoppedAnimation(0),
+                    animated: false,
+                  ),
+                ),
+              ),
+              iconSize: iconSize,
+              valueWidth: valueWidth,
             ),
-          ],
-        ),
+          _goal(
+            context,
+            '${view.iceLeft}',
+            view.iceLeft == 0,
+            SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: Icon(
+                Icons.ac_unit_rounded,
+                color: const Color(0xFF73B9D8),
+                size: iconSize * 0.72,
+              ),
+            ),
+            iconSize: iconSize,
+            valueWidth: valueWidth,
+          ),
+        ],
       );
+    },
+  );
+
+  Widget _goal(
+    BuildContext context,
+    String value,
+    bool done,
+    Widget icon, {
+    required double iconSize,
+    required double valueWidth,
+  }) => Container(
+    padding: const EdgeInsets.only(left: 4, right: 0, top: 2, bottom: 2),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        icon,
+        SizedBox(
+          width: valueWidth,
+          height: iconSize,
+          child: done
+              ? const Center(
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 18,
+                    color: Color(0xFF469D78),
+                  ),
+                )
+              : Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+        ),
+      ],
+    ),
+  );
 
   Widget _team(BuildContext context) {
     final engine = this.engine!;

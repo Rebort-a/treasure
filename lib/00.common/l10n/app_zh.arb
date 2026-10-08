@@ -408,8 +408,10 @@
   "matchYourTurn": "轮到你了，一起完成目标！",
   "matchPlayerTurn": "轮到 {name} 操作",
   "@matchPlayerTurn": {"placeholders": {"name": {"type": "String"}}},
-  "matchWon": "目标全部达成！",
-  "matchLost": "步数用完了",
+  "matchWon": "恭喜过关！",
+  "matchNewRecord": "恭喜突破记录！",
+  "matchBonusTime": "Bonus Time",
+  "matchLost": "步数用尽",
   "coopConfirmLeave": "退出当前对局？其他成员可以继续，你将返回聊天室。",
   "matchAnimals": "青蛙|狐狸|小猫|小鸡|小猪|小熊"
 }

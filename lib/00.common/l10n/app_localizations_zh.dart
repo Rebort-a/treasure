@@ -1230,10 +1230,16 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get matchWon => '目标全部达成！';
+  String get matchWon => '恭喜过关！';
 
   @override
-  String get matchLost => '步数用完了';
+  String get matchNewRecord => '恭喜突破记录！';
+
+  @override
+  String get matchBonusTime => 'Bonus Time';
+
+  @override
+  String get matchLost => '步数用尽';
 
   @override
   String get coopConfirmLeave => '退出当前对局？其他成员可以继续，你将返回聊天室。';

@@ -1238,7 +1238,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get matchWon => 'All goals completed!';
+  String get matchWon => 'Congratulations, you won!';
+
+  @override
+  String get matchNewRecord => 'Congratulations, new record!';
+
+  @override
+  String get matchBonusTime => 'Bonus Time';
 
   @override
   String get matchLost => 'Out of moves';

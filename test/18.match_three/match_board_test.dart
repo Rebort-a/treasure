@@ -153,7 +153,7 @@ void main() {
     expect(pair.playSwap(0, 1)!.scoreGained, greaterThan(0));
   });
 
-  test('炸弹扩展十字范围，特效组合产生联动消除', () {
+  test('炸弹与直线特效交换时以炸弹为中心触发三条直线', () {
     final bombInMatch = _pattern(
       {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
       effects: {1: PieceEffect.bomb},
@@ -163,7 +163,8 @@ void main() {
         .frames
         .firstWhere((frame) => frame.phase == FramePhase.clear)
         .clearing;
-    expect(bombClear, containsAll({0, 1, 3, 8, 9, 10, 17}));
+    expect(bombClear, containsAll({0, 1, 3, 8, 9, 10}));
+    expect(bombClear, isNot(contains(17)));
 
     final columnPair = _pattern(
       {},
@@ -174,7 +175,12 @@ void main() {
         .frames
         .firstWhere((frame) => frame.phase == FramePhase.clear)
         .clearing;
-    expect(columnClear, containsAll({for (var row = 0; row < 8; row++) row * 8}));
+    expect(
+      columnClear,
+      containsAll({
+        for (var row = 0; row < 8; row++) ...{row * 8, row * 8 + 1},
+      }),
+    );
 
     final rowColumnPair = _pattern(
       {},
@@ -187,29 +193,47 @@ void main() {
         .clearing;
     expect(
       rowColumnClear,
-      containsAll({for (var row = 0; row < 8; row++) row * 8}),
-    );
-    expect(
-      rowColumnClear,
-      containsAll({for (var row = 0; row < 8; row++) row * 8}),
+      containsAll({
+        for (var col = 0; col < 8; col++) col,
+        for (var row = 0; row < 8; row++) row * 8,
+      }),
     );
 
     final lineBombPair = _pattern(
       {},
-      effects: {27: PieceEffect.row, 28: PieceEffect.bomb},
+      effects: {27: PieceEffect.row, 35: PieceEffect.bomb},
     );
     final lineBombClear = lineBombPair
-        .playSwap(27, 28)!
+        .playSwap(27, 35)!
         .frames
         .firstWhere((frame) => frame.phase == FramePhase.clear)
         .clearing;
     expect(
       lineBombClear,
       containsAll({
-        for (var row = 2; row <= 5; row++)
+        for (var row = 2; row <= 4; row++)
           for (var col = 0; col < 8; col++) row * 8 + col,
       }),
     );
+    expect(lineBombClear, isNot(contains(5 * 8)));
+
+    final columnBombPair = _pattern(
+      {},
+      effects: {27: PieceEffect.column, 28: PieceEffect.bomb},
+    );
+    final columnBombClear = columnBombPair
+        .playSwap(27, 28)!
+        .frames
+        .firstWhere((frame) => frame.phase == FramePhase.clear)
+        .clearing;
+    expect(
+      columnBombClear,
+      containsAll({
+        for (var row = 0; row < 8; row++)
+          for (var col = 2; col <= 4; col++) row * 8 + col,
+      }),
+    );
+    expect(columnBombClear, isNot(contains(3 * 8 + 5)));
 
     final doubleBomb = _pattern(
       {},
@@ -222,9 +246,9 @@ void main() {
         .clearing;
     expect(
       doubleBombClear,
-      containsAll({
-        for (var row = 0; row <= 6; row++)
-          for (var col = 0; col <= 6; col++) row * 8 + col,
+      equals({
+        for (var row = 2; row <= 4; row++)
+          for (var col = 2; col <= 5; col++) row * 8 + col,
       }),
     );
 
@@ -269,8 +293,8 @@ void main() {
       ..['collected'] = [0, 1, 0, 0, 0, 0]
       ..['ice'] = List.filled(MatchBoard.cells, 0)
       ..['score'] = setup.scoreTarget;
-    data['movesLeft'] = 2;
-    data['moveNumber'] = data['initialMoves'] - 2;
+    data['movesLeft'] = 3;
+    data['moveNumber'] = data['initialMoves'] - 3;
     final board = MatchBoard.fromJson(data);
     final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
 
@@ -284,6 +308,13 @@ void main() {
     expect(
       result.frames.any((frame) => frame.phase == FramePhase.bonus),
       isTrue,
+    );
+    expect(
+      result.frames
+          .where((frame) => frame.phase == FramePhase.bonus)
+          .map((frame) => frame.movesLeft)
+          .toList(),
+      [1, 0],
     );
     expect(result.initialMatchCount, 4);
     expect(

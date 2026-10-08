@@ -281,7 +281,6 @@ class AnimalPiecePainter extends CustomPainter {
         }
       } else if (piece.effect == PieceEffect.bomb) {
         canvas.drawCircle(const Offset(0, 21), 7, paint);
-        canvas.drawLine(const Offset(3, 15), const Offset(7, 9), paint);
       } else {
         paint.style = PaintingStyle.fill;
         for (var i = 0; i < palette.length; i++) {

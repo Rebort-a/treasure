@@ -2351,8 +2351,20 @@ abstract class AppLocalizations {
   /// No description provided for @matchWon.
   ///
   /// In en, this message translates to:
-  /// **'All goals completed!'**
+  /// **'Congratulations, you won!'**
   String get matchWon;
+
+  /// No description provided for @matchNewRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Congratulations, new record!'**
+  String get matchNewRecord;
+
+  /// No description provided for @matchBonusTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Bonus Time'**
+  String get matchBonusTime;
 
   /// No description provided for @matchLost.
   ///

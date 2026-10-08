@@ -452,7 +452,9 @@
   "matchYourTurn": "Your turn — reach the goals together!",
   "matchPlayerTurn": "{name}'s turn",
   "@matchPlayerTurn": {"placeholders": {"name": {"type": "String"}}},
-  "matchWon": "All goals completed!",
+  "matchWon": "Congratulations, you won!",
+  "matchNewRecord": "Congratulations, new record!",
+  "matchBonusTime": "Bonus Time",
   "matchLost": "Out of moves",
   "coopConfirmLeave": "Leave this game and return to chat? Other players can continue.",
   "matchAnimals": "Frog|Fox|Cat|Chick|Pig|Bear"

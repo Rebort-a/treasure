@@ -24,6 +24,8 @@ class S {
   static String get matchYourTurn => _l.matchYourTurn;
   static String matchPlayerTurn(String name) => _l.matchPlayerTurn(name);
   static String get matchWon => _l.matchWon;
+  static String get matchNewRecord => _l.matchNewRecord;
+  static String get matchBonusTime => _l.matchBonusTime;
   static String get matchLost => _l.matchLost;
   static String get coopConfirmLeave => _l.coopConfirmLeave;
   static List<String> get matchAnimalNames => _l.matchAnimals.split('|');

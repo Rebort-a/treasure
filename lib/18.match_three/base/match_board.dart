@@ -23,12 +23,21 @@ class BoardFrame {
   final List<Piece?> pieces;
   final List<int> ice;
   final Set<int> clearing;
+  final Set<int> spawnedPieceIds;
+  final int movesLeft;
   final FramePhase phase;
 
-  BoardFrame(MatchBoard board, this.phase, [Set<int> clearing = const {}])
-    : pieces = List.unmodifiable(board.pieces),
-      ice = List.unmodifiable(board.ice),
-      clearing = Set.unmodifiable(clearing);
+  BoardFrame(
+    MatchBoard board,
+    this.phase, [
+    Set<int> clearing = const {},
+    Set<int> spawnedPieceIds = const {},
+    int? movesLeft,
+  ]) : pieces = List.unmodifiable(board.pieces),
+       ice = List.unmodifiable(board.ice),
+       clearing = Set.unmodifiable(clearing),
+       spawnedPieceIds = Set.unmodifiable(spawnedPieceIds),
+       movesLeft = movesLeft ?? board.movesLeft;
 }
 
 class SwapResult {
@@ -100,8 +109,8 @@ class MatchBoard {
       targets: {},
       collected: List.filled(kinds, 0),
       scoreTarget: 1800 + value % 5 * 150,
-      initialMoves: 28 + value % 7,
-      movesLeft: 28 + value % 7,
+      initialMoves: 20 + value % 5,
+      movesLeft: 20 + value % 5,
     );
     final animals = List.generate(kinds, (i) => i);
     board._shuffle(animals);
@@ -333,12 +342,6 @@ class MatchBoard {
               affected.add(row * side + col);
             }
           }
-          final row = index ~/ side;
-          final col = index % side;
-          if (row >= 2) affected.add(index - side * 2);
-          if (row < side - 2) affected.add(index + side * 2);
-          if (col >= 2) affected.add(index - 2);
-          if (col < side - 2) affected.add(index + 2);
         case PieceEffect.rainbow:
           if (!consumedRainbows.contains(index)) {
             affected.addAll([
@@ -397,12 +400,13 @@ class MatchBoard {
       pieces[index] = null;
     }
     frames.add(BoardFrame(this, FramePhase.fall));
-    _collapse();
-    frames.add(BoardFrame(this, FramePhase.fall));
+    final spawnedPieceIds = _collapse();
+    frames.add(BoardFrame(this, FramePhase.fall, const {}, spawnedPieceIds));
     return (cells: clear, specialEffectsTriggered: specialEffectsTriggered);
   }
 
-  void _collapse() {
+  Set<int> _collapse() {
+    final spawnedPieceIds = <int>{};
     for (var col = 0; col < side; col++) {
       var target = side - 1;
       for (var row = side - 1; row >= 0; row--) {
@@ -412,9 +416,12 @@ class MatchBoard {
         }
       }
       while (target >= 0) {
-        pieces[target-- * side + col] = _piece(_next(kinds));
+        final piece = _piece(_next(kinds));
+        pieces[target-- * side + col] = piece;
+        spawnedPieceIds.add(piece.id);
       }
     }
+    return spawnedPieceIds;
   }
 
   SwapResult? playSwap(int a, int b) {
@@ -464,27 +471,27 @@ class MatchBoard {
             }
           }
         }
-      } else if (effectA != PieceEffect.bomb &&
-          effectB != PieceEffect.bomb) {
+      } else if (effectA != PieceEffect.bomb && effectB != PieceEffect.bomb) {
         // 直线特效交换时，分别触发各自的直线效果。
         forced.add(a);
         forced.add(b);
       } else if ((effectA == PieceEffect.bomb) !=
           (effectB == PieceEffect.bomb)) {
         // 直线特效与炸弹联动时，沿直线方向额外清除四行或四列。
+        final bombIndex = effectA == PieceEffect.bomb ? a : b;
         final lineIndex = effectA == PieceEffect.bomb ? b : a;
         final lineEffect = pieces[lineIndex]!.effect;
         final vertical = lineEffect == PieceEffect.column;
-        for (var offset = -1; offset <= 2; offset++) {
+        for (var offset = -1; offset <= 1; offset++) {
           if (vertical) {
-            final col = lineIndex % side + offset;
+            final col = bombIndex % side + offset;
             if (col >= 0 && col < side) {
               for (var row = 0; row < side; row++) {
                 forced.add(row * side + col);
               }
             }
           } else {
-            final row = lineIndex ~/ side + offset;
+            final row = bombIndex ~/ side + offset;
             if (row >= 0 && row < side) {
               for (var col = 0; col < side; col++) {
                 forced.add(row * side + col);
@@ -494,21 +501,7 @@ class MatchBoard {
         }
       } else {
         // 双炸弹扩大为以交换中心为中心的 7×7 爆炸。
-        final centerRow = (a ~/ side + b ~/ side) ~/ 2;
-        final centerCol = (a % side + b % side) ~/ 2;
-        for (
-          var row = math.max(0, centerRow - 3);
-          row <= math.min(side - 1, centerRow + 3);
-          row++
-        ) {
-          for (
-            var col = math.max(0, centerCol - 3);
-            col <= math.min(side - 1, centerCol + 3);
-            col++
-          ) {
-            forced.add(row * side + col);
-          }
-        }
+        forced.addAll({a, b});
       }
     }
     for (final entry in transformedEffects.entries) {
@@ -543,9 +536,35 @@ class MatchBoard {
       specialEffectsTriggered += wave.specialEffectsTriggered;
     }
     final bonusMoves = status == MatchStatus.won ? movesLeft : 0;
+    var bonusCascade = 0;
+    if (status == MatchStatus.won) {
+      final remainingSpecials = {
+        for (var index = 0; index < cells; index++)
+          if (pieces[index] case final Piece piece
+              when piece.effect != PieceEffect.none)
+            index,
+      };
+      while (bonusCascade < 64) {
+        final bonusRuns = matchRuns();
+        if (bonusRuns.isEmpty && remainingSpecials.isEmpty) break;
+        final created = remainingSpecials.isEmpty
+            ? _createEffects(bonusRuns, a, b)
+            : <int, PieceEffect>{};
+        for (final entry in created.entries) {
+          final old = pieces[entry.key]!;
+          pieces[entry.key] = Piece(old.id, old.kind, entry.value);
+        }
+        _clearWave(
+          frames: frames,
+          initial: {...remainingSpecials, for (final run in bonusRuns) ...run},
+          protected: created.keys.toSet(),
+          multiplier: cascades + bonusCascade + 1,
+        );
+        remainingSpecials.clear();
+        bonusCascade++;
+      }
+    }
     if (bonusMoves > 0) {
-      movesLeft = 0;
-      moveNumber += bonusMoves;
       for (var move = 0; move < bonusMoves; move++) {
         final index = _next(cells);
         final piece = pieces[index]!;
@@ -554,10 +573,12 @@ class MatchBoard {
           piece.kind,
           _next(2) == 0 ? PieceEffect.row : PieceEffect.column,
         );
+        movesLeft--;
+        moveNumber++;
         frames.add(BoardFrame(this, FramePhase.bonus));
         final bonusForced = {index};
-        var bonusCascade = 0;
-        while (bonusCascade < 64) {
+        var bonusMoveCascade = 0;
+        while (bonusMoveCascade < 64) {
           final bonusRuns = matchRuns();
           if (bonusRuns.isEmpty && bonusForced.isEmpty) break;
           final created = bonusForced.isEmpty
@@ -571,10 +592,10 @@ class MatchBoard {
             frames: frames,
             initial: {...bonusForced, for (final run in bonusRuns) ...run},
             protected: created.keys.toSet(),
-            multiplier: cascades + bonusCascade + 1,
+            multiplier: cascades + bonusCascade + bonusMoveCascade + 1,
           );
           bonusForced.clear();
-          bonusCascade++;
+          bonusMoveCascade++;
         }
       }
     }

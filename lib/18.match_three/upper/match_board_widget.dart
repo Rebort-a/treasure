@@ -184,62 +184,74 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                       button: true,
                                       onTap: () =>
                                           widget.manager.selectCell(index),
-                                      child: AnimatedScale(
-                                        scale: frame.clearing.contains(index)
-                                            ? 0.45
-                                            : 1,
+                                      child: AnimatedSlide(
+                                        offset:
+                                            frame.spawnedPieceIds.contains(
+                                              piece.id,
+                                            )
+                                            ? const Offset(0, -1)
+                                            : Offset.zero,
                                         duration: duration,
-                                        child: AnimatedOpacity(
-                                          opacity:
-                                              frame.clearing.contains(index)
-                                              ? 0.15
+                                        curve: Curves.easeOutCubic,
+                                        child: AnimatedScale(
+                                          scale: frame.clearing.contains(index)
+                                              ? 0.45
                                               : 1,
                                           duration: duration,
-                                          child: Stack(
-                                            alignment: Alignment.center,
-                                            children: [
-                                              Positioned.fill(
-                                                child: CustomPaint(
-                                                  painter: AnimalPiecePainter(
-                                                    piece: piece,
-                                                    clock: _clock,
-                                                    animated:
-                                                        _animate &&
-                                                        frame.ice[index] == 0,
+                                          child: AnimatedOpacity(
+                                            opacity:
+                                                frame.clearing.contains(index)
+                                                ? 0.15
+                                                : 1,
+                                            duration: duration,
+                                            child: Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                Positioned.fill(
+                                                  child: CustomPaint(
+                                                    painter: AnimalPiecePainter(
+                                                      piece: piece,
+                                                      clock: _clock,
+                                                      animated:
+                                                          _animate &&
+                                                          frame.ice[index] == 0,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                              if (frame.ice[index] > 0)
-                                                Positioned.fill(
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.all(2),
-                                                    child: DecoratedBox(
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            const Color(
-                                                              0xFF9DDBF2,
-                                                            ).withValues(
-                                                              alpha: 0.52,
-                                                            ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                        border: Border.all(
+                                                if (frame.ice[index] > 0)
+                                                  Positioned.fill(
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            2,
+                                                          ),
+                                                      child: DecoratedBox(
+                                                        decoration: BoxDecoration(
                                                           color:
                                                               const Color(
-                                                                0xFFD9F5FF,
+                                                                0xFF9DDBF2,
                                                               ).withValues(
-                                                                alpha: 0.85,
+                                                                alpha: 0.52,
                                                               ),
-                                                          width: 1.5,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          border: Border.all(
+                                                            color:
+                                                                const Color(
+                                                                  0xFFD9F5FF,
+                                                                ).withValues(
+                                                                  alpha: 0.85,
+                                                                ),
+                                                            width: 1.5,
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),

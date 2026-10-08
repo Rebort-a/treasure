@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../00.common/service/storage_service.dart';
 import '../base/match_board.dart';
 
 class MatchView {
@@ -19,7 +20,7 @@ class MatchView {
   MatchView(MatchBoard board, this.frame)
     : score = board.score,
       scoreTarget = board.scoreTarget,
-      movesLeft = board.movesLeft,
+      movesLeft = frame.movesLeft,
       seed = board.seed,
       iceLeft = board.iceLeft,
       targets = Map.unmodifiable(board.targets),
@@ -35,6 +36,8 @@ class MatchManager {
   final comboMultiplier = ValueNotifier<int?>(null);
   final comboPraise = ValueNotifier<String?>(null);
   final bonusTime = ValueNotifier(false);
+  final highScore = ValueNotifier(0);
+  final brokeRecord = ValueNotifier(false);
   final invalidSwap = ValueNotifier<(int, int)?>(null);
   final invalidSwapAnimating = ValueNotifier(false);
   MatchBoard? _board;
@@ -43,9 +46,11 @@ class MatchManager {
   int _invalidSwapEpoch = 0;
   bool _disposed = false;
   final Map<Timer, Completer<void>> _pendingDelays = {};
+  late final Future<void> _highScoreLoaded;
   bool reduceMotion = false;
 
   MatchManager({bool generate = true, int? seed}) {
+    _highScoreLoaded = _loadHighScore();
     if (generate) restart(seed: seed);
   }
 
@@ -56,6 +61,34 @@ class MatchManager {
       !invalidSwapAnimating.value &&
       _board?.status == MatchStatus.playing;
   bool get canRestart => true;
+
+  Future<void> _loadHighScore() async {
+    final data = await StorageService.instance.read(
+      'match_three',
+      project: '18.match_three',
+    );
+    final score = data['highScore'];
+    if (!_disposed && score is int && score >= 0) {
+      highScore.value = score;
+    }
+  }
+
+  Future<void> _updateHighScore(int epoch) async {
+    await _highScoreLoaded;
+    final board = _board;
+    if (_disposed ||
+        epoch != _animationEpoch ||
+        board == null ||
+        board.status != MatchStatus.won ||
+        board.score <= highScore.value) {
+      return;
+    }
+    highScore.value = board.score;
+    brokeRecord.value = true;
+    await StorageService.instance.write('match_three', {
+      'highScore': board.score,
+    }, project: '18.match_three');
+  }
 
   void restart({int? seed}) {
     if (_disposed || !canRestart) return;
@@ -69,6 +102,7 @@ class MatchManager {
     comboMultiplier.value = null;
     comboPraise.value = null;
     bonusTime.value = false;
+    brokeRecord.value = false;
     selected.value = null;
     _show(BoardFrame(_board!, FramePhase.settled));
   }
@@ -229,15 +263,6 @@ class MatchManager {
     }
   }
 
-  Future<void> _showPraise(String praise, int epoch) async {
-    comboMultiplier.value = null;
-    comboPraise.value = praise;
-    await _delay(const Duration(milliseconds: 1000));
-    if (!_disposed && epoch == _animationEpoch) {
-      comboPraise.value = null;
-    }
-  }
-
   void _showPraiseBriefly(String praise, int epoch) {
     comboMultiplier.value = null;
     comboPraise.value = praise;
@@ -256,29 +281,44 @@ class MatchManager {
     final hasBonusTime = result.frames.any(
       (frame) => frame.phase == FramePhase.bonus,
     );
+    final recordUpdate = _board?.status == MatchStatus.won
+        ? _updateHighScore(epoch)
+        : null;
     comboPraise.value = null;
     bonusTime.value = false;
     if (reduceMotion && !hasBonusTime) {
       busy.value = true;
       comboMultiplier.value = null;
       _show(result.frames.last);
-      busy.value = false;
-      _showPraiseBriefly(praise, epoch);
+      if (recordUpdate == null) {
+        busy.value = false;
+        _showPraiseBriefly(praise, epoch);
+      } else {
+        unawaited(() async {
+          await recordUpdate;
+          if (_disposed || epoch != _animationEpoch) return;
+          busy.value = false;
+        }());
+      }
       return;
     }
     if (reduceMotion) {
       busy.value = true;
       comboMultiplier.value = null;
-      _show(result.frames.last);
       unawaited(() async {
-        await _showPraise(praise, epoch);
-        if (_disposed || epoch != _animationEpoch) return;
         bonusTime.value = true;
-        await _delay(const Duration(milliseconds: 1000));
-        if (!_disposed && epoch == _animationEpoch) {
-          bonusTime.value = false;
-          busy.value = false;
+        for (final frame in result.frames) {
+          if (frame.phase != FramePhase.bonus) continue;
+          if (_disposed || epoch != _animationEpoch) return;
+          _show(frame);
+          await _delay(const Duration(milliseconds: 350));
         }
+        if (_disposed || epoch != _animationEpoch) return;
+        _show(result.frames.last);
+        if (recordUpdate != null) await recordUpdate;
+        if (_disposed || epoch != _animationEpoch) return;
+        bonusTime.value = false;
+        busy.value = false;
       }());
       return;
     }
@@ -290,9 +330,9 @@ class MatchManager {
       for (final frame in result.frames) {
         if (_disposed || epoch != _animationEpoch) return;
         if (frame.phase == FramePhase.bonus && !praiseShown) {
-          await _showPraise(praise, epoch);
-          if (_disposed || epoch != _animationEpoch) return;
           praiseShown = true;
+          comboPraise.value = null;
+          comboMultiplier.value = null;
           bonusTime.value = true;
         }
         if (frame.phase == FramePhase.clear && !bonusTime.value) {
@@ -302,14 +342,21 @@ class MatchManager {
         _show(frame);
         if (frame.phase != FramePhase.settled) {
           await _delay(
-            Duration(milliseconds: frame.phase == FramePhase.clear ? 180 : 220),
+            Duration(
+              milliseconds: switch (frame.phase) {
+                FramePhase.clear => 180,
+                FramePhase.bonus => 420,
+                _ => 220,
+              },
+            ),
           );
         }
       }
-      if (!praiseShown) {
+      if (!praiseShown && recordUpdate == null) {
         comboMultiplier.value = null;
         _showPraiseBriefly(praise, epoch);
       }
+      if (recordUpdate != null) await recordUpdate;
       if (!_disposed && epoch == _animationEpoch) {
         comboMultiplier.value = null;
         bonusTime.value = false;
@@ -329,6 +376,8 @@ class MatchManager {
     comboMultiplier.dispose();
     comboPraise.dispose();
     bonusTime.dispose();
+    highScore.dispose();
+    brokeRecord.dispose();
     invalidSwap.dispose();
     invalidSwapAnimating.dispose();
   }
