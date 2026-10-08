@@ -30,6 +30,8 @@ const _destinations = [
 Widget _navigation({
   bool reduceMotion = false,
   bool dark = false,
+  FloatingNavigationBarBackground backgroundStyle =
+      FloatingNavigationBarBackground.translucent,
   TextDirection direction = TextDirection.ltr,
   double textScale = 1,
   double bottomPadding = 0,
@@ -60,6 +62,7 @@ Widget _navigation({
                 selectedIndex: index,
                 onDestinationSelected: (value) => setState(() => index = value),
                 destinations: _destinations,
+                backgroundStyle: backgroundStyle,
               ),
             ),
           ),
@@ -70,6 +73,53 @@ Widget _navigation({
 }
 
 void main() {
+  testWidgets('选中背景紧贴图标，保持椭圆尺寸并随标签滑动', (tester) async {
+    await tester.pumpWidget(_navigation());
+    final selection = find.byKey(_selection);
+    expect(tester.getSize(selection), const Size(50, 40));
+    expect(
+      tester.getSize(selection).width,
+      lessThan(tester.getSize(_destination(0)).width),
+    );
+    expect(
+      (tester.getCenter(selection) - tester.getCenter(_destination(0)))
+          .distance,
+      lessThan(0.1),
+    );
+
+    await tester.tap(_destination(2));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(selection), const Size(50, 40));
+    expect(
+      (tester.getCenter(selection) - tester.getCenter(_destination(2)))
+          .distance,
+      lessThan(0.1),
+    );
+  });
+
+  for (final dark in [false, true]) {
+    testWidgets('默认半透明背景不启用模糊（深色：$dark）', (tester) async {
+      await tester.pumpWidget(_navigation(dark: dark));
+      expect(find.byType(BackdropFilter), findsNothing);
+      expect(
+        tester
+            .widget<FloatingNavigationBar>(find.byType(FloatingNavigationBar))
+            .backgroundStyle,
+        FloatingNavigationBarBackground.translucent,
+      );
+      final decoration =
+          tester
+                  .widget<DecoratedBox>(
+                    find.byKey(const ValueKey('navigation-surface')),
+                  )
+                  .decoration
+              as BoxDecoration;
+      final colors = (decoration.gradient! as LinearGradient).colors;
+      expect(colors.first.a, closeTo(dark ? 0.72 : 0.78, 0.001));
+      expect(colors.last.a, closeTo(dark ? 0.62 : 0.68, 0.001));
+    });
+  }
+
   testWidgets(
     'one selection shadow slides continuously and can be retargeted',
     (tester) async {
@@ -162,7 +212,9 @@ void main() {
       await tester.pumpWidget(
         _navigation(dark: dark, textScale: 2, bottomPadding: 34),
       );
-      final glass = tester.getRect(find.byType(BackdropFilter));
+      final glass = tester.getRect(
+        find.byKey(const ValueKey('navigation-background')),
+      );
       expect(glass.left, 16);
       expect(glass.right, 304);
       expect(glass.height, 56);
@@ -177,7 +229,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(_navigation());
-    final glass = tester.getRect(find.byType(BackdropFilter));
+    final glass = tester.getRect(
+      find.byKey(const ValueKey('navigation-background')),
+    );
     expect(glass.width, 480);
     expect(glass.height, 56);
     expect(glass.center.dx, 400);
@@ -263,6 +317,7 @@ void main() {
           key: boundaryKey,
           child: _navigation(
             dark: dark,
+            backgroundStyle: FloatingNavigationBarBackground.frostedGlass,
             body: const Row(
               children: [
                 Expanded(

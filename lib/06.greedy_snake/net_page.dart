@@ -1,35 +1,25 @@
-import '../00.common/network/client/game_session.dart';
-import '../00.common/widget/navigator/online_game_page.dart';
-
 import 'package:flutter/material.dart';
 
+import '../00.common/network/client/socket_client.dart';
+import '../00.common/widget/navigator/online_game_host.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'net_manager.dart';
 import 'foundation_widget.dart';
 
-class NetGreedySnakePage extends OnlineGamePage<NetManager> {
-  const NetGreedySnakePage({super.key, required super.room});
+class NetGreedySnakePage extends StatelessWidget {
+  final SocketClient room;
+
+  const NetGreedySnakePage({super.key, required this.room});
 
   @override
-  String get gameName => 'greedySnake';
-
-  @override
-  NetManager createManager() => NetManager(room: room);
-
-  @override
-  GameSession sessionOf(NetManager manager) => manager.realSession;
-
-  @override
-  Widget buildGame(
-    BuildContext context,
-    NetManager manager,
-    VoidCallback requestExit,
-  ) => _SnakeGame(manager: manager);
-
-  @override
-  void disposeManager(NetManager manager) => manager.dispose();
+  Widget build(BuildContext context) => OnlineGameHost<NetManager>(
+    createManager: () => NetManager(room: room),
+    engineOf: (manager) => manager.realEngine,
+    disposeManager: (manager) => manager.dispose(),
+    pageBuilder: (_, manager, _) => _SnakeGame(manager: manager),
+  );
 }
 
 class _SnakeGame extends StatelessWidget {
@@ -42,7 +32,7 @@ class _SnakeGame extends StatelessWidget {
 
   Widget _buildPage() {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: _manager.realSession.gameStep,
+      valueListenable: _manager.realEngine.gameStep,
       builder: (_, step, __) {
         return step == GameStep.action
             ? GameScreen(manager: _manager, showStateButton: false)

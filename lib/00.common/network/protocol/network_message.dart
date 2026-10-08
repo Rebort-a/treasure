@@ -23,6 +23,33 @@ enum MessageType {
   sync,
   action,
   exit,
+  // 追加类型以保持既有消息类型索引不变。
+  ack,
+  reject,
+  cancelSearch,
+}
+
+/// 入局确认与传输 ACK 分离：只有应用层状态机才能接受或撤销一次邀请。
+enum MatchConfirmationPhase { accept, commit, ready, start, joined, abort }
+
+class MatchConfirmation {
+  final MatchConfirmationPhase phase;
+  final String offerId;
+
+  const MatchConfirmation(this.phase, this.offerId);
+
+  String get content => '${phase.name}:$offerId';
+
+  static MatchConfirmation? tryParse(String content) {
+    final separator = content.indexOf(':');
+    if (separator <= 0 || separator == content.length - 1) return null;
+    for (final phase in MatchConfirmationPhase.values) {
+      if (phase.name == content.substring(0, separator)) {
+        return MatchConfirmation(phase, content.substring(separator + 1));
+      }
+    }
+    return null;
+  }
 }
 
 enum NoticeType {
@@ -116,6 +143,12 @@ class NetworkMessage {
   /// 指定群体消息包含所有对局玩家，通常也包含自己。
   final Set<int>? recipientIds;
 
+  /// 需要可靠投递的局内消息标识；同一消息重发时必须保持不变。
+  final String? messageId;
+
+  /// 对局归属，与单条消息 ID 不同；实时中途加入和发布者切换都保持此值。
+  final String? gameId;
+
   NetworkMessage({
     required this.id,
     required this.type,
@@ -124,6 +157,8 @@ class NetworkMessage {
     required this.timestamp,
     this.recipientId,
     Set<int>? recipientIds,
+    this.messageId,
+    this.gameId,
   }) : recipientIds = recipientIds == null
            ? null
            : Set.unmodifiable(recipientIds);
@@ -131,6 +166,20 @@ class NetworkMessage {
   bool get isRoomMessage => recipientId == null && recipientIds == null;
   bool get isPrivateMessage => recipientId != null && recipientIds == null;
   bool get isGroupMessage => recipientIds != null && recipientId == null;
+
+  /// search 是可重复发起的发现请求；ACK 自身不重发，房间聊天也不重发。
+  bool get needsAck => switch (type) {
+    MessageType.match ||
+    MessageType.confirm ||
+    MessageType.reject ||
+    MessageType.publish ||
+    MessageType.resource ||
+    MessageType.sync ||
+    MessageType.action ||
+    MessageType.exit => true,
+    MessageType.text => !isRoomMessage,
+    _ => false,
+  };
 
   /// 游戏消息必须指定非空收件集合；空集合绝不能退化为房间广播。
   bool get hasValidRoute {
@@ -142,13 +191,17 @@ class NetworkMessage {
       return false;
     }
     return switch (type) {
-      MessageType.match || MessageType.confirm => isPrivateMessage,
+      MessageType.match ||
+      MessageType.confirm ||
+      MessageType.reject ||
+      MessageType.ack => isPrivateMessage,
       MessageType.publish || MessageType.sync => isGroupMessage,
       MessageType.resource ||
       MessageType.action ||
       MessageType.exit => isPrivateMessage || isGroupMessage,
       MessageType.text => true,
       MessageType.connect => isRoomMessage,
+      MessageType.cancelSearch => isRoomMessage,
       _ => isRoomMessage,
     };
   }
@@ -170,9 +223,17 @@ class NetworkMessage {
     final timestamp = json['timestamp'];
     final target = json['recipientId'];
     final targets = json['recipientIds'];
+    final messageId = json['messageId'];
+    final gameId = json['gameId'];
     if ((source != null && source is! String) ||
         (content != null && content is! String) ||
         timestamp is! int ||
+        (messageId != null &&
+            (messageId is! String ||
+                messageId.isEmpty ||
+                messageId.length > 128)) ||
+        (gameId != null &&
+            (gameId is! String || gameId.isEmpty || gameId.length > 128)) ||
         (target != null && (target is! int || target <= 0)) ||
         (targets != null &&
             (targets is! List || targets.any((id) => id is! int || id <= 0)))) {
@@ -191,6 +252,8 @@ class NetworkMessage {
       timestamp: timestamp,
       recipientId: target as int?,
       recipientIds: targets == null ? null : Set<int>.from(targets as List),
+      messageId: messageId as String?,
+      gameId: gameId as String?,
     );
     final route = message.isRoomMessage
         ? 'room'
@@ -217,6 +280,8 @@ class NetworkMessage {
           : 'group',
       if (recipientId != null) 'recipientId': recipientId,
       if (recipientIds != null) 'recipientIds': recipientIds!.toList(),
+      if (messageId != null) 'messageId': messageId,
+      if (gameId != null) 'gameId': gameId,
     };
   }
 

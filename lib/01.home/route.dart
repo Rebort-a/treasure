@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/model/app_item_type.dart';
-import '../00.common/network/client/network_engine.dart';
+import '../00.common/network/client/socket_client.dart';
 import '../02.lan_chat/net_page.dart';
 import '../03.animal_chess/local_page.dart';
 import '../03.animal_chess/net_page.dart';
@@ -64,24 +64,30 @@ extension AppItemTypeRoute on AppItemType {
   }
 }
 
-extension OnlineItemTypeExtension on OnlineItemType {
-  Widget createGame(NetworkEngine room) => switch (this) {
+extension _OnlineGamePages on OnlineItemType {
+  Widget createGamePage(SocketClient room) => switch (this) {
     OnlineItemType.animalChess => NetAnimalChessPage(room: room),
     OnlineItemType.elementalBattle => NetCombatPage(room: room),
     OnlineItemType.gobang => NetGomokuPage(room: room),
     OnlineItemType.greedySnake => NetGreedySnakePage(room: room),
     OnlineItemType.weiqi => GoNetPage(room: room),
     OnlineItemType.tank => NetTankPage(room: room),
-    OnlineItemType.onlyChat => NetChatPage(room: room),
+    OnlineItemType.onlyChat => throw StateError('Chat rooms have no game page'),
   };
 }
 
 class RouteManager {
-  /// 应用入口只选择模块的公开入口，具体管理器由模块内部装配。
-  static Widget? createRoomGame(NetworkEngine room) {
+  /// 所有房间统一进入聊天室。首页只注入具体游戏入口，不提前创建游戏 Manager。
+  static NetChatPage createRoomPage(SocketClient room) {
     final type = OnlineItemType.tryFromRoomType(room.roomType);
-    if (type == null || type == OnlineItemType.onlyChat) return null;
-    return type.createGame(room);
+    if (type == null || type == OnlineItemType.onlyChat) {
+      return NetChatPage(room: room);
+    }
+    return NetChatPage(
+      room: room,
+      gameName: type.name,
+      gamePageBuilder: (_) => type.createGamePage(room),
+    );
   }
 
   /// 导航到本地页面
@@ -93,13 +99,12 @@ class RouteManager {
   /// 导航到网络页面
   static Future<void> navigateToNetPage(
     BuildContext context,
-    NetworkEngine room,
+    SocketClient room,
   ) async {
     if (!room.isJoined) {
       throw StateError('Room authentication has not completed');
     }
-    final type = OnlineItemType.tryFromRoomType(room.roomType);
-    final page = type == null ? NetChatPage(room: room) : type.createGame(room);
+    final page = createRoomPage(room);
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => page));
   }

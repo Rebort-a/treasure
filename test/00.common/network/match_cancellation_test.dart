@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 
 import 'support/network_room_harness.dart';
 
@@ -18,11 +19,11 @@ void main() {
       expect(a.matchPhase.value, RoomMatchPhase.idle);
       a.startMatching();
       await waitFor(() => a.matchPhase.value == RoomMatchPhase.matching);
-      await waitFor(() => wire.where((m) => _isSearchNotice(m)).length == 1);
+      await waitFor(() => wire.where(_isSearchMessage).length == 1);
       a.cancelMatching();
       expect(a.matchPhase.value, RoomMatchPhase.idle);
       await Future<void>.delayed(const Duration(milliseconds: 30));
-      expect(wire.where(_isSearchNotice), hasLength(1));
+      expect(wire.where(_isSearchMessage), hasLength(1));
       expect(wire.where((m) => m.type == MessageType.exit), isEmpty);
 
       a.startMatching();
@@ -62,17 +63,26 @@ void main() {
             b.matchPhase.value == RoomMatchPhase.matched,
       );
       for (final type in [MessageType.match, MessageType.confirm]) {
-        expect(seenA.where((m) => m.type == type), hasLength(1));
-        expect(seenB.where((m) => m.type == type), hasLength(1));
+        expect(seenA.where((m) => m.type == type), isNotEmpty);
+        expect(seenB.where((m) => m.type == type), isNotEmpty);
         expect(seenC.where((m) => m.type == type), isEmpty);
       }
       expect(
-        seenA.singleWhere((m) => m.type == MessageType.match).id,
-        a.identity,
+        seenA
+            .where(
+              (m) =>
+                  m.type == MessageType.match || m.type == MessageType.confirm,
+            )
+            .every((m) => m.id == a.identity || m.id == b.identity),
+        isTrue,
       );
       expect(
-        seenB.singleWhere((m) => m.type == MessageType.confirm).id,
-        b.identity,
+        seenA.any(
+          (m) =>
+              m.type == MessageType.confirm &&
+              m.content.startsWith('commit:'),
+        ),
+        isTrue,
       );
     } finally {
       await h.close();
@@ -80,6 +90,5 @@ void main() {
   });
 }
 
-bool _isSearchNotice(NetworkMessage message) =>
-    message.type == MessageType.notify &&
-    RoomNotification.tryFromContent(message.content)?.type == NoticeType.search;
+bool _isSearchMessage(NetworkMessage message) =>
+    message.type == MessageType.search && message.isRoomMessage;

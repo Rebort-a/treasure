@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/game/step.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/06.greedy_snake/net_page.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 import 'package:treasure/06.greedy_snake/foundation_widget.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
+import 'package:treasure/01.home/route.dart';
 
 import '00.common/network/support/network_room_harness.dart';
 
@@ -34,7 +36,7 @@ void main() {
     try {
       final host = (await tester.runAsync(() => h.join('Host')))!;
       await tester.pumpWidget(
-        MaterialApp(home: NetGreedySnakePage(room: host)),
+        MaterialApp(home: RouteManager.createRoomPage(host)),
       );
       await tester.tap(find.text('Start matching'));
       await tester.pump();
@@ -45,15 +47,16 @@ void main() {
       final guest = (await tester.runAsync(() => h.join('Guest')))!;
       guest.matchPhase.addListener(() {
         if (guest.matchPhase.value != RoomMatchPhase.matched) return;
-        peerGame = snake.NetManager(room: guest)..realSession.startFromRoom();
+        peerGame = snake.NetManager(room: guest)..realEngine.startFromRoom();
         guest.openMatchedGame();
       });
       guest.startMatching();
       await pumpUntil(() => find.byType(GameScreen).evaluate().isNotEmpty);
       await pumpUntil(
-        () => peerGame?.realSession.gameStep.value == GameStep.action,
+        () => peerGame?.realEngine.gameStep.value == GameStep.action,
       );
-      expect(peerGame?.realSession.readyToOpen.value, isTrue);
+      await pumpUntil(() => find.byType(NetChatPage).evaluate().isEmpty);
+      expect(peerGame?.realEngine.readyToOpen.value, isTrue);
       expect(h.server.members.length, 2);
       expect(find.byType(NetGreedySnakePage), findsOneWidget);
       expect(find.byType(NetChatPage), findsNothing);
@@ -62,8 +65,15 @@ void main() {
       expect(find.byType(GameScreen), findsOneWidget);
       expect(find.byType(NetChatPage), findsNothing);
       await tester.tap(find.byIcon(Icons.arrow_back));
-      await pumpUntil(() => find.byType(NetChatPage).evaluate().isNotEmpty);
-      expect(find.byType(NetGreedySnakePage), findsOneWidget);
+      await pumpUntil(
+        () =>
+            find.byType(NetChatPage).evaluate().isNotEmpty &&
+            find
+                .byType(NetGreedySnakePage, skipOffstage: false)
+                .evaluate()
+                .isEmpty,
+      );
+      expect(find.byType(NetGreedySnakePage), findsNothing);
       expect(h.server.members.length, 2);
     } finally {
       peerGame?.dispose();

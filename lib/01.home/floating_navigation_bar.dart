@@ -2,19 +2,23 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
-/// 悬浮毛玻璃导航栏，通过同一层阴影在标签间连续滑动来指示选中项。
+enum FloatingNavigationBarBackground { translucent, frostedGlass }
+
+/// 悬浮导航栏，通过同一块椭圆背景在标签间连续滑动来指示选中项。
 class FloatingNavigationBar extends StatelessWidget {
   const FloatingNavigationBar({
     super.key,
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.destinations,
+    this.backgroundStyle = FloatingNavigationBarBackground.translucent,
   }) : assert(destinations.length > 1),
        assert(selectedIndex >= 0 && selectedIndex < destinations.length);
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final List<NavigationDestination> destinations;
+  final FloatingNavigationBarBackground backgroundStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +27,81 @@ class FloatingNavigationBar extends StatelessWidget {
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 360);
+    final frosted =
+        backgroundStyle == FloatingNavigationBarBackground.frostedGlass;
     const radius = BorderRadius.all(Radius.circular(100));
+
+    final surface = DecoratedBox(
+      key: const ValueKey('navigation-surface'),
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.surface.withValues(
+              alpha: frosted ? (dark ? 0.32 : 0.34) : (dark ? 0.72 : 0.78),
+            ),
+            colors.surface.withValues(
+              alpha: frosted ? (dark ? 0.20 : 0.22) : (dark ? 0.62 : 0.68),
+            ),
+          ],
+        ),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: dark ? 0.15 : 0.55),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              IgnorePointer(
+                child: AnimatedAlign(
+                  alignment: AlignmentDirectional(
+                    -1 + 2 * selectedIndex / (destinations.length - 1),
+                    0,
+                  ),
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                  child: FractionallySizedBox(
+                    widthFactor: 1 / destinations.length,
+                    heightFactor: 1,
+                    child: Center(
+                      // 指示层只包围图标，不铺满整个标签的点击区域。
+                      child: SizedBox(
+                        width: 50,
+                        height: 40,
+                        child: DecoratedBox(
+                          key: const ValueKey('navigation-selection'),
+                          decoration: BoxDecoration(
+                            borderRadius: radius,
+                            color: colors.onSurface.withValues(
+                              alpha: dark ? 0.12 : 0.08,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Material(
+                type: MaterialType.transparency,
+                child: Row(
+                  children: [
+                    for (var index = 0; index < destinations.length; index++)
+                      Expanded(child: _destination(context, index)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
 
     return SafeArea(
       top: false,
@@ -52,88 +130,15 @@ class FloatingNavigationBar extends StatelessWidget {
                 ],
               ),
               child: ClipRRect(
+                key: const ValueKey('navigation-background'),
                 borderRadius: radius,
-                child: BackdropFilter(
-                  // 保留底下内容的轮廓和色彩，不把背景模糊成一整块纯色。
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: radius,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          colors.surface.withValues(alpha: dark ? 0.32 : 0.34),
-                          colors.surface.withValues(alpha: dark ? 0.20 : 0.22),
-                        ],
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withValues(
-                          alpha: dark ? 0.15 : 0.55,
-                        ),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: SizedBox(
-                        height: 48,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            IgnorePointer(
-                              child: AnimatedAlign(
-                                alignment: AlignmentDirectional(
-                                  -1 +
-                                      2 *
-                                          selectedIndex /
-                                          (destinations.length - 1),
-                                  0,
-                                ),
-                                duration: duration,
-                                curve: Curves.easeOutCubic,
-                                child: FractionallySizedBox(
-                                  widthFactor: 1 / destinations.length,
-                                  heightFactor: 1,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 3,
-                                    ),
-                                    child: DecoratedBox(
-                                      key: const ValueKey(
-                                        'navigation-selection',
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: radius,
-                                        color: colors.onSurface.withValues(
-                                          alpha: dark ? 0.12 : 0.08,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Material(
-                              type: MaterialType.transparency,
-                              child: Row(
-                                children: [
-                                  for (
-                                    var index = 0;
-                                    index < destinations.length;
-                                    index++
-                                  )
-                                    Expanded(
-                                      child: _destination(context, index),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                child: frosted
+                    ? BackdropFilter(
+                        // 毛玻璃模式保留底下内容的轮廓和色彩。
+                        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                        child: surface,
+                      )
+                    : surface,
               ),
             ),
           ),

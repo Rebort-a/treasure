@@ -11,20 +11,24 @@ import '../../style/chat_theme.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n.dart';
-import '../../model/chat_channel.dart';
+import '../../model/notifiers.dart';
 import '../../network/protocol/network_message.dart';
 
 import '../image/blur_hash_image.dart';
 
 /// 现代化消息列表
 class MessageList extends StatefulWidget {
-  final ChatChannel channel;
+  final int identity;
+  final String userName;
+  final ListNotifier<NetworkMessage> messageList;
   final ChatTheme theme;
   final double topPadding;
 
   const MessageList({
     super.key,
-    required this.channel,
+    required this.identity,
+    required this.userName,
+    required this.messageList,
     this.theme = ChatTheme.light,
     this.topPadding = 12,
   });
@@ -104,7 +108,7 @@ class _MessageListState extends State<MessageList> {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<NetworkMessage>>(
-      valueListenable: widget.channel.messageList,
+      valueListenable: widget.messageList,
       builder: (context, messages, child) {
         if (!_showScrollToBottom) _scheduleScrollToBottomIfNeeded();
         return Stack(
@@ -150,8 +154,8 @@ class _MessageListState extends State<MessageList> {
         .map(
           (m) => ChatMessage.fromNetworkMessage(
             m,
-            widget.channel.identity,
-            widget.channel.userName,
+            widget.identity,
+            widget.userName,
           ),
         )
         .toList();
@@ -609,13 +613,13 @@ class _MessageListState extends State<MessageList> {
 
 /// 现代化消息输入组件
 class MessageInput extends StatefulWidget {
-  final ChatChannel channel;
+  final ValueChanged<String> onSendText;
   final ChatTheme theme;
   final VoidCallback? onAttachmentTap;
 
   const MessageInput({
     super.key,
-    required this.channel,
+    required this.onSendText,
     this.theme = ChatTheme.light,
     this.onAttachmentTap,
   });
@@ -628,7 +632,7 @@ class _MessageInputState extends State<MessageInput> {
   final _textController = TextEditingController();
 
   void _sendText() {
-    widget.channel.sendText(_textController.text);
+    widget.onSendText(_textController.text);
     _textController.clear();
   }
 

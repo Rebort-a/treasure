@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/gamer.dart';
 import 'package:treasure/00.common/game/step.dart';
-import 'package:treasure/00.common/network/client/turn_game_session.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 
 import 'support/network_room_harness.dart';
+import 'support/match_game_driver.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,8 +15,8 @@ void main() {
   test('回合匹配仅在房间记录对手和先后手，游戏引擎按需启动', () async {
     final h = RoomHarness(3);
     await h.server.start();
-    TurnGameSession? first;
-    TurnGameSession? second;
+    NetTurnEngine? first;
+    NetTurnEngine? second;
     try {
       final a = await h.join('A');
       final b = await h.join('B');
@@ -30,13 +32,13 @@ void main() {
       expect(b.matchedOpponentId, a.identity);
       expect(a.matchInitiated, isTrue);
       expect(b.matchInitiated, isFalse);
-      first = TurnGameSession(
+      first = configureTurnEngine(
         room: a,
         resourceMode: TurnResourceMode.none,
         actionHandler: (_, __) {},
         exitHandler: () {},
       )..startFromRoom();
-      second = TurnGameSession(
+      second = configureTurnEngine(
         room: b,
         resourceMode: TurnResourceMode.none,
         actionHandler: (_, __) {},
@@ -50,8 +52,8 @@ void main() {
       b.openMatchedGame();
       expect(h.server.members.length, 2);
     } finally {
-      first?.dispose();
-      second?.dispose();
+      first?.releaseGame();
+      second?.releaseGame();
       await h.close();
     }
   });
@@ -95,15 +97,15 @@ void main() {
       );
       expect(a.matchInitiated, isTrue);
       expect(b.matchInitiated, isFalse);
-      publisher = snake.NetManager(room: a)..realSession.startFromRoom();
-      joiner = snake.NetManager(room: b)..realSession.startFromRoom();
+      publisher = snake.NetManager(room: a)..realEngine.startFromRoom();
+      joiner = snake.NetManager(room: b)..realEngine.startFromRoom();
       await waitFor(
         () =>
-            publisher!.realSession.gameStep.value == GameStep.action &&
-            joiner!.realSession.gameStep.value == GameStep.action,
+            publisher!.realEngine.gameStep.value == GameStep.action &&
+            joiner!.realEngine.gameStep.value == GameStep.action,
       );
-      expect(publisher.realSession.publisherId, a.identity);
-      expect(joiner.realSession.publisherId, a.identity);
+      expect(publisher.realEngine.publisherId, a.identity);
+      expect(joiner.realEngine.publisherId, a.identity);
     } finally {
       publisher?.dispose();
       joiner?.dispose();

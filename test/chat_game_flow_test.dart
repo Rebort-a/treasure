@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
+import 'package:treasure/01.home/route.dart';
 import 'package:treasure/05.gobang/net_page.dart';
 
 import '00.common/network/support/network_room_harness.dart';
@@ -21,7 +23,7 @@ void main() {
       LanguageProvider.instance.resetForTesting();
       final h = RoomHarness(3);
       var matchedCount = 0;
-      TurnGameSession? opponent;
+      NetTurnEngine? opponent;
       Future<void> pumpUntil(bool Function() condition) async {
         for (var i = 0; i < 250; i++) {
           await tester.runAsync(
@@ -39,7 +41,9 @@ void main() {
         alice.matchPhase.addListener(() {
           if (alice.matchPhase.value == RoomMatchPhase.matched) matchedCount++;
         });
-        await tester.pumpWidget(MaterialApp(home: NetGomokuPage(room: alice)));
+        await tester.pumpWidget(
+          MaterialApp(home: RouteManager.createRoomPage(alice)),
+        );
         await pumpUntil(() => h.server.members.length == 1);
         await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
         final bob = (await tester.runAsync(() => h.join('Bob')))!;
@@ -53,13 +57,8 @@ void main() {
         );
         var searches = 0;
         bob.addMessageListener((m) {
-          final notification = m.type == MessageType.notify
-              ? RoomNotification.tryFromContent(m.content)
-              : null;
-          if (notification?.type != NoticeType.search ||
-              notification?.memberId == bob.identity) {
-            return;
-          }
+          // search 以原始消息回环，id 即发起者身份。
+          if (m.type != MessageType.search || m.id == bob.identity) return;
           searches++;
         });
         await tester.pump();
@@ -69,7 +68,7 @@ void main() {
         await tester.tap(find.text('Start matching'));
         await tester.pump();
         await pumpUntil(() => searches == 1);
-        expect(find.byType(NetGomokuPage), findsOneWidget);
+        expect(find.byType(NetGomokuPage), findsNothing);
         expect(find.text('Matching'), findsOneWidget);
         expect(find.text('Cancel matching'), findsOneWidget);
         expect(find.text('Start matching'), findsNothing);
@@ -108,7 +107,7 @@ void main() {
         expect(find.byType(NetChatPage), findsOneWidget);
         expect(matchedCount, 0);
 
-        opponent = TurnGameSession(
+        opponent = configureTurnEngine(
           room: bob,
           resourceMode: TurnResourceMode.none,
           searchHandler: () {},
@@ -122,6 +121,7 @@ void main() {
         await pumpUntil(() => opponent!.gameStep.value == GameStep.action);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 350));
+        await pumpUntil(() => find.byType(NetChatPage).evaluate().isEmpty);
         expect(matchedCount, 1);
         expect(find.byType(NetGomokuPage), findsOneWidget);
         expect(find.byType(NetChatPage, skipOffstage: false), findsOneWidget);
@@ -130,7 +130,7 @@ void main() {
 
         await tester.runAsync(() async {
           bob.sendNetworkMessage(MessageType.text, 'public while playing');
-          opponent!.sendNetworkMessage(MessageType.text, 'duel only');
+          opponent!.sendGameMessage(MessageType.text, 'duel only');
           await Future<void>.delayed(const Duration(milliseconds: 50));
         });
         await pumpUntil(() => find.text('duel only').evaluate().isNotEmpty);
@@ -159,8 +159,15 @@ void main() {
           findsOneWidget,
         );
         await tester.tap(find.text('Confirm'));
-        await pumpUntil(() => find.byType(NetChatPage).evaluate().isNotEmpty);
-        expect(find.byType(NetGomokuPage), findsOneWidget);
+        await pumpUntil(
+          () =>
+              find.byType(NetChatPage).evaluate().isNotEmpty &&
+              find
+                  .byType(NetGomokuPage, skipOffstage: false)
+                  .evaluate()
+                  .isEmpty,
+        );
+        expect(find.byType(NetGomokuPage), findsNothing);
         expect(find.byType(NetChatPage), findsOneWidget);
         expect(find.text('public while playing'), findsOneWidget);
         expect(find.text('duel only'), findsNothing);
@@ -172,6 +179,37 @@ void main() {
         expect(find.text('Cancel matching'), findsNothing);
         expect(h.server.members[aliceId], 'Alice');
         expect(h.server.members.length, 2);
+        final engine = NetTurnEngine.forClient(alice);
+        final firstGameId = engine.gameId;
+        opponent!.releaseGame();
+        opponent = configureTurnEngine(
+          room: bob,
+          resourceMode: TurnResourceMode.none,
+          actionHandler: (_, __) {},
+          exitHandler: () {},
+        );
+        await tester.tap(find.text('Start matching'));
+        await tester.pump();
+        await tester.runAsync(() async => startGame(opponent!));
+        await pumpUntil(
+          () =>
+              find.byType(NetGomokuPage).evaluate().isNotEmpty &&
+              engine.gameStep.value == GameStep.action,
+        );
+        expect(engine, same(NetTurnEngine.forClient(alice)));
+        expect(engine.gameId, isNot(firstGameId));
+        expect(h.server.members[aliceId], 'Alice');
+        await tester.runAsync(() async => opponent!.finishGame());
+        await pumpUntil(
+          () =>
+              find
+                  .byType(NetGomokuPage, skipOffstage: false)
+                  .evaluate()
+                  .isEmpty &&
+              find.text('Start matching').evaluate().isNotEmpty,
+        );
+        expect(find.text('public while playing'), findsOneWidget);
+        expect(h.server.members.length, 2);
         await tester.runAsync(() => bob.close());
         await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
         await tester.pumpWidget(const SizedBox.shrink());
@@ -179,7 +217,12 @@ void main() {
         expect(h.server.members.containsKey(aliceId), isFalse);
         expect(tester.takeException(), isNull);
       } finally {
-        opponent?.dispose();
+        await tester.runAsync(() async {
+          for (final room in h.rooms) {
+            await room.close();
+          }
+        });
+        opponent?.releaseGame();
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.runAsync(() => h.close());
       }

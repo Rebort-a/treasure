@@ -3,10 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/client/game_session.dart';
-import 'package:treasure/00.common/network/client/turn_game_session.dart';
-import 'package:treasure/00.common/network/client/real_game_session.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/game_engine.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
+import 'package:treasure/00.common/network/client/net_real_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/game/gamer.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
@@ -16,13 +16,13 @@ import 'package:treasure/17.tank/net_manager.dart' as tank;
 import '../support/network_room_harness.dart';
 import '../support/match_game_driver.dart';
 
-TurnGameSession turn(
-  NetworkEngine room, {
+NetTurnEngine turn(
+  SocketClient room, {
   TurnResourceMode mode = TurnResourceMode.none,
   void Function()? search,
   void Function(GameStep, NetworkMessage)? resource,
   void Function(bool, NetworkMessage)? action,
-}) => TurnGameSession(
+}) => configureTurnEngine(
   room: room,
   resourceMode: mode,
   searchHandler: search ?? () {},
@@ -34,92 +34,132 @@ TurnGameSession turn(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test(
-    'click starts a session; matching and private chat share the room socket',
-    () async {
-      final h = RoomHarness(3);
-      final games = <GameSession>[];
-      await h.server.start();
-      try {
-        final aRoom = await h.join('Alice');
-        final bRoom = await h.join('Bob');
-        final cRoom = await h.join('Carol');
-        final dRoom = await h.join('Dan');
-        final ids = h.rooms.map((r) => r.identity).toList();
-        final a = turn(aRoom);
-        games.add(a);
-        startGame(a);
-        await Future<void>.delayed(const Duration(milliseconds: 40));
-        expect(a.gameStep.value, GameStep.start);
-        expect(a.readyToOpen.value, isFalse);
-        final b = turn(bRoom);
-        games.add(b);
-        startGame(b);
-        await waitFor(() => a.readyToOpen.value && b.readyToOpen.value);
-        expect(a.playerType, TurnGamerType.front);
-        expect(b.playerType, TurnGamerType.rear);
-        expect(a.gameStep.value, GameStep.action);
-        final c = turn(cRoom);
-        games.add(c);
-        startGame(c);
-        final d = turn(dRoom);
-        games.add(d);
-        startGame(d);
-        await waitFor(() => c.readyToOpen.value && d.readyToOpen.value);
-        a.sendNetworkMessage(MessageType.text, 'private');
-        cRoom.sendNetworkMessage(
-          MessageType.text,
-          'room message while playing',
-        );
-        await waitFor(
-          () =>
-              b.messageList.value.any((m) => m.content == 'private') &&
-              aRoom.messageList.value.any(
-                (m) => m.content == 'room message while playing',
-              ),
-        );
-        expect(c.messageList.value, isEmpty);
-        expect(
-          aRoom.messageList.value.any((m) => m.content == 'private'),
-          isFalse,
-        );
-        expect(h.server.members.length, 4);
-        a.finish();
-        await waitFor(() => b.ended.value);
-        expect(h.rooms.map((r) => r.identity).toList(), ids);
-        expect(h.server.members.length, 4);
-        expect(c.ended.value, isFalse);
-        final retryA = turn(aRoom);
-        games.add(retryA);
-        startGame(retryA);
-        final retryB = turn(bRoom);
-        games.add(retryB);
-        startGame(retryB);
-        await waitFor(
-          () => retryA.readyToOpen.value && retryB.readyToOpen.value,
-        );
-        aRoom.sendNetworkMessage(
-          MessageType.exit,
-          'late old exit',
-          recipientIds: {bRoom.identity},
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 30));
-        expect(retryB.ended.value, isFalse);
-      } finally {
-        for (final game in games) {
-          game.dispose();
-        }
-        await h.close();
+  test('匹配在同一引擎启动对局；私聊与房间聊天共享连接但分开记录', () async {
+    final h = RoomHarness(3);
+    final games = <GameEngine>{};
+    await h.server.start();
+    try {
+      final aRoom = await h.join('Alice');
+      final bRoom = await h.join('Bob');
+      final cRoom = await h.join('Carol');
+      final dRoom = await h.join('Dan');
+      final ids = h.rooms.map((r) => r.identity).toList();
+      final a = turn(aRoom);
+      games.add(a);
+      startGame(a);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(a.gameStep.value, GameStep.start);
+      expect(a.readyToOpen.value, isFalse);
+      final b = turn(bRoom);
+      games.add(b);
+      startGame(b);
+      await waitFor(
+        () => a.readyToOpen.value && b.readyToOpen.value,
+        label: () =>
+            'A/B first match: ${a.matchPhase.value} / ${b.matchPhase.value}',
+      );
+      expect(a.playerType, TurnGamerType.front);
+      expect(b.playerType, TurnGamerType.rear);
+      expect(a.gameStep.value, GameStep.action);
+      final c = turn(cRoom);
+      games.add(c);
+      startGame(c);
+      final d = turn(dRoom);
+      games.add(d);
+      startGame(d);
+      await waitFor(
+        () => c.readyToOpen.value && d.readyToOpen.value,
+        label: () =>
+            'C/D match: ${c.matchPhase.value} / ${d.matchPhase.value}, candidates: ${c.matchedOpponentId}, ${d.matchedOpponentId}',
+      );
+      a.sendGameMessage(MessageType.text, 'private');
+      cRoom.sendNetworkMessage(MessageType.text, 'room message while playing');
+      await waitFor(
+        () =>
+            b.gameMessageList.value.any((m) => m.content == 'private') &&
+            aRoom.messageList.value.any(
+              (m) => m.content == 'room message while playing',
+            ),
+      );
+      expect(c.gameMessageList.value, isEmpty);
+      expect(
+        aRoom.messageList.value.any((m) => m.content == 'private'),
+        isFalse,
+      );
+      expect(h.server.members.length, 4);
+      final firstGameId = a.gameMessageList.value
+          .firstWhere((m) => m.content == 'private')
+          .messageId!;
+      final firstGameScope = a.gameId;
+      a.finishGame();
+      await waitFor(() => b.ended.value);
+      expect(h.rooms.map((r) => r.identity).toList(), ids);
+      expect(h.server.members.length, 4);
+      expect(c.ended.value, isFalse);
+      a.releaseGame();
+      b.releaseGame();
+      final retryA = turn(aRoom);
+      games.add(retryA);
+      startGame(retryA);
+      final retryB = turn(bRoom);
+      games.add(retryB);
+      startGame(retryB);
+      await waitFor(
+        () => retryA.readyToOpen.value && retryB.readyToOpen.value,
+        label: () =>
+            'A/B rematch: ${retryA.matchPhase.value} / ${retryB.matchPhase.value}',
+      );
+      final oldPacketsAtB = <NetworkMessage>[];
+      bRoom.addMessageListener(oldPacketsAtB.add);
+      aRoom.sendNetworkMessage(
+        MessageType.exit,
+        'late old exit',
+        recipientId: bRoom.identity,
+        messageId: '$firstGameId-old-exit',
+        gameId: firstGameScope,
+      );
+      aRoom.sendNetworkMessage(
+        MessageType.text,
+        'late old text',
+        recipientId: bRoom.identity,
+        messageId: '$firstGameId-old-text',
+        gameId: firstGameScope,
+      );
+      await waitFor(
+        () =>
+            oldPacketsAtB.any((m) => m.content == 'late old exit') &&
+            oldPacketsAtB.any((m) => m.content == 'late old text'),
+      );
+      aRoom.deliveryFailure.value = NetworkMessage(
+        id: aRoom.identity,
+        type: MessageType.action,
+        source: 'Alice',
+        content: 'old delivery failure',
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        recipientId: bRoom.identity,
+        messageId: firstGameId,
+        gameId: firstGameScope,
+      );
+      expect(retryA.ended.value, isFalse);
+      expect(retryB.ended.value, isFalse);
+      expect(
+        retryB.gameMessageList.value.any((m) => m.content == 'late old text'),
+        isFalse,
+      );
+    } finally {
+      for (final game in games) {
+        game.releaseGame();
       }
-    },
-  );
+      await h.close();
+    }
+  });
 
   for (final mode in [TurnResourceMode.frontOnly, TurnResourceMode.both]) {
     test('turn resource flow: ${mode.name}', () async {
       final h = RoomHarness(mode == TurnResourceMode.frontOnly ? 1 : 2);
       await h.server.start();
-      TurnGameSession? a;
-      TurnGameSession? b;
+      NetTurnEngine? a;
+      NetTurnEngine? b;
       final receivedA = <GameStep>[];
       final receivedB = <GameStep>[];
       try {
@@ -128,7 +168,7 @@ void main() {
         a = turn(
           ra,
           mode: mode,
-          search: () => a!.sendNetworkMessage(MessageType.resource, 'front'),
+          search: () => a!.sendGameMessage(MessageType.resource, 'front'),
           resource: (step, _) => receivedA.add(step),
         );
         b = turn(
@@ -145,7 +185,7 @@ void main() {
         if (mode == TurnResourceMode.both) {
           expect(a.gameStep.value, GameStep.frontWait);
           expect(b.gameStep.value, GameStep.rearConfig);
-          b.sendNetworkMessage(MessageType.resource, 'rear');
+          b.sendGameMessage(MessageType.resource, 'rear');
         }
         await waitFor(
           () =>
@@ -165,8 +205,8 @@ void main() {
               : [GameStep.rearWait],
         );
       } finally {
-        a?.dispose();
-        b?.dispose();
+        a?.releaseGame();
+        b?.releaseGame();
         await h.close();
       }
     });
@@ -175,24 +215,26 @@ void main() {
   test('取消后重新匹配不创建房间连接', () async {
     final h = RoomHarness(3);
     await h.server.start();
-    TurnGameSession? old;
-    TurnGameSession? current;
-    TurnGameSession? b;
+    NetTurnEngine? old;
+    NetTurnEngine? current;
+    NetTurnEngine? b;
     try {
       final ra = await h.join('A');
       final rb = await h.join('B');
       old = startGame(turn(ra));
       await Future<void>.delayed(const Duration(milliseconds: 30));
       old.cancelMatch();
+      old.releaseGame();
       current = startGame(turn(ra));
       b = startGame(turn(rb));
       await waitFor(() => current!.readyToOpen.value && b!.readyToOpen.value);
-      expect(old.ended.value, isTrue);
+      expect(identical(old, current), isTrue);
+      expect(current.ended.value, isFalse);
       expect(h.server.members.length, 2);
     } finally {
-      old?.dispose();
-      current?.dispose();
-      b?.dispose();
+      old?.releaseGame();
+      current?.releaseGame();
+      b?.releaseGame();
       await h.close();
     }
   });
@@ -200,19 +242,19 @@ void main() {
   test('实时确认后进入页面，必须等所有 sync 才开始行动', () async {
     final h = RoomHarness(6);
     await h.server.start();
-    final games = <RealGameSession>[];
+    final games = <NetRealEngine>[];
     final syncs = <int, Set<int>>{};
     final resources = <int>{};
     try {
       final ra = await h.join('A');
       final rb = await h.join('B');
-      RealGameSession create(NetworkEngine room) {
-        late RealGameSession engine;
-        engine = RealGameSession(
+      NetRealEngine create(SocketClient room) {
+        late NetRealEngine engine;
+        engine = configureRealEngine(
           room: room,
           maxPlayers: 4,
           searchHandler: (_) =>
-              engine.sendNetworkMessage(MessageType.resource, 'state'),
+              engine.sendGameMessage(MessageType.resource, 'state'),
           resourceHandler: (_) {
             resources.add(room.identity);
           },
@@ -234,10 +276,10 @@ void main() {
       await waitFor(() => resources.length == 2);
       expect(a.gameStep.value, GameStep.synchronizing);
       expect(b.gameStep.value, GameStep.synchronizing);
-      a.sendNetworkMessage(MessageType.sync, 'ready');
+      a.sendGameMessage(MessageType.sync, 'ready');
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(a.gameStep.value, GameStep.synchronizing);
-      b.sendNetworkMessage(MessageType.sync, 'ready');
+      b.sendGameMessage(MessageType.sync, 'ready');
       await waitFor(
         () =>
             a.gameStep.value == GameStep.action &&
@@ -245,7 +287,7 @@ void main() {
       );
     } finally {
       for (final e in games) {
-        e.dispose();
+        e.releaseGame();
       }
       await h.close();
     }
@@ -261,22 +303,24 @@ void main() {
       final rb = await h.join('B');
       a = snake.NetManager(room: ra);
       b = snake.NetManager(room: rb);
-      b.realSession.startMatched(
+      b.realEngine.startMatched(
         opponentId: ra.identity,
         publisherId: ra.identity,
         isPublisher: false,
+        gameId: 'direct-snake-game',
       );
-      a.realSession.startMatched(
+      a.realEngine.startMatched(
         opponentId: rb.identity,
         publisherId: ra.identity,
         isPublisher: true,
+        gameId: 'direct-snake-game',
       );
       expect(a.snakes, isEmpty);
       expect(b.snakes, isEmpty);
       await waitFor(
         () =>
-            a!.realSession.gameStep.value == GameStep.action &&
-            b!.realSession.gameStep.value == GameStep.action,
+            a!.realEngine.gameStep.value == GameStep.action &&
+            b!.realEngine.gameStep.value == GameStep.action,
       );
       expect(a.snakes.keys, {ra.identity, rb.identity});
     } finally {
@@ -296,22 +340,24 @@ void main() {
       final rb = await h.join('B');
       a = tank.NetTankManager(room: ra);
       b = tank.NetTankManager(room: rb);
-      b.realSession.startMatched(
+      b.realEngine.startMatched(
         opponentId: ra.identity,
         publisherId: ra.identity,
         isPublisher: false,
+        gameId: 'direct-tank-game',
       );
-      a.realSession.startMatched(
+      a.realEngine.startMatched(
         opponentId: rb.identity,
         publisherId: ra.identity,
         isPublisher: true,
+        gameId: 'direct-tank-game',
       );
       expect(a.tanks, isEmpty);
       expect(b.tanks, isEmpty);
       await waitFor(
         () =>
-            a!.realSession.gameStep.value == GameStep.action &&
-            b!.realSession.gameStep.value == GameStep.action,
+            a!.realEngine.gameStep.value == GameStep.action &&
+            b!.realEngine.gameStep.value == GameStep.action,
       );
       expect(a.tanks.keys.where((id) => id > 0), {ra.identity, rb.identity});
     } finally {
@@ -332,31 +378,34 @@ void main() {
           final room = await h.join('P$i');
           final manager = tank.NetTankManager(room: room);
           managers.add(manager);
-          startGame(manager.realSession);
+          startGame(manager.realEngine);
           if (i == 0 || i == 4) {
             await Future<void>.delayed(const Duration(milliseconds: 40));
-            expect(manager.realSession.readyToOpen.value, isFalse);
+            expect(manager.realEngine.readyToOpen.value, isFalse);
           } else {
             await waitFor(
               () =>
-                  manager.realSession.readyToOpen.value &&
+                  manager.realEngine.readyToOpen.value &&
                   manager.tanks.values.where((t) => t.isPlayer).length == i + 1,
             );
             expect(manager.tanks.values.where((t) => t.isPlayer).length, i + 1);
           }
         }
         expect(h.server.members.length, 5);
-        managers[1].realSession.finish();
-        managers[4].realSession.room.sendNetworkMessage(MessageType.search, '');
+        managers[1].realEngine.finishGame();
+        managers[4].realEngine.client.sendNetworkMessage(
+          MessageType.search,
+          '',
+        );
         await waitFor(
           () =>
-              managers[4].realSession.readyToOpen.value &&
+              managers[4].realEngine.readyToOpen.value &&
               managers[0].tanks.values.where((t) => t.isPlayer).length == 4 &&
               managers[4].tanks.values.where((t) => t.isPlayer).length == 4,
         );
         expect(managers[0].tanks.values.where((t) => t.isPlayer).length, 4);
         expect(managers[4].authorityId, managers[0].identity);
-        managers[0].realSession.finish();
+        managers[0].realEngine.finishGame();
         await waitFor(() => managers[4].authorityId == managers[2].identity);
         expect(h.server.members.length, 5);
       } finally {
@@ -379,20 +428,20 @@ void main() {
         final rb = await h.join('Bob');
         final a = snake.NetManager(room: ra);
         managers.add(a);
-        startGame(a.realSession);
+        startGame(a.realEngine);
         await Future<void>.delayed(const Duration(milliseconds: 30));
         expect(a.snakes, isEmpty);
-        expect(a.realSession.readyToOpen.value, isFalse);
+        expect(a.realEngine.readyToOpen.value, isFalse);
         final b = snake.NetManager(room: rb);
         managers.add(b);
-        startGame(b.realSession);
+        startGame(b.realEngine);
         await waitFor(
           () =>
-              a.realSession.gameStep.value == GameStep.action &&
-              b.realSession.gameStep.value == GameStep.action,
+              a.realEngine.gameStep.value == GameStep.action &&
+              b.realEngine.gameStep.value == GameStep.action,
         );
-        expect(a.realSession.publisherId, ra.identity);
-        expect(b.realSession.publisherId, ra.identity);
+        expect(a.realEngine.publisherId, ra.identity);
+        expect(b.realEngine.publisherId, ra.identity);
         a.suspendGame();
         b.suspendGame();
         a.snakes[ra.identity]!.body.add(const Offset(10, 10));
@@ -400,25 +449,27 @@ void main() {
         final rc = await h.join('Carol');
         final c = snake.NetManager(room: rc);
         managers.add(c);
-        startGame(c.realSession);
+        startGame(c.realEngine);
         await waitFor(
           () =>
-              c.realSession.readyToOpen.value &&
+              c.realEngine.readyToOpen.value &&
               a.snakes.length == 3 &&
               b.snakes.length == 3,
         );
         for (final manager in managers) {
           expect(manager.snakes.values.every((s) => s.body.isEmpty), isTrue);
         }
-        c.realSession.finish();
+        c.realEngine.finishGame();
         await waitFor(() => a.snakes.length == 2 && b.snakes.length == 2);
         expect(h.server.members.length, 3);
         expect(rc.identity, isNot(0));
+        managers.remove(c);
+        c.dispose();
         final rejoined = snake.NetManager(room: rc);
         managers.add(rejoined);
-        startGame(rejoined.realSession);
+        startGame(rejoined.realEngine);
         await waitFor(
-          () => rejoined.realSession.readyToOpen.value && a.snakes.length == 3,
+          () => rejoined.realEngine.readyToOpen.value && a.snakes.length == 3,
         );
         expect(a.snakes.length, 3);
         expect(h.server.members.length, 3);

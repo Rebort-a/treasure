@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/03.animal_chess/net_page.dart';
 import 'package:treasure/03.animal_chess/net_manager.dart' as chess;
 
@@ -29,19 +30,19 @@ void main() {
             b.matchPhase.value == RoomMatchPhase.matched,
       );
       expect(NetAnimalChessPage(room: a), isA<NetAnimalChessPage>());
-      front = chess.NetManager(room: a)..turnSession.startFromRoom();
+      front = chess.NetManager(room: a)..turnEngine.startFromRoom();
       await waitFor(
         () => seenByB.any((message) => message.type == MessageType.resource),
       );
-      expect(front.turnSession.gameStep.value, GameStep.action);
+      expect(front.turnEngine.gameStep.value, GameStep.action);
       expect(h.server.members.length, 2);
 
-      rear = chess.NetManager(room: b)..turnSession.startFromRoom();
+      rear = chess.NetManager(room: b)..turnEngine.startFromRoom();
       await waitFor(
-        () => rear!.turnSession.gameStep.value == GameStep.action,
+        () => rear!.turnEngine.gameStep.value == GameStep.action,
       );
-      expect(front.turnSession.ended.value, isFalse);
-      expect(rear.turnSession.ended.value, isFalse);
+      expect(front.turnEngine.ended.value, isFalse);
+      expect(rear.turnEngine.ended.value, isFalse);
     } finally {
       front?.dispose();
       rear?.dispose();

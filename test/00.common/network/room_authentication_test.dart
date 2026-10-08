@@ -3,19 +3,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/00.common/network/protocol/network_room.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
 
 import 'support/network_room_harness.dart';
 import 'support/match_game_driver.dart';
 
-NetworkEngine _client(
+SocketClient _client(
   int port, {
   String? password,
   Duration timeout = const Duration(seconds: 2),
-}) => NetworkEngine(
+}) => SocketClient(
   userName: 'Alice',
   endpoint: RoomInfo(
     name: 'Test',
@@ -160,7 +160,7 @@ void main() {
       });
     });
     final room = _client(server.port);
-    TurnGameSession? game;
+    NetTurnEngine? game;
     try {
       await room.join();
       sockets.first.add(
@@ -176,7 +176,7 @@ void main() {
         () => room.messageList.value.any((m) => m.content == '已有聊天'),
       );
       game = startGame(
-        TurnGameSession(
+        configureTurnEngine(
           room: room,
           resourceMode: TurnResourceMode.none,
           actionHandler: (_, __) {},
@@ -197,7 +197,7 @@ void main() {
       expect(room.messageList.value.any((m) => m.content == '已有聊天'), isTrue);
       expect(game.ended.value, isTrue);
     } finally {
-      game?.dispose();
+      game?.releaseGame();
       await room.close();
       room.dispose();
       for (final socket in sockets) {

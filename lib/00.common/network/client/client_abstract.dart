@@ -9,34 +9,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../config/network_config.dart';
 import '../protocol/tcp_frame_codec.dart';
 
-/// 创建客户端连接的传输方式；具体连接生命周期由 [ClientConnection] 管理。
-abstract interface class ClientTransport {
-  Future<ClientConnection> connect(String host, int port);
-}
-
-/// 根据当前平台和网络配置创建客户端传输实现。
-ClientTransport createClientTransport() {
-  if (kIsWeb || networkMode == NetworkMode.webSocket) {
-    return _WebSocketClientTransport();
-  }
-  return _TcpClientTransport();
-}
-
-class _TcpClientTransport implements ClientTransport {
-  @override
-  Future<ClientConnection> connect(String host, int port) async {
-    // ignore: close_sinks — socket lifecycle managed by ClientConnection.close()
-    final socket = await Socket.connect(host, port);
-    return ClientConnection.tcp(socket);
-  }
-}
-
-class _WebSocketClientTransport implements ClientTransport {
-  @override
-  Future<ClientConnection> connect(String host, int port) =>
-      WebSocketClientConnection.connect(host, port);
-}
-
 typedef ClientDataCallback = void Function(List<int> data);
 typedef ClientDoneCallback = void Function();
 typedef ClientErrorCallback = void Function(Object error);
@@ -168,4 +140,32 @@ class WebSocketClientConnection implements ClientConnection {
       await _subscription?.cancel();
     }
   }
+}
+
+/// 创建客户端连接的传输方式；具体连接生命周期由 [ClientConnection] 管理。
+abstract interface class ClientTransport {
+  Future<ClientConnection> connect(String host, int port);
+}
+
+/// 根据当前平台和网络配置创建客户端传输实现。
+ClientTransport createClientTransport() {
+  if (kIsWeb || networkMode == NetworkMode.webSocket) {
+    return _WebSocketClientTransport();
+  }
+  return _TcpClientTransport();
+}
+
+class _TcpClientTransport implements ClientTransport {
+  @override
+  Future<ClientConnection> connect(String host, int port) async {
+    // ignore: close_sinks — socket lifecycle managed by ClientConnection.close()
+    final socket = await Socket.connect(host, port);
+    return ClientConnection.tcp(socket);
+  }
+}
+
+class _WebSocketClientTransport implements ClientTransport {
+  @override
+  Future<ClientConnection> connect(String host, int port) =>
+      WebSocketClientConnection.connect(host, port);
 }

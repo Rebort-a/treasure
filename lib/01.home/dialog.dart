@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../00.common/model/app_item_type.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/network/protocol/network_room.dart';
-import '../00.common/network/client/network_engine.dart';
+import '../00.common/network/client/socket_client.dart';
 
 class RoomDialog {
   static void showCreateRoomDialog({
@@ -63,7 +63,7 @@ class JoinRoomDialog extends StatefulWidget {
   final String userName;
   final String? password;
   final bool startImmediately;
-  final ValueChanged<NetworkEngine> onAttempt;
+  final ValueChanged<SocketClient> onAttempt;
 
   const JoinRoomDialog({
     super.key,
@@ -86,7 +86,7 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
   final _encryptionKey = TextEditingController();
   final _busy = ValueNotifier(false);
   final _error = ValueNotifier<String?>(null);
-  NetworkEngine? _engine;
+  SocketClient? _engine;
   bool _transferred = false;
   bool _cancelled = false;
 
@@ -125,7 +125,7 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
           port: port!,
           encryptionKey: _encryptionKey.text.trim(),
         );
-    final engine = NetworkEngine.forRoom(
+    final engine = SocketClient(
       userName: name,
       endpoint: target.withPassword(_password.text),
     );

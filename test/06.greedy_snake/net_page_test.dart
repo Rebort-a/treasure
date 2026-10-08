@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/06.greedy_snake/net_page.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 
@@ -29,18 +30,18 @@ void main() {
             b.matchPhase.value == RoomMatchPhase.matched,
       );
       expect(NetGreedySnakePage(room: a), isA<NetGreedySnakePage>());
-      front = snake.NetManager(room: a)..realSession.startFromRoom();
+      front = snake.NetManager(room: a)..realEngine.startFromRoom();
       await waitFor(
         () => seenByB.any((message) => message.type == MessageType.resource),
       );
       expect(a.matchInitiated, isTrue);
-      expect(front.realSession.gameStep.value, GameStep.synchronizing);
+      expect(front.realEngine.gameStep.value, GameStep.synchronizing);
 
-      rear = snake.NetManager(room: b)..realSession.startFromRoom();
+      rear = snake.NetManager(room: b)..realEngine.startFromRoom();
       await waitFor(
         () =>
-            front!.realSession.gameStep.value == GameStep.action &&
-            rear!.realSession.gameStep.value == GameStep.action,
+            front!.realEngine.gameStep.value == GameStep.action &&
+            rear!.realEngine.gameStep.value == GameStep.action,
       );
       expect(h.server.members.length, 2);
     } finally {

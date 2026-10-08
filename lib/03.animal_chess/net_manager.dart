@@ -1,27 +1,26 @@
 import 'dart:convert';
 
-import '../00.common/network/client/turn_game_session.dart';
+import '../00.common/network/client/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
 import '../00.common/network/protocol/network_message.dart';
-import '../00.common/network/client/network_engine.dart';
-import '../00.common/network/client/net_turn_engine.dart';
+import '../00.common/network/client/socket_client.dart';
 
 import 'base.dart';
 import 'foundation_manager.dart';
 
 class NetManager extends FoundationalManager {
-  late final TurnGameSession turnSession;
+  late final NetTurnEngine turnEngine;
 
-  NetManager({required NetworkEngine room}) {
-    turnSession = createTurnSession(
-      room: room,
-      resourceMode: TurnResourceMode.frontOnly,
-      searchHandler: _onSearch,
-      resourceHandler: _onResource,
-      actionHandler: _onAction,
-      exitHandler: _onExit,
-    );
+  NetManager({required SocketClient room}) {
+    turnEngine = NetTurnEngine.forClient(room)
+      ..configureGame(
+        resourceMode: TurnResourceMode.frontOnly,
+        searchHandler: _onSearch,
+        resourceHandler: _onResource,
+        actionHandler: _onAction,
+        exitHandler: _onExit,
+      );
   }
 
   void _onSearch() {
@@ -30,7 +29,7 @@ class NetManager extends FoundationalManager {
     initGame();
     final resource = _mapToString();
     displayMap.value = previousMap;
-    turnSession.sendNetworkMessage(MessageType.resource, resource);
+    turnEngine.sendGameMessage(MessageType.resource, resource);
   }
 
   void _onResource(GameStep step, NetworkMessage message) {
@@ -41,12 +40,12 @@ class NetManager extends FoundationalManager {
   }
 
   void _onAction(bool isSelf, NetworkMessage message) {
-    if (turnSession.gameStep.value == GameStep.action) {
+    if (turnEngine.gameStep.value == GameStep.action) {
       int index = jsonDecode(message.content)['index'] as int;
       if (index >= 0 && index < displayMap.length) {
         if (!isSelf) {
           autoProcess(index);
-        } else if (currentGamer.value == turnSession.playerType) {
+        } else if (currentGamer.value == turnEngine.playerType) {
           autoProcess(index);
         }
       }
@@ -55,10 +54,10 @@ class NetManager extends FoundationalManager {
 
   void _onExit() {}
 
-  void surrender() => turnSession.finish();
+  void surrender() => turnEngine.finishGame();
 
   @override
-  void handleGameOver(TurnGamerType winner) => turnSession.finish();
+  void handleGameOver(TurnGamerType winner) => turnEngine.finishGame();
 
   String _mapToString() {
     List<List<int>> animalDistribution = displayMap.value
@@ -109,19 +108,19 @@ class NetManager extends FoundationalManager {
   }
 
   void _sendActionMessage(int index) {
-    if ((turnSession.gameStep.value == GameStep.action &&
-            currentGamer.value == turnSession.playerType) ||
+    if ((turnEngine.gameStep.value == GameStep.action &&
+            currentGamer.value == turnEngine.playerType) ||
         index == -1) {
-      turnSession.sendNetworkMessage(
+      turnEngine.sendGameMessage(
         MessageType.action,
         jsonEncode({'index': index}),
       );
     }
   }
 
-  void leavePage() => turnSession.leavePage();
+  void leavePage() => turnEngine.leavePage();
   void dispose() {
-    turnSession.dispose();
+    turnEngine.releaseGame();
     pageNavigator.dispose();
   }
 }

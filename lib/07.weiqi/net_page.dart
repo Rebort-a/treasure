@@ -1,8 +1,7 @@
-import '../00.common/network/client/game_session.dart';
-import '../00.common/widget/navigator/online_game_page.dart';
-
 import 'package:flutter/material.dart';
 
+import '../00.common/network/client/socket_client.dart';
+import '../00.common/widget/navigator/online_game_host.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/widget/component/chat_component.dart';
@@ -11,27 +10,19 @@ import 'base.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
-class GoNetPage extends OnlineGamePage<GoNetManager> {
-  const GoNetPage({super.key, required super.room});
+class GoNetPage extends StatelessWidget {
+  final SocketClient room;
+
+  const GoNetPage({super.key, required this.room});
 
   @override
-  String get gameName => 'weiqi';
-
-  @override
-  GoNetManager createManager() => GoNetManager(room: room);
-
-  @override
-  GameSession sessionOf(GoNetManager manager) => manager.turnSession;
-
-  @override
-  Widget buildGame(
-    BuildContext context,
-    GoNetManager manager,
-    VoidCallback requestExit,
-  ) => _GoGame(manager: manager, onExit: requestExit);
-
-  @override
-  void disposeManager(GoNetManager manager) => manager.dispose();
+  Widget build(BuildContext context) => OnlineGameHost<GoNetManager>(
+    createManager: () => GoNetManager(room: room),
+    engineOf: (manager) => manager.turnEngine,
+    disposeManager: (manager) => manager.dispose(),
+    pageBuilder: (_, manager, requestExit) =>
+        _GoGame(manager: manager, onExit: requestExit),
+  );
 }
 
 class _GoGame extends StatelessWidget {
@@ -63,7 +54,7 @@ class _GoGame extends StatelessWidget {
 
   Widget _buildBody() {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: _manager.turnSession.gameStep,
+      valueListenable: _manager.turnEngine.gameStep,
       builder: (__, step, _) {
         return Center(
           child: Column(
@@ -95,9 +86,13 @@ class _GoGame extends StatelessWidget {
                     ]),
               Expanded(
                 flex: 2,
-                child: MessageList(channel: _manager.turnSession),
+                child: MessageList(
+                  identity: _manager.turnEngine.identity,
+                  userName: _manager.turnEngine.userName,
+                  messageList: _manager.turnEngine.gameMessageList,
+                ),
               ),
-              MessageInput(channel: _manager.turnSession),
+              MessageInput(onSendText: _manager.turnEngine.sendGameText),
             ],
           ),
         );

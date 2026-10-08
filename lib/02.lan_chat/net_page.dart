@@ -1,39 +1,37 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:ui';
-
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 
 import 'package:flutter/material.dart';
 
 import '../00.common/l10n/strings.dart';
-import '../00.common/network/client/network_engine.dart';
+import '../00.common/model/app_item_type.dart';
+import '../00.common/network/client/game_engine.dart';
+import '../00.common/network/client/socket_client.dart';
+import '../00.common/network/client/room_chat_engine.dart';
 import '../00.common/widget/component/chat_component.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/style/chat_theme.dart';
-import '../00.common/tool/blur_hash.dart';
 
 import 'net_manager.dart';
 import 'attachment_menu.dart';
 
 class NetChatPage extends StatefulWidget {
-  final NetworkEngine room;
+  final SocketClient room;
   final String gameName;
-  final bool ignoreBack;
+
+  /// 由首页注入，聊天室不导入任何具体游戏；匹配成功后才构建单局页面。
+  final WidgetBuilder? gamePageBuilder;
 
   NetChatPage({
     super.key,
     required this.room,
     this.gameName = '',
-    this.onMatched,
-    this.ignoreBack = false,
+    this.gamePageBuilder,
   }) {
     if (!room.isJoined) {
       throw StateError('Room authentication has not completed');
     }
   }
-
-  final Future<void> Function(BuildContext)? onMatched;
 
   @override
   State<NetChatPage> createState() => _NetChatPageState();
@@ -41,40 +39,61 @@ class NetChatPage extends StatefulWidget {
 
 class _NetChatPageState extends State<NetChatPage> {
   late final NetManager _manager;
+  late final RoomChatEngine _engine;
   final ChatTheme _theme = ChatTheme.light;
   bool _openingGame = false;
+  bool _roomDisposed = false;
+  MaterialPageRoute<void>? _gameRoute;
+
+  String get _gameName => widget.gameName.isNotEmpty
+      ? widget.gameName
+      : OnlineItemType.tryFromRoomType(widget.room.roomType)?.name ?? '';
 
   @override
   void initState() {
     super.initState();
+    _engine = RoomChatEngine.forClient(widget.room);
     _manager = NetManager(room: widget.room);
-    widget.room.matchPhase.addListener(_matchChanged);
+    _engine.matchPhase.addListener(_matchChanged);
+    _matchChanged();
   }
 
-  /// 匹配结果由房间保留，页面在导航时创建并自行接管游戏生命周期。
+  /// 房间持有连接与共享引擎，单局路由只借用它们并释放自己的 Manager。
   void _matchChanged() {
     if (!mounted ||
         _openingGame ||
-        widget.room.matchPhase.value != RoomMatchPhase.matched) {
+        _engine.matchPhase.value != RoomMatchPhase.matched) {
       return;
     }
     _openingGame = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || widget.room.matchPhase.value != RoomMatchPhase.matched) {
+      if (!mounted) return;
+      if (!widget.room.isJoined ||
+          _engine.matchPhase.value != RoomMatchPhase.matched) {
+        setState(() => _openingGame = false);
+        return;
+      }
+      final builder = widget.gamePageBuilder;
+      if (builder == null) {
+        _engine.cancelMatching();
         _openingGame = false;
         return;
       }
-      final onMatched = widget.onMatched;
-      if (onMatched == null) {
-        widget.room.cancelMatching();
-        _openingGame = false;
-        return;
-      }
-      widget.room.openMatchedGame();
+      _engine.openMatchedGame();
+      final route = MaterialPageRoute<void>(builder: builder);
+      _gameRoute = route;
       try {
-        await onMatched(context);
+        await Navigator.of(context).push(route);
+        // push 的 Future 在 pop 时就完成，旧页还可能播放退出动画。
+        // 要等组件和 Manager 真正卸载，才能再次配置同一个游戏引擎。
+        await route.completed;
       } finally {
-        if (mounted) setState(() => _openingGame = false);
+        _gameRoute = null;
+        if (mounted) {
+          setState(() => _openingGame = false);
+        } else {
+          _disposeRoom();
+        }
       }
     });
     WidgetsBinding.instance.scheduleFrame();
@@ -82,18 +101,34 @@ class _NetChatPageState extends State<NetChatPage> {
 
   @override
   void dispose() {
-    widget.room.matchPhase.removeListener(_matchChanged);
-    widget.room.cancelMatching();
+    _engine.matchPhase.removeListener(_matchChanged);
+    _engine.cancelMatching();
     _manager.dispose();
+    final route = _gameRoute;
+    if (route != null) {
+      if (_engine case GameEngine game) game.finishGame();
+      // 导航栈整体卸载或强制离房时，游戏页可能仍在卸载。
+      // 等它释放 Manager 后再销毁共享通知器，避免子组件使用已销毁的状态。
+      unawaited(route.completed.then((_) => _disposeRoom()));
+    } else {
+      _disposeRoom();
+    }
     super.dispose();
+  }
+
+  void _disposeRoom() {
+    if (_roomDisposed) return;
+    _roomDisposed = true;
+    _engine.dispose();
+    widget.room.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: widget.ignoreBack,
+      canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop || widget.ignoreBack) return;
+        if (didPop) return;
         _manager.leavePage();
       },
       child: Scaffold(
@@ -216,7 +251,7 @@ class _NetChatPageState extends State<NetChatPage> {
       final showStatus =
           status.state != RoomConnectionState.joined &&
           status.state != RoomConnectionState.closed;
-      final hasGame = widget.room.roomType != 0 && widget.gameName.isNotEmpty;
+      final hasGame = widget.gamePageBuilder != null;
       final failed = status.state == RoomConnectionState.failed;
       final text = failed
           ? switch (status.failure) {
@@ -247,7 +282,9 @@ class _NetChatPageState extends State<NetChatPage> {
             ),
           Expanded(
             child: MessageList(
-              channel: widget.room,
+              identity: widget.room.identity,
+              userName: widget.room.userName,
+              messageList: _engine.messageList,
               theme: _theme,
               topPadding: showStatus || hasGame
                   ? 4
@@ -255,7 +292,7 @@ class _NetChatPageState extends State<NetChatPage> {
             ),
           ),
           MessageInput(
-            channel: widget.room,
+            onSendText: _engine.sendText,
             theme: _theme,
             onAttachmentTap: _showAttachmentMenu,
           ),
@@ -267,14 +304,14 @@ class _NetChatPageState extends State<NetChatPage> {
   void _showAttachmentMenu() {
     AttachmentMenu.show(
       context: context,
-      onImagePick: _pickImage,
-      onFilePick: _pickFile,
+      onImagePick: () => RoomAttachmentPicker.pickImage(context, _engine),
+      onFilePick: () => RoomAttachmentPicker.pickFile(context, _engine),
     );
   }
 
   Widget _gameCard() {
     return ValueListenableBuilder<RoomMatchPhase>(
-      valueListenable: widget.room.matchPhase,
+      valueListenable: _engine.matchPhase,
       builder: (_, match, __) {
         final matching =
             match == RoomMatchPhase.matching ||
@@ -285,10 +322,10 @@ class _NetChatPageState extends State<NetChatPage> {
           margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: ListTile(
             leading: const Icon(Icons.gamepad),
-            title: Text(S.roomTypeString(widget.gameName)),
+            title: Text(S.roomTypeString(_gameName)),
             subtitle: matching ? Text(S.matching) : null,
             trailing: TextButton(
-              onPressed: pending
+              onPressed: pending || _openingGame
                   ? null
                   : matching
                   ? _cancelMatch
@@ -313,79 +350,18 @@ class _NetChatPageState extends State<NetChatPage> {
     final type = room.roomType;
     if (room.identity == 0 ||
         _openingGame ||
-        room.matchPhase.value != RoomMatchPhase.idle ||
+        _engine.matchPhase.value != RoomMatchPhase.idle ||
         type <= 0 ||
-        widget.gameName.isEmpty) {
+        widget.gamePageBuilder == null) {
       return;
     }
-    room.startMatching();
+    _engine.startMatching();
   }
 
   void _cancelMatch() {
-    if (_manager.room.matchPhase.value != RoomMatchPhase.idle) {
-      _manager.room.cancelMatching();
+    if (_engine.matchPhase.value != RoomMatchPhase.idle) {
+      _engine.cancelMatching();
       return;
-    }
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final pickedFile = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-      if (pickedFile != null) await _sendImageFile(pickedFile);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${S.selectImageFailed}: $e')));
-      }
-    }
-  }
-
-  Future<void> _sendImageFile(XFile file) async {
-    try {
-      final bytes = await file.readAsBytes();
-
-      // 计算 BlurHash（忽略错误，不影响发送）
-      String? blurHash;
-      try {
-        final (pixels, w, h) = await BlurHash.pixelsFromBytes(bytes);
-        blurHash = BlurHash.encode(pixels, w, h);
-      } catch (_) {}
-
-      _manager.room.sendImageMessage(
-        base64Encode(bytes),
-        fileName: file.name,
-        blurHash: blurHash,
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('${S.sendImageFailed}: $e')));
-      }
-    }
-  }
-
-  Future<void> _pickFile() async {
-    try {
-      final file = await FilePicker.pickFile(type: FileType.any);
-      if (file != null) {
-        final fileBytes = await file.readAsBytes();
-        _manager.room.sendFileMessage(
-          file.name,
-          fileBytes.length,
-          base64Encode(fileBytes),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('${S.selectFileFailed}: $e')));
-      }
     }
   }
 
@@ -403,7 +379,7 @@ class _NetChatPageState extends State<NetChatPage> {
             actions: [
               TextButton(
                 onPressed: () {
-                  _manager.room.messageList.clear();
+                  _engine.messageList.clear();
                   Navigator.pop(context);
                 },
                 child: Text(

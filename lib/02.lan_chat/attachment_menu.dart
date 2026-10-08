@@ -1,6 +1,12 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../00.common/l10n/strings.dart';
+import '../00.common/network/client/room_chat_engine.dart';
+import '../00.common/tool/blur_hash.dart';
 
 /// 附件选择菜单
 /// 通过传入不同的回调来控制显示哪些选项。
@@ -104,5 +110,66 @@ class AttachmentMenu extends StatelessWidget {
             : null,
       ),
     );
+  }
+}
+
+/// 第三方附件依赖集中在这里；房间页面只使用操作入口。
+class RoomAttachmentPicker {
+  static Future<void> pickImage(
+    BuildContext context,
+    RoomChatEngine engine,
+  ) async {
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      try {
+        final bytes = await file.readAsBytes();
+        String? blurHash;
+        try {
+          final (pixels, width, height) = await BlurHash.pixelsFromBytes(bytes);
+          blurHash = BlurHash.encode(pixels, width, height);
+        } catch (_) {
+          // 缩略图编码失败时仍可正常发送图片。
+        }
+        engine.sendImageMessage(
+          base64Encode(bytes),
+          fileName: file.name,
+          blurHash: blurHash,
+        );
+      } catch (error) {
+        if (context.mounted) {
+          _showError(context, '${S.sendImageFailed}: $error');
+        }
+      }
+    } catch (error) {
+      if (context.mounted) {
+        _showError(context, '${S.selectImageFailed}: $error');
+      }
+    }
+  }
+
+  static Future<void> pickFile(
+    BuildContext context,
+    RoomChatEngine engine,
+  ) async {
+    try {
+      final file = await FilePicker.pickFile(type: FileType.any);
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      engine.sendFileMessage(file.name, bytes.length, base64Encode(bytes));
+    } catch (error) {
+      if (context.mounted) {
+        _showError(context, '${S.selectFileFailed}: $error');
+      }
+    }
+  }
+
+  static void _showError(BuildContext context, String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 }

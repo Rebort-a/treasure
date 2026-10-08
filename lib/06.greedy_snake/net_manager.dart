@@ -2,10 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../00.common/network/client/real_game_session.dart';
-import '../00.common/network/protocol/network_message.dart';
-import '../00.common/network/client/network_engine.dart';
 import '../00.common/network/client/net_real_engine.dart';
+import '../00.common/network/protocol/network_message.dart';
+import '../00.common/network/client/socket_client.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
 
@@ -18,26 +17,26 @@ enum SnakeAction { joystick, speedButton }
 class NetManager extends FoundationalManager {
   static const int generateCount = 10;
 
-  late final RealGameSession realSession;
+  late final NetRealEngine realEngine;
 
   final Set<int> _pendingSyncIds = {};
   int _syncId = 0;
 
-  NetManager({required NetworkEngine room}) {
-    realSession = createRealSession(
-      room: room,
-      searchHandler: _handleSearch,
-      resourceHandler: _handleResource,
-      syncHandler: _handleSync,
-      actionHandler: _handleAction,
-      exitHandler: _handleEnd,
-    );
+  NetManager({required SocketClient room}) {
+    realEngine = NetRealEngine.forClient(room)
+      ..configureGame(
+        searchHandler: _handleSearch,
+        resourceHandler: _handleResource,
+        syncHandler: _handleSync,
+        actionHandler: _handleAction,
+        exitHandler: _handleEnd,
+      );
     initTicker();
-    realSession.ended.addListener(suspendGame);
+    realEngine.ended.addListener(suspendGame);
   }
 
   @override
-  int get identity => realSession.identity;
+  int get identity => realEngine.identity;
 
   void _handleSearch(int id) {
     suspendGame();
@@ -65,7 +64,7 @@ class NetManager extends FoundationalManager {
         ..fromJson(previousFoods);
     }
     _syncId++;
-    realSession.sendNetworkMessage(
+    realEngine.sendGameMessage(
       MessageType.resource,
       json.encode({'syncId': _syncId, 'state': proposed}),
     );
@@ -85,7 +84,7 @@ class NetManager extends FoundationalManager {
       _pendingSyncIds
         ..clear()
         ..addAll(snakes.keys);
-      realSession.sendNetworkMessage(
+      realEngine.sendGameMessage(
         MessageType.sync,
         json.encode({'syncId': _syncId}),
       );
@@ -136,7 +135,7 @@ class NetManager extends FoundationalManager {
 
   void _resumeWhenSynchronized() {
     if (_pendingSyncIds.isNotEmpty) return;
-    if (!realSession.completeSynchronization()) return;
+    if (!realEngine.completeSynchronization()) return;
     resumeGame();
   }
 
@@ -188,7 +187,7 @@ class NetManager extends FoundationalManager {
     SnakeAction action, [
     Map<String, dynamic> payload = const {},
   ]) {
-    realSession.sendNetworkMessage(
+    realEngine.sendGameMessage(
       MessageType.action,
       json.encode({'actionType': action.name, 'syncId': _syncId, ...payload}),
     );
@@ -208,12 +207,13 @@ class NetManager extends FoundationalManager {
 
   @override
   void leavePage() {
-    realSession.leavePage();
+    realEngine.leavePage();
   }
 
   @override
   void dispose() {
-    realSession.dispose();
+    realEngine.ended.removeListener(suspendGame);
+    realEngine.releaseGame();
     super.dispose();
   }
 }

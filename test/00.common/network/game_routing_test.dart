@@ -6,7 +6,7 @@ import 'support/network_room_harness.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('服务端将玩家 search 转为服务器通知', () async {
+  test('服务端原样转发玩家 search 消息', () async {
     final h = RoomHarness(0);
     await h.server.start();
     try {
@@ -17,31 +17,28 @@ void main() {
 
       a.sendNetworkMessage(MessageType.search, 'search');
       await waitFor(
-        () => received.any(
-          (message) =>
-              message.type == MessageType.notify &&
-              RoomNotification.tryFromContent(message.content)?.type ==
-                  NoticeType.search,
-        ),
+        () => received.any((message) => message.type == MessageType.search),
       );
-      final notification = received.singleWhere(
+      // 消息类型、发起者身份与内容都保持原样，服务端只改写来源昵称。
+      final forwarded = received.singleWhere(
+        (message) => message.type == MessageType.search,
+      );
+      expect(forwarded.id, a.identity);
+      expect(forwarded.source, 'A');
+      expect(forwarded.content, 'search');
+      expect(forwarded.isRoomMessage, isTrue);
+
+      // 同一次搜索还会补发一条展示用通知，供聊天流显示。
+      final notice = received.singleWhere(
         (message) =>
             message.type == MessageType.notify &&
             RoomNotification.tryFromContent(message.content)?.type ==
                 NoticeType.search,
       );
-      expect(notification.id, 0);
+      expect(notice.id, 0);
       expect(
-        RoomNotification.tryFromContent(notification.content)?.type,
-        NoticeType.search,
-      );
-      expect(
-        RoomNotification.tryFromContent(notification.content)?.memberId,
+        RoomNotification.tryFromContent(notice.content)?.memberId,
         a.identity,
-      );
-      expect(
-        received.where((message) => message.type == MessageType.search),
-        isEmpty,
       );
     } finally {
       await h.close();
@@ -148,5 +145,40 @@ void main() {
       isTrue,
     );
     expect(message(MessageType.resource, recipientId: 2).hasValidRoute, isTrue);
+  });
+
+  test('收件人不在册时整条消息被丢弃，exit 不再例外', () async {
+    final h = RoomHarness(0);
+    await h.server.start();
+    try {
+      final a = await h.join('A');
+      final b = await h.join('B');
+      final c = await h.join('C');
+      final seenB = <NetworkMessage>[];
+      b.addMessageListener(seenB.add);
+      final cId = c.identity;
+
+      await c.close();
+      await waitFor(() => h.server.members.length == 2);
+
+      // 收件人全部在册时正常送达。
+      a.sendNetworkMessage(
+        MessageType.exit,
+        'game',
+        recipientIds: {a.identity, b.identity},
+      );
+      await waitFor(() => seenB.any((m) => m.type == MessageType.exit));
+
+      // 名单里混入已离开的 C：整条 exit 被丢弃，在册的 B 也收不到。
+      a.sendNetworkMessage(
+        MessageType.exit,
+        'game',
+        recipientIds: {a.identity, b.identity, cId},
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(seenB.where((m) => m.type == MessageType.exit), hasLength(1));
+    } finally {
+      await h.close();
+    }
   });
 }

@@ -166,7 +166,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 ```
 ┌───────────────────────────────────────────────────────┐
 │  Application Layer | 应用层                             │
-│  NetworkEngine / NetTurnGameEngine / NetRealGameEngine │
+│  SocketClient → RoomChatEngine → Turn/Real Engine      │
 ├───────────────────────────────────────────────────────┤
 │  Message Protocol | 消息协议层                           │
 │  NetworkMessage (JSON + XOR encryption)                │
@@ -178,8 +178,11 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 ```
 
 - **Room Discovery** — UDP discovery on native platforms; Web joins by IP. Room type and key arrive in the `accept` handshake. | 原生端通过 UDP 发现房间，Web 通过 IP 加入；房间类型和密钥由 `accept` 握手返回，不再使用 HTTP 查询。
-- **Room / Game Lifecycle** — One persistent room connection, temporary game sessions started from the pinned card. | 房间保持一条连接，点击置顶卡片才创建对局，游戏退出不关闭房间。
-- **Message Routing** — `targetId` selects a recipient; `sessionId` separates games from room chat. No application-level ACK/retry. | 定向转发与会话隔离；不再维护应用层 ACK 和重发。
+- **Room / Game Lifecycle** — One persistent connection and reusable game engine; each match resets its game state. | 房间保持一条连接和一个可复用游戏引擎，每局重置对局状态，退出游戏不关闭房间。
+- **Room Entry** — Home always opens LAN chat with an optional lazy game-page builder; matched games run on a separate route and return to the retained chat. | 首页统一进入聊天室，可选注入游戏页面工厂；匹配成功后打开单局路由，结束返回保留的聊天室。
+- **Game Pages** — Plain `StatelessWidget` entries compose a shared lifecycle host; concrete managers stay inside each game module. | 游戏入口保持普通 `StatelessWidget`，通过组合使用通用生命周期容器，具体 Manager 不对外暴露。
+- **Message Routing** — `recipientId` / `recipientIds` target private or group messages; `gameId` isolates matches, with ACK, retry and deduplication for directed game messages. | 私聊与群聊定向转发；`gameId` 隔离对局，局内消息有 ACK、重发和去重，搜索与房间聊天没有。
+- **Game Admission** — Reserved invitations commit only after application-level confirmation; real-time newcomers share the current game ID, with rollback and resynchronization on failure. | 邀请先预留、确认后入局；实时中途加入复用当前对局 ID，失败时撤销并重新同步。
 - **Reconnection** — Exponential backoff (1s→2s→4s→8s→16s, max 5 attempts) | 指数退避重连
 - **Encryption** — XOR stream encryption with room-shared key (lightweight; key exchanged via LAN discovery, not a secure channel — defends against casual snooping only) | 轻量加密传输（密钥经局域网发现交换，非安全信道，仅防偶然嗅探）
 
@@ -191,9 +194,9 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 
 | 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
 |------|---------|---------|---------|----------|
-| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/client_transport.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
-| `image_picker` | 聊天发送图片<br/>Send images in chat | `02.lan_chat/net_page.dart` | 删除 `_pickImage()` 方法，附件菜单自动隐藏相册选项<br/>Delete `_pickImage()`, attachment menu auto-hides album | 聊天无法发送图片<br/>Cannot send images |
-| `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `02.lan_chat/net_page.dart`、`00.common/widget/component/chat_component.dart` | 删除 `_pickFile()` 方法和 `_saveFile()` 中的 FilePicker 调用<br/>Delete `_pickFile()` and FilePicker calls in `_saveFile()` | 聊天无法发送和保存文件<br/>Cannot send or save files |
+| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/client_abstract.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
+| `image_picker` | 聊天发送图片<br/>Send images in chat | `00.common/widget/component/room_attachment_picker.dart` | 删除图片选择适配代码并隐藏相册选项<br/>Remove the image-picker adapter and hide the album option | 聊天无法发送图片<br/>Cannot send images |
+| `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `00.common/widget/component/room_attachment_picker.dart`、`00.common/widget/component/chat_component.dart` | 删除文件选择/保存适配代码<br/>Remove the file-picker adapter | 聊天无法发送和保存文件<br/>Cannot send and save files |
 | `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/service/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |
 
 `http` 已移除直接依赖；锁文件中仍由部分插件间接引入。房间密码是入房校验，不是安全传输保证；协议及安全边界见 [联机流程说明](docs/network-flow.md)。

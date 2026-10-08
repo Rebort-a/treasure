@@ -1,8 +1,7 @@
-import '../../00.common/network/client/game_session.dart';
-import '../../00.common/widget/navigator/online_game_page.dart';
-
 import 'package:flutter/material.dart';
 
+import '../../00.common/network/client/socket_client.dart';
+import '../../00.common/widget/navigator/online_game_host.dart';
 import '../middle/foundation_combat_widget.dart';
 
 import '../../00.common/game/step.dart';
@@ -11,27 +10,19 @@ import '../../00.common/widget/navigator/notifier_navigator.dart';
 import '../../00.common/l10n/strings.dart';
 import 'net_combat_manager.dart';
 
-class NetCombatPage extends OnlineGamePage<NetCombatManager> {
-  const NetCombatPage({super.key, required super.room});
+class NetCombatPage extends StatelessWidget {
+  final SocketClient room;
+
+  const NetCombatPage({super.key, required this.room});
 
   @override
-  String get gameName => 'elementalBattle';
-
-  @override
-  NetCombatManager createManager() => NetCombatManager(room: room);
-
-  @override
-  GameSession sessionOf(NetCombatManager manager) => manager.turnSession;
-
-  @override
-  Widget buildGame(
-    BuildContext context,
-    NetCombatManager manager,
-    VoidCallback requestExit,
-  ) => _CombatGame(manager: manager, onExit: requestExit);
-
-  @override
-  void disposeManager(NetCombatManager manager) => manager.dispose();
+  Widget build(BuildContext context) => OnlineGameHost<NetCombatManager>(
+    createManager: () => NetCombatManager(room: room),
+    engineOf: (manager) => manager.turnEngine,
+    disposeManager: (manager) => manager.dispose(),
+    pageBuilder: (_, manager, requestExit) =>
+        _CombatGame(manager: manager, onExit: requestExit),
+  );
 }
 
 class _CombatGame extends StatelessWidget {
@@ -49,7 +40,7 @@ class _CombatGame extends StatelessWidget {
 
   Widget _buildPage(BuildContext context) {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: _manager.turnSession.gameStep,
+      valueListenable: _manager.turnEngine.gameStep,
       builder: (__, step, _) {
         if (step.index == GameStep.action.index) {
           return _buildGame(step);
@@ -69,8 +60,14 @@ class _CombatGame extends StatelessWidget {
 
           ...FoundationalCombatWidget(combatManager: _manager).buildPage(),
 
-          Expanded(child: MessageList(channel: _manager.turnSession)),
-          MessageInput(channel: _manager.turnSession),
+          Expanded(
+            child: MessageList(
+              identity: _manager.turnEngine.identity,
+              userName: _manager.turnEngine.userName,
+              messageList: _manager.turnEngine.gameMessageList,
+            ),
+          ),
+          MessageInput(onSendText: _manager.turnEngine.sendGameText),
         ],
       ),
     );

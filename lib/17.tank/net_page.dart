@@ -1,35 +1,25 @@
-import '../00.common/network/client/game_session.dart';
-import '../00.common/widget/navigator/online_game_page.dart';
-
 import 'package:flutter/material.dart';
 
+import '../00.common/network/client/socket_client.dart';
+import '../00.common/widget/navigator/online_game_host.dart';
 import '../00.common/game/step.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import 'foundation_widget.dart';
 import 'net_manager.dart';
 
-class NetTankPage extends OnlineGamePage<NetTankManager> {
-  const NetTankPage({super.key, required super.room});
+class NetTankPage extends StatelessWidget {
+  final SocketClient room;
+
+  const NetTankPage({super.key, required this.room});
 
   @override
-  String get gameName => 'tank';
-
-  @override
-  NetTankManager createManager() => NetTankManager(room: room);
-
-  @override
-  GameSession sessionOf(NetTankManager manager) => manager.realSession;
-
-  @override
-  Widget buildGame(
-    BuildContext context,
-    NetTankManager manager,
-    VoidCallback requestExit,
-  ) => _TankGame(manager: manager);
-
-  @override
-  void disposeManager(NetTankManager manager) => manager.dispose();
+  Widget build(BuildContext context) => OnlineGameHost<NetTankManager>(
+    createManager: () => NetTankManager(room: room),
+    engineOf: (manager) => manager.realEngine,
+    disposeManager: (manager) => manager.dispose(),
+    pageBuilder: (_, manager, _) => _TankGame(manager: manager),
+  );
 }
 
 class _TankGame extends StatelessWidget {
@@ -42,7 +32,7 @@ class _TankGame extends StatelessWidget {
 
   Widget _buildPage() {
     return ValueListenableBuilder<GameStep>(
-      valueListenable: _manager.realSession.gameStep,
+      valueListenable: _manager.realEngine.gameStep,
       builder: (_, step, __) {
         return step == GameStep.action
             ? TankGameScreen(manager: _manager, showStateButton: false)

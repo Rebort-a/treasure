@@ -3,11 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../00.common/model/app_item_type.dart';
-import '../00.common/network/client/real_game_session.dart';
+import '../00.common/network/client/net_real_engine.dart';
 import '../00.common/game/map.dart';
 import '../00.common/network/protocol/network_message.dart';
-import '../00.common/network/client/network_engine.dart';
-import '../00.common/network/client/net_real_engine.dart';
+import '../00.common/network/client/socket_client.dart';
 import '../00.common/tool/convert_utils.dart';
 import 'base.dart';
 import 'foundation_manager.dart';
@@ -32,7 +31,7 @@ enum TankAction {
 /// AI、生成、道具和命中由权威方产生，但包括权威方自己在内，所有端都要
 /// 等服务器回环后才应用事件。
 class NetTankManager extends TankGameManager {
-  late final RealGameSession realSession;
+  late final NetRealEngine realEngine;
 
   final Set<int> _pendingSyncIds = {};
   final Set<int> _pendingEnemySpawns = {};
@@ -44,24 +43,25 @@ class NetTankManager extends TankGameManager {
   int _syncId = 0;
   bool _fireRequestPending = false;
 
-  NetTankManager({required NetworkEngine room}) {
-    realSession = createRealSession(
-      room: room,
-      maxPlayers: OnlineItemType.tryFromRoomType(room.roomType)?.maxGamePlayers,
-      searchHandler: _handleSearch,
-      resourceHandler: _handleResource,
-      syncHandler: _handleSync,
-      actionHandler: _handleAction,
-      exitHandler: _handleEnd,
-    );
+  NetTankManager({required SocketClient room}) {
+    realEngine = NetRealEngine.forClient(room)
+      ..configureGame(
+        maxPlayers: OnlineItemType.tryFromRoomType(room.roomType)
+            ?.maxGamePlayers,
+        searchHandler: _handleSearch,
+        resourceHandler: _handleResource,
+        syncHandler: _handleSync,
+        actionHandler: _handleAction,
+        exitHandler: _handleEnd,
+      );
     initTicker();
-    realSession.ended.addListener(suspendGame);
+    realEngine.ended.addListener(suspendGame);
   }
 
   @override
-  int get identity => realSession.identity;
+  int get identity => realEngine.identity;
 
-  int? get authorityId => realSession.publisherId;
+  int? get authorityId => realEngine.publisherId;
 
   @override
   bool get isAuthority => identity == authorityId;
@@ -143,7 +143,7 @@ class NetTankManager extends TankGameManager {
               .where((entry) => entry.value.isPlayer)
               .map((entry) => entry.key),
         );
-      realSession.sendNetworkMessage(
+      realEngine.sendGameMessage(
         MessageType.sync,
         json.encode({'match': _matchId, 'sync': _syncId}),
       );
@@ -167,7 +167,7 @@ class NetTankManager extends TankGameManager {
 
   void _resumeWhenSynchronized() {
     if (_pendingSyncIds.isNotEmpty) return;
-    if (!realSession.completeSynchronization()) return;
+    if (!realEngine.completeSynchronization()) return;
     resumeGame();
   }
 
@@ -414,7 +414,7 @@ class NetTankManager extends TankGameManager {
     TankAction action, [
     Map<String, dynamic> payload = const {},
   ]) {
-    realSession.sendNetworkMessage(
+    realEngine.sendGameMessage(
       MessageType.action,
       json.encode({
         'actionType': action.name,
@@ -426,7 +426,7 @@ class NetTankManager extends TankGameManager {
   }
 
   void _sendSnapshot([Map<String, dynamic>? proposed]) {
-    realSession.sendNetworkMessage(
+    realEngine.sendGameMessage(
       MessageType.resource,
       json.encode({
         'match': _matchId,
@@ -438,12 +438,13 @@ class NetTankManager extends TankGameManager {
 
   @override
   void leavePage() {
-    realSession.leavePage();
+    realEngine.leavePage();
   }
 
   @override
   void dispose() {
-    realSession.dispose();
+    realEngine.ended.removeListener(suspendGame);
+    realEngine.releaseGame();
     super.dispose();
   }
 }

@@ -94,6 +94,8 @@ void main() {
       expect(page.room.isJoined, isTrue);
       expect(page.room.userName, 'Alice');
       expect(page.room.roomType, 3);
+      expect(page.gamePageBuilder, isNotNull);
+      expect(page.gameName, 'gobang');
       expect(h.server.members, {page.room.identity: 'Alice'});
       expect(find.byType(NetChatPage), findsOneWidget);
       expect(find.byType(JoinRoomDialog), findsNothing);

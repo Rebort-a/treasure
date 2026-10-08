@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/network/client/turn_game_session.dart';
-import 'package:treasure/00.common/network/client/network_engine.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/02.lan_chat/net_manager.dart';
@@ -31,11 +32,12 @@ void main() {
   test('关闭和销毁幂等，结束对局并释放房间通知器', () async {
     final h = RoomHarness(3);
     await h.server.start();
-    TurnGameSession? game;
+    NetTurnEngine? game;
     try {
       final room = await h.join('A');
+      final chat = room.chat;
       game = startGame(
-        TurnGameSession(
+        configureTurnEngine(
           room: room,
           resourceMode: TurnResourceMode.none,
           actionHandler: (_, __) {},
@@ -45,6 +47,7 @@ void main() {
       final closed = room.close();
       expect(identical(closed, room.close()), isTrue);
       expect(game.ended.value, isTrue);
+      chat.dispose();
       room.dispose();
       room.dispose();
       await closed;
@@ -55,11 +58,11 @@ void main() {
         throwsFlutterError,
       );
       expect(() => room.members.addListener(listener), throwsFlutterError);
-      expect(() => room.messageList.addListener(listener), throwsFlutterError);
+      expect(() => chat.messageList.addListener(listener), throwsFlutterError);
       expect(() => room.status.addListener(listener), throwsFlutterError);
       room.sendNetworkMessage(MessageType.text, '销毁后不发送');
     } finally {
-      game?.dispose();
+      game?.releaseGame();
       await h.close();
     }
   });
@@ -101,7 +104,7 @@ void main() {
   test('连接尚未建立时销毁，迟到的连接不会入房或触发重连', () async {
     final h = RoomHarness(0);
     await h.server.start();
-    final room = NetworkEngine(
+    final room = SocketClient(
       userName: 'A',
       endpoint: RoomInfo(
         name: 'Test',

@@ -8,7 +8,7 @@ import '../00.common/network/broadcast_discovery.dart';
 import '../00.common/network/protocol/network_message.dart';
 import '../00.common/network/protocol/network_room.dart';
 import '../00.common/network/server/socket_server.dart';
-import '../00.common/network/client/network_engine.dart';
+import '../00.common/network/client/socket_client.dart';
 import 'room_type_picker.dart';
 import '../00.common/l10n/strings.dart';
 import 'player_settings.dart';
@@ -39,7 +39,7 @@ class HomeManager {
   final Discovery _discovery = Discovery();
   final Map<SocketServer, VoidCallback> _serverListeners = {};
   late final Future<void> _playerSettingsReady;
-  NetworkEngine? _pendingRoom;
+  SocketClient? _pendingRoom;
   bool _joiningRoom = false;
   bool _disposed = false;
 
@@ -223,7 +223,7 @@ class HomeManager {
         if (!context.mounted || _disposed) return;
         final name = PlayerSettings.instance.defaultName.value.trim();
         final password = room is CreatedRoomInfo ? room.password : null;
-        final dialog = DialogRoute<NetworkEngine>(
+        final dialog = DialogRoute<SocketClient>(
           context: context,
           barrierDismissible: false,
           builder: (_) => JoinRoomDialog(

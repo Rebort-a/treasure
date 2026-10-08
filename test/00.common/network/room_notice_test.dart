@@ -2,8 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/model/chat_channel.dart';
-import 'package:treasure/00.common/network/client/turn_game_session.dart';
+import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/l10n/app_localizations.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/model/chat_message.dart';
@@ -41,7 +40,13 @@ Widget _chat(Locale locale, _Chat channel) => MaterialApp(
   locale: locale,
   supportedLocales: AppLocalizations.supportedLocales,
   localizationsDelegates: AppLocalizations.localizationsDelegates,
-  home: Scaffold(body: MessageList(channel: channel)),
+  home: Scaffold(
+    body: MessageList(
+      identity: channel.identity,
+      userName: channel.userName,
+      messageList: channel.messageList,
+    ),
+  ),
 );
 
 void main() {
@@ -193,16 +198,18 @@ void main() {
     }
   });
 
-  test('房间加入、搜索和断开通知均由服务端发送', () async {
+  test('房间加入、搜索和断开通知均由服务端发送，搜索同时原样转发', () async {
     HttpOverrides.global = null;
     final h = RoomHarness(3);
-    TurnGameSession? game;
-    TurnGameSession? opponent;
+    NetTurnEngine? game;
+    NetTurnEngine? opponent;
     await h.server.start();
     try {
       final observer = await h.join('Observer');
       await LanguageProvider.instance.setLocale(AppLocale.zh);
       final alice = await h.join('Alice');
+      final wire = <NetworkMessage>[];
+      observer.addMessageListener(wire.add);
       List<NoticeType?> received() => observer.messageList.value
           .where((m) => m.type == MessageType.notify && m.source == 'Alice')
           .map((m) => RoomNotification.tryFromContent(m.content)?.type)
@@ -225,16 +232,24 @@ void main() {
         alice.identity,
       );
       game = startGame(
-        TurnGameSession(
+        configureTurnEngine(
           room: alice,
           resourceMode: TurnResourceMode.none,
           actionHandler: (_, __) {},
           exitHandler: () {},
         ),
       );
+      // 搜索同时产生展示通知和原样转发的原始消息。
       await waitFor(() => received().contains(NoticeType.search));
+      await waitFor(
+        () => wire.any(
+          (message) =>
+              message.type == MessageType.search &&
+              message.id == alice.identity,
+        ),
+      );
       opponent = startGame(
-        TurnGameSession(
+        configureTurnEngine(
           room: observer,
           resourceMode: TurnResourceMode.none,
           actionHandler: (_, __) {},
@@ -245,13 +260,13 @@ void main() {
         () => game!.readyToOpen.value && opponent!.readyToOpen.value,
       );
       await LanguageProvider.instance.setLocale(AppLocale.en);
-      game.finish();
+      game.finishGame();
       await alice.close();
       await waitFor(() => received().contains(NoticeType.left));
       expect(received(), [NoticeType.join, NoticeType.search, NoticeType.left]);
     } finally {
-      game?.dispose();
-      opponent?.dispose();
+      game?.releaseGame();
+      opponent?.releaseGame();
       await h.close();
     }
   });
@@ -277,16 +292,10 @@ void main() {
   });
 }
 
-class _Chat implements ChatChannel {
-  @override
+class _Chat {
   int get identity => 2;
-  @override
   String get userName => 'Bob';
-  @override
   final messageList = ListNotifier<NetworkMessage>([]);
-  @override
-  void sendText(String text) {}
-
   void dispose() {
     messageList.dispose();
   }

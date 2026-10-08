@@ -2,17 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/network/client/network_engine.dart';
+import '../00.common/network/client/socket_client.dart';
 import '../00.common/model/notifiers.dart';
 
-/// 聊天室持有已认证的房间引擎，并独立处理页面生命周期。
+/// 聊天室导航管理器；离房先关闭连接，最终引擎和连接的释放归聊天室页面。
 class NetManager {
-  final NetworkEngine room;
+  final SocketClient room;
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
   bool _leaving = false;
 
-  NetManager({required NetworkEngine room}) : room = room;
+  NetManager({required SocketClient room}) : room = room;
 
   void leavePage() {
     if (_leaving) return;
@@ -27,7 +27,6 @@ class NetManager {
   }
 
   void dispose() {
-    room.dispose();
     pageNavigator.dispose();
   }
 }
