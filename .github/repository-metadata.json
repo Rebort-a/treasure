@@ -1,0 +1,19 @@
+{
+  "repository": "Rebort-a/treasure",
+  "displayName": "Treasure",
+  "slogan": "六端为一，无界互联",
+  "description": "Flutter game lab with 16 games, LAN multiplayer, and a Dart voxel renderer. Explore readable game rules and reusable networking.",
+  "homepage": "https://rebort-a.github.io/treasure/",
+  "topics": [
+    "flutter",
+    "dart",
+    "flutter-games",
+    "game-development",
+    "multiplayer",
+    "lan",
+    "cross-platform",
+    "voxel",
+    "open-source",
+    "educational"
+  ]
+}

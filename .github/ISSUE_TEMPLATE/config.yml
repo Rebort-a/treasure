@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Browser demo / 在线体验
+    url: https://rebort-a.github.io/treasure/
+    about: Try local games in your browser; see README for LAN and storage limitations.
+  - name: Architecture and quality notes / 架构与质量说明
+    url: https://github.com/Rebort-a/treasure/blob/main/docs/architecture.md
+    about: Read dependency boundaries and the documented remaining work.

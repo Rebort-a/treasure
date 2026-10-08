@@ -1,0 +1,54 @@
+name: Bug report / 问题反馈
+description: Report a reproducible game, layout, storage, or LAN issue.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Treasure. Please do not include private IP addresses, room passwords, personal files, or tokens in screenshots and logs.
+        感谢反馈。请勿在截图和日志中包含敏感网络信息、房间密码、个人文件或令牌。
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit / 版本或提交
+      placeholder: "v1.3.0, commit hash, or Web demo"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / 平台
+      options:
+        - Android
+        - iOS
+        - Windows
+        - macOS
+        - Linux
+        - Web
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, browser, and device / 系统、浏览器与设备
+    validations:
+      required: true
+  - type: input
+    id: module
+    attributes:
+      label: Game or module / 游戏或模块
+      placeholder: "Match Three, Minecraft, LAN Chat..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps / 复现步骤
+      description: Include expected and actual behavior. For LAN issues, say which platform hosts the room and whether you joined by discovery or address.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or sanitized logs / 截图或脱敏日志
+      description: Attach a short recording if helpful. Remove sensitive information first.

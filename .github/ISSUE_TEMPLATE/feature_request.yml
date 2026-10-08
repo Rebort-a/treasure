@@ -1,0 +1,26 @@
+name: Feature or contribution idea / 功能与贡献建议
+description: Suggest a focused improvement or offer to help.
+title: "[Idea]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve? / 要解决什么问题？
+      description: Explain the player or developer use case rather than only naming a feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change / 改进建议
+      description: A small, testable improvement is preferred over a repository-wide rewrite.
+    validations:
+      required: true
+  - type: dropdown
+    id: help
+    attributes:
+      label: Would you like to help? / 是否愿意参与？
+      options:
+        - I can implement it / 可以实现
+        - I can test or document it / 可以测试或完善文档
+        - I am sharing an idea / 仅提供建议

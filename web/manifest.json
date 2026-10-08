@@ -1,11 +1,11 @@
 {
-    "name": "Treasure",
+    "name": "Treasure — Flutter Game Lab",
     "short_name": "Treasure",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A cross-platform Flutter app collection",
+    "description": "An open-source Flutter game lab with 16 games, LAN multiplayer, and a Dart voxel renderer. 六端为一，无界互联。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -24,6 +24,8 @@
 
 ## 🎮 Play Now | 立即体验
 
+**[Play in browser](https://rebort-a.github.io/treasure/) · [Download native releases](https://github.com/Rebort-a/treasure/releases) · [Report a bug](https://github.com/Rebort-a/treasure/issues/new/choose)**
+
 > **👉 [Click here to play in browser](https://rebort-a.github.io/treasure/)** 👈
 >
 > No install. No download. Just open and play.
@@ -292,8 +294,22 @@ CI 检查格式、静态分析、测试和覆盖率下限，并构建 Web；发�
 | ✅ Quality & Acceptance | [docs/quality.md](docs/quality.md) |
 | 📡 Network Flow | [docs/network-flow.md](docs/network-flow.md) |
 | 🎮 Match Three | [docs/match-three.md](docs/match-three.md) |
+| 📣 Sharing & Media Kit | [docs/visibility.md](docs/visibility.md) |
 | 🤝 Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 📋 Changelog | [CHANGELOG.md](CHANGELOG.md) |
+
+---
+
+## 🤝 Support & Contribute | 支持与参与
+
+If Treasure helped you understand a game rule or networking problem, consider starring it or sharing the specific module that helped. Useful feedback matters just as much: tell us your platform, what you tried, and what did not work.
+
+如果某个游戏内核或联机实现对你有帮助，欢迎 Star 或分享具体模块；同样欢迎提供可复现的体验反馈，而不只是增加关注数。
+
+- **Try it**: [browser demo](https://rebort-a.github.io/treasure/) or [native releases](https://github.com/Rebort-a/treasure/releases).
+- **Give feedback**: [report a reproducible issue](https://github.com/Rebort-a/treasure/issues/new/choose).
+- **Make a first contribution**: verify one platform flow, improve a translation, or add a focused regression test; see [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Share the project**: [media kit, post drafts, and repository setup](docs/visibility.md).
 
 ---
 

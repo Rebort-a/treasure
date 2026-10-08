@@ -1,46 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    Flutter 构建时根据 --base-href 替换此占位符。
+    自托管时需要同时调整下方 canonical 与分享预览的绝对地址。
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A cross-platform Flutter app collection">
+  <meta name="description" content="Treasure is an open-source Flutter game lab with 16 games, LAN multiplayer, and a Dart voxel renderer. 六端为一，无界互联。">
+  <link rel="canonical" href="https://rebort-a.github.io/treasure/">
 
-  <!-- iOS meta tags & icons -->
+  <!-- 在线体验页的链接分享预览；仓库预览图还需在 GitHub Settings 中上传。 -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Treasure">
+  <meta property="og:title" content="Treasure — Flutter Game Lab">
+  <meta property="og:description" content="16 games, LAN multiplayer, and a Dart voxel renderer. Read the rules, explore the engine, play in your browser. 六端为一，无界互联。">
+  <meta property="og:url" content="https://rebort-a.github.io/treasure/">
+  <meta property="og:image" content="https://rebort-a.github.io/treasure/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Treasure: Flutter game lab with Dart game cores, LAN multiplayer, and voxel rendering">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Treasure — Flutter Game Lab">
+  <meta name="twitter:description" content="16 games, LAN multiplayer, and a Dart voxel renderer. Open source and playable in your browser.">
+  <meta name="twitter:image" content="https://rebort-a.github.io/treasure/social-preview.png">
+  <meta name="twitter:image:alt" content="Treasure: Flutter game lab with Dart game cores, LAN multiplayer, and voxel rendering">
+
+  <!-- iOS 安装到主屏幕时使用的标题与图标。 -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="treasure">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
+  <!-- 浏览器标签页图标。 -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Treasure</title>
+  <title>Treasure — Flutter Games, LAN Multiplayer &amp; Dart Voxel Renderer</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
+    仍使用 Flutter 默认启动流程，不为推广加入追踪脚本或广告 SDK。
   -->
+  <noscript>
+    <h1>Treasure — Flutter Game Lab</h1>
+    <p>六端为一，无界互联。Explore 16 games, LAN multiplayer, and a Dart voxel renderer.</p>
+    <p>JavaScript is required to play. Native room hosting and browser connectivity have different capabilities.</p>
+    <p><a href="https://github.com/Rebort-a/treasure">Read the source and platform notes on GitHub</a></p>
+  </noscript>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
