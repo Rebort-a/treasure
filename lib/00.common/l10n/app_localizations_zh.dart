@@ -1242,6 +1242,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchLost => '步数用尽';
 
   @override
+  String get matchIceLeft => '剩余冰块';
+
+  @override
   String get coopConfirmLeave => '退出当前对局？其他成员可以继续，你将返回聊天室。';
 
   @override

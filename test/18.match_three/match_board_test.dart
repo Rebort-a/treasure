@@ -331,6 +331,50 @@ void main() {
     );
   });
 
+  test('结算期间分数逐帧累加，且只由消除动物产生', () {
+    final setup = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0});
+    final data = setup.toJson()
+      ..['targets'] = {'0': 1, '1': 1}
+      ..['collected'] = [0, 1, 0, 0, 0, 0]
+      ..['ice'] = List.filled(MatchBoard.cells, 0)
+      ..['score'] = setup.scoreTarget;
+    data['movesLeft'] = 3;
+    data['moveNumber'] = data['initialMoves'] - 3;
+    final board = MatchBoard.fromJson(data);
+
+    final result = board.playSwap(10, 2)!;
+
+    // 首帧是玩家交换，分数仍是结算前的分数。
+    expect(result.frames.first.score, setup.scoreTarget);
+    var previous = result.frames.first.score;
+    var increases = 0;
+    for (final frame in result.frames) {
+      expect(frame.score, greaterThanOrEqualTo(previous));
+      if (frame.score != previous) {
+        increases++;
+        // 分数只在消除帧增加，特效生成帧不直接加分。
+        expect(frame.phase, FramePhase.clear);
+      }
+      previous = frame.score;
+    }
+    expect(previous, board.score);
+    expect(previous, setup.scoreTarget + result.scoreGained);
+    expect(increases, greaterThan(1));
+    // 每个剩余步数生成的特效都触发一次消除，逐步加分而非一次结清。
+    final bonusIndex = result.frames.indexWhere(
+      (frame) => frame.phase == FramePhase.bonus,
+    );
+    final bonusCount = result.frames
+        .where((frame) => frame.phase == FramePhase.bonus)
+        .length;
+    expect(bonusIndex, greaterThanOrEqualTo(0));
+    final bonusScores = <int>{};
+    for (final frame in result.frames.skip(bonusIndex)) {
+      if (!bonusScores.contains(frame.score)) bonusScores.add(frame.score);
+    }
+    expect(bonusScores.length, greaterThanOrEqualTo(bonusCount + 1));
+  });
+
   test('步数归零结束，达成全部目标才获胜，结束后不再接受交换', () {
     final data = MatchBoard.random(seed: 15).toJson();
     data['movesLeft'] = 0;

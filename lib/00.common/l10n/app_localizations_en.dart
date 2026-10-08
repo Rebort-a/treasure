@@ -1250,6 +1250,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchLost => 'Out of moves';
 
   @override
+  String get matchIceLeft => 'Ice left';
+
+  @override
   String get coopConfirmLeave =>
       'Leave this game and return to chat? Other players can continue.';
 

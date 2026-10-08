@@ -456,6 +456,7 @@
   "matchNewRecord": "Congratulations, new record!",
   "matchBonusTime": "Bonus Time",
   "matchLost": "Out of moves",
+  "matchIceLeft": "Ice left",
   "coopConfirmLeave": "Leave this game and return to chat? Other players can continue.",
   "matchAnimals": "Frog|Fox|Cat|Chick|Pig|Bear"
 }

@@ -62,6 +62,46 @@ Future<Uint8List> _pixels(
 void main() {
   setUp(() => LanguageProvider.instance.resetForTesting());
 
+  testWidgets('目标条目左侧是图标，右侧两行显示名称与数字', (tester) async {
+    final manager = MatchManager(seed: 100);
+    addTearDown(manager.dispose);
+    await tester.pumpWidget(_app(manager));
+    await tester.pump();
+    final view = manager.view.value!;
+
+    // 第一行是动物名称，第二行是原来的收集进度。
+    final entries = view.targets.entries.toList();
+    for (final entry in entries) {
+      expect(find.text(S.matchAnimalNames[entry.key]), findsOneWidget);
+      expect(
+        find.text(
+          '${view.collected[entry.key].clamp(0, entry.value)} / ${entry.value}',
+        ),
+        findsOneWidget,
+      );
+    }
+    // 名称靠左、数字保持居中，两行占同一宽度。
+    final first = entries.first;
+    final label = find.text(S.matchAnimalNames[first.key]);
+    final value = find.text(
+      '${view.collected[first.key].clamp(0, first.value)} / ${first.value}',
+    );
+    expect(
+      tester.renderObject<RenderParagraph>(label).textAlign,
+      TextAlign.left,
+    );
+    expect(
+      tester.renderObject<RenderParagraph>(value).textAlign,
+      TextAlign.center,
+    );
+    expect(tester.getSize(label).width, tester.getSize(value).width);
+    // 冰块目标第一行显示剩余冰块，第二行是冰块数量。
+    expect(find.text(S.matchIceLeft), findsOneWidget);
+    expect(find.text('${view.iceLeft}'), findsWidgets);
+    expect(find.byIcon(Icons.ac_unit_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('随机目标与棋盘可见，交换与重开均有效', (tester) async {
     final manager = MatchManager(seed: 100);
     addTearDown(manager.dispose);

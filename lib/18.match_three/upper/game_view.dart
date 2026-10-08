@@ -324,7 +324,7 @@ class MatchGameView extends StatelessWidget {
     builder: (context, constraints) {
       final iconSize = (constraints.maxWidth - 16) / MatchBoard.side;
       final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-      final valueWidth = 56 * textScale;
+      final valueWidth = 64 * textScale;
       return Wrap(
         spacing: 8,
         runSpacing: 4,
@@ -332,6 +332,7 @@ class MatchGameView extends StatelessWidget {
           for (final entry in view.targets.entries)
             _goal(
               context,
+              S.matchAnimalNames[entry.key],
               '${view.collected[entry.key].clamp(0, entry.value)} / ${entry.value}',
               view.collected[entry.key] >= entry.value,
               SizedBox(
@@ -345,11 +346,11 @@ class MatchGameView extends StatelessWidget {
                   ),
                 ),
               ),
-              iconSize: iconSize,
               valueWidth: valueWidth,
             ),
           _goal(
             context,
+            S.matchIceLeft,
             '${view.iceLeft}',
             view.iceLeft == 0,
             SizedBox(
@@ -361,7 +362,6 @@ class MatchGameView extends StatelessWidget {
                 size: iconSize * 0.72,
               ),
             ),
-            iconSize: iconSize,
             valueWidth: valueWidth,
           ),
         ],
@@ -369,12 +369,16 @@ class MatchGameView extends StatelessWidget {
     },
   );
 
+  /// 目标条目：左侧图标，右侧两行。第一行是名称或"剩余冰块"并靠左，
+  /// 第二行是原数字并保持居中。
+  ///
+  /// 右侧宽度沿用 [valueWidth] 不再加宽，仅靠行高增加容纳两行文字。
   Widget _goal(
     BuildContext context,
+    String label,
     String value,
     bool done,
     Widget icon, {
-    required double iconSize,
     required double valueWidth,
   }) => Container(
     padding: const EdgeInsets.only(left: 4, right: 0, top: 2, bottom: 2),
@@ -388,7 +392,6 @@ class MatchGameView extends StatelessWidget {
         icon,
         SizedBox(
           width: valueWidth,
-          height: iconSize,
           child: done
               ? const Center(
                   child: Icon(
@@ -397,15 +400,31 @@ class MatchGameView extends StatelessWidget {
                     color: Color(0xFF469D78),
                   ),
                 )
-              : Align(
-                  alignment: Alignment.center,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    softWrap: false,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  // SizedBox 已给定固定宽度，stretch 让两行都占满该宽度：
+                  // 名称靠左，数字保持原来的居中。
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.left,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.1,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      value,
+                      maxLines: 1,
+                      softWrap: false,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
         ),
       ],

@@ -412,6 +412,7 @@
   "matchNewRecord": "恭喜突破记录！",
   "matchBonusTime": "Bonus Time",
   "matchLost": "步数用尽",
+  "matchIceLeft": "剩余冰块",
   "coopConfirmLeave": "退出当前对局？其他成员可以继续，你将返回聊天室。",
   "matchAnimals": "青蛙|狐狸|小猫|小鸡|小猪|小熊"
 }

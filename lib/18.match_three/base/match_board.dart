@@ -25,6 +25,9 @@ class BoardFrame {
   final Set<int> clearing;
   final Set<int> spawnedPieceIds;
   final int movesLeft;
+
+  /// 分数快照，结算期间每触发一次消除就前进一格，而不是一次跳到总分。
+  final int score;
   final FramePhase phase;
 
   BoardFrame(
@@ -33,11 +36,13 @@ class BoardFrame {
     Set<int> clearing = const {},
     Set<int> spawnedPieceIds = const {},
     int? movesLeft,
+    int? score,
   ]) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
        clearing = Set.unmodifiable(clearing),
        spawnedPieceIds = Set.unmodifiable(spawnedPieceIds),
-       movesLeft = movesLeft ?? board.movesLeft;
+       movesLeft = movesLeft ?? board.movesLeft,
+       score = score ?? board.score;
 }
 
 class SwapResult {

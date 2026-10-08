@@ -27,6 +27,7 @@ class S {
   static String get matchNewRecord => _l.matchNewRecord;
   static String get matchBonusTime => _l.matchBonusTime;
   static String get matchLost => _l.matchLost;
+  static String get matchIceLeft => _l.matchIceLeft;
   static String get coopConfirmLeave => _l.coopConfirmLeave;
   static List<String> get matchAnimalNames => _l.matchAnimals.split('|');
 

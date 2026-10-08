@@ -19,7 +19,7 @@ class MatchView {
   final MatchStatus status;
 
   MatchView(MatchBoard board, this.frame)
-    : score = board.score,
+    : score = frame.score,
       scoreTarget = board.scoreTarget,
       movesLeft = frame.movesLeft,
       seed = board.seed,

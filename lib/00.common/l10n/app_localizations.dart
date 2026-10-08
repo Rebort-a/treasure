@@ -2372,6 +2372,12 @@ abstract class AppLocalizations {
   /// **'Out of moves'**
   String get matchLost;
 
+  /// No description provided for @matchIceLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Ice left'**
+  String get matchIceLeft;
+
   /// No description provided for @coopConfirmLeave.
   ///
   /// In en, this message translates to:

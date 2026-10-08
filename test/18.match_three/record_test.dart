@@ -83,6 +83,35 @@ void main() {
     expect(storage.writes, 1);
   });
 
+  testWidgets('结算期间界面分数逐帧累加，动画结束才等于总分', (tester) async {
+    final manager = MatchManager(seed: 7, storage: _MemoryStore(highScore: 1));
+    addTearDown(manager.dispose);
+    manager.loadState(_winningState());
+    final target = manager.board!.scoreTarget;
+
+    manager.swap(10, 2);
+    expect(manager.busy.value, isTrue);
+    // 首帧是交换帧，展示的仍是结算前的分数，而不是最终总分。
+    expect(manager.view.value!.score, target);
+
+    var previous = target;
+    var increases = 0;
+    for (var step = 0; step < 60 && manager.busy.value; step++) {
+      await tester.pump(const Duration(milliseconds: 150));
+      final score = manager.view.value!.score;
+      expect(score, greaterThanOrEqualTo(previous));
+      if (score > previous) {
+        increases++;
+        previous = score;
+      }
+    }
+
+    expect(manager.busy.value, isFalse);
+    expect(manager.board!.score, greaterThan(target));
+    expect(manager.view.value!.score, manager.board!.score);
+    expect(increases, greaterThan(1));
+  });
+
   testWidgets('失败局不会记录为破纪录', (tester) async {
     final storage = _MemoryStore(highScore: 1);
     final manager = MatchManager(seed: 9, storage: storage)
