@@ -324,7 +324,7 @@ class MatchGameView extends StatelessWidget {
     builder: (context, constraints) {
       final iconSize = (constraints.maxWidth - 16) / MatchBoard.side;
       final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-      final valueWidth = 64 * textScale;
+      final valueWidth = 60 * textScale;
       return Wrap(
         spacing: 8,
         runSpacing: 4,
@@ -369,8 +369,8 @@ class MatchGameView extends StatelessWidget {
     },
   );
 
-  /// 目标条目：左侧图标，右侧两行。第一行是名称或"剩余冰块"并靠左，
-  /// 第二行是原数字并保持居中。
+  /// 目标条目：左侧图标，右侧两行。第一行是名称或"剩余冰块"，
+  /// 第二行是原数字，两行都靠左显示。
   ///
   /// 右侧宽度沿用 [valueWidth] 不再加宽，仅靠行高增加容纳两行文字。
   Widget _goal(
@@ -402,8 +402,8 @@ class MatchGameView extends StatelessWidget {
                 )
               : Column(
                   mainAxisSize: MainAxisSize.min,
-                  // SizedBox 已给定固定宽度，stretch 让两行都占满该宽度：
-                  // 名称靠左，数字保持原来的居中。
+                  // SizedBox 已给定固定宽度，stretch 让两行都占满该宽度，
+                  // 名称与数字都从左侧开始。
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
@@ -421,7 +421,7 @@ class MatchGameView extends StatelessWidget {
                       value,
                       maxLines: 1,
                       softWrap: false,
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.left,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],

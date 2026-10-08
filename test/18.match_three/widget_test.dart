@@ -80,7 +80,7 @@ void main() {
         findsOneWidget,
       );
     }
-    // 名称靠左、数字保持居中，两行占同一宽度。
+    // 名称与数字都靠左，两行占同一宽度。
     final first = entries.first;
     final label = find.text(S.matchAnimalNames[first.key]);
     final value = find.text(
@@ -92,7 +92,7 @@ void main() {
     );
     expect(
       tester.renderObject<RenderParagraph>(value).textAlign,
-      TextAlign.center,
+      TextAlign.left,
     );
     expect(tester.getSize(label).width, tester.getSize(value).width);
     // 冰块目标第一行显示剩余冰块，第二行是冰块数量。
