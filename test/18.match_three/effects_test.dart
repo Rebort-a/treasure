@@ -27,6 +27,9 @@ void main() {
   testWidgets('补块从棋盘上方落入，随后稳定在目标格', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     final board = manager.board!;
     await tester.pumpWidget(_app(manager));
     // 用一个全新 ID 模拟补块，避免复用旧棋子的入场时钟。
@@ -61,6 +64,9 @@ void main() {
   testWidgets('合法交换在结算前沿轨迹移动，不跳到目标格', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager));
     final move = manager.board!.legalMoves.first;
     final id = manager.board!.pieces[move.$1]!.id;
@@ -83,6 +89,9 @@ void main() {
   testWidgets('四种特殊消除与破冰绘制不改规则状态，下一阶段撤下', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     final board = manager.board!;
     board.ice[0] = 1;
     manager.view.value = MatchView(
@@ -118,6 +127,9 @@ void main() {
   testWidgets('减少动画时不出现消除粒子，补块直接落位', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     final board = manager.board!;
     await tester.pumpWidget(_app(manager, reduceMotion: true));
     manager.view.value = MatchView(
@@ -145,6 +157,9 @@ void main() {
   testWidgets('消除时卸载页面释放粒子时钟', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager));
     manager.view.value = MatchView(
       manager.board!,

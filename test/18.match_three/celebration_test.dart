@@ -166,6 +166,8 @@ void main() {
     expect(manager.view.value!.score, 0);
     expect(replay, findsNothing);
     expect(_confetti, findsNothing);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
   });
 
   testWidgets('失败结算不撒花', (tester) async {

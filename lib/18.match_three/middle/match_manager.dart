@@ -42,12 +42,14 @@ class MatchManager {
   bool _disposed = false;
   final Map<Timer, Completer<void>> _pendingDelays = {};
   bool reduceMotion = false;
+  int _roundNumber = 0;
 
   MatchManager({bool generate = true, int? seed}) {
     if (generate) restart(seed: seed);
   }
 
   MatchBoard? get board => _board;
+  int get roundNumber => _roundNumber;
   bool get canInteract =>
       !_disposed &&
       !busy.value &&
@@ -68,7 +70,7 @@ class MatchManager {
     comboPraise.value = null;
     bonusTime.value = false;
     selected.value = null;
-    _show(BoardFrame(_board!, FramePhase.settled));
+    _startBoardEntrance();
   }
 
   void selectCell(int index) {
@@ -157,6 +159,12 @@ class MatchManager {
   void loadState(Map<String, dynamic> data) {
     _cancelDelays();
     final next = MatchBoard.fromJson(data);
+    final isNewRound =
+        next.moveNumber == 0 &&
+        (view.value == null ||
+            _board == null ||
+            _board!.seed != next.seed ||
+            _board!.moveNumber > 0);
     SwapResult? result;
     if (_publishedResult != null &&
         _board?.moveNumber == next.moveNumber &&
@@ -189,8 +197,44 @@ class MatchManager {
       comboMultiplier.value = null;
       comboPraise.value = null;
       bonusTime.value = false;
-      _show(BoardFrame(next, FramePhase.settled));
+      if (isNewRound) {
+        _startBoardEntrance();
+      } else {
+        _show(BoardFrame(next, FramePhase.settled));
+      }
     }
+  }
+
+  void _startBoardEntrance() {
+    final board = _board!;
+    final epoch = ++_animationEpoch;
+    _roundNumber++;
+    if (reduceMotion) {
+      busy.value = false;
+      _show(BoardFrame(board, FramePhase.settled));
+      return;
+    }
+    busy.value = true;
+    _show(BoardFrame.empty(board));
+    unawaited(() async {
+      // 留出空棋盘展示时间，新棋子挂载后复用补块入场动画。
+      await _delay(const Duration(milliseconds: 100));
+      if (_disposed || epoch != _animationEpoch) return;
+      if (!reduceMotion) {
+        _show(
+          BoardFrame(
+            board,
+            FramePhase.fall,
+            const {},
+            board.pieces.whereType<Piece>().map((piece) => piece.id).toSet(),
+          ),
+        );
+        await _delay(const Duration(milliseconds: 220));
+        if (_disposed || epoch != _animationEpoch) return;
+      }
+      _show(BoardFrame(board, FramePhase.settled));
+      busy.value = false;
+    }());
   }
 
   void _show(BoardFrame frame) {

@@ -4,7 +4,7 @@ import '../../l10n/strings.dart';
 import '../../widget/component/game_replay_board.dart';
 import '../client/base/game_engine.dart';
 
-/// 只遮罩棋盘，结束后仍允许使用页面导航和局内聊天。
+/// 只在棋盘中央显示重开或等待底板，结束后仍允许使用页面导航和局内聊天。
 class RoundReplayBoard extends StatelessWidget {
   final GameEngine engine;
   final Widget child;

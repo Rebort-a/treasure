@@ -21,6 +21,7 @@ import '../middle/player.dart';
 import 'dialog.dart';
 import 'cast_page.dart';
 import 'local_combat_page.dart';
+import 'maze_combat_route.dart';
 import '../upper/package_page.dart';
 import '../upper/skill_page.dart';
 import '../upper/status_page.dart';
@@ -339,7 +340,7 @@ class MazeManager {
     if (_stopActive()) {
       Navigator.push(
         context,
-        MaterialPageRoute(
+        MazeCombatRoute(
           builder: (context) => LocalCombatPage(
             player: player,
             enemy: enemy,
@@ -349,7 +350,7 @@ class MazeManager {
       ).then((value) {
         // 当页面弹出（即返回）时，这个回调会被执行
         _startActive(); // 重新启动定时器
-        if (value != null && value is ResultType) {
+        if (value != null) {
           if (value == ResultType.victory) {
             player.experience += 10 + 2 * enemy.grade;
             _mapData.entities.remove(enemy);

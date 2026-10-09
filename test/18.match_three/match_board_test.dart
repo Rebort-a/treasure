@@ -7,8 +7,9 @@ MatchBoard _pattern(
   Map<int, int> overrides, {
   Map<int, PieceEffect> effects = const {},
   Set<int> frozen = const {},
+  int seed = 7,
 }) {
-  final data = MatchBoard.random(seed: 7).toJson();
+  final data = MatchBoard.random(seed: seed).toJson();
   data['pieces'] = [
     for (var i = 0; i < MatchBoard.cells; i++)
       [
@@ -314,7 +315,7 @@ void main() {
           .where((frame) => frame.phase == FramePhase.bonus)
           .map((frame) => frame.movesLeft)
           .toList(),
-      [1, 0],
+      [2, 1, 0],
     );
     expect(result.initialMatchCount, 4);
     expect(
@@ -364,15 +365,97 @@ void main() {
     final bonusIndex = result.frames.indexWhere(
       (frame) => frame.phase == FramePhase.bonus,
     );
-    final bonusCount = result.frames
-        .where((frame) => frame.phase == FramePhase.bonus)
-        .length;
+    // 首个 bonus 帧只标记进入奖励阶段，其余才是步数转换。
+    final bonusCount =
+        result.frames.where((frame) => frame.phase == FramePhase.bonus).length -
+        1;
     expect(bonusIndex, greaterThanOrEqualTo(0));
     final bonusScores = <int>{};
     for (final frame in result.frames.skip(bonusIndex)) {
       if (!bonusScores.contains(frame.score)) bonusScores.add(frame.score);
     }
     expect(bonusScores.length, greaterThanOrEqualTo(bonusCount + 1));
+  });
+
+  test('Bonus 自动触发已有和掉落连锁生成的所有特效，步数耗尽仍继续结算', () {
+    var sawExistingSpecial = false;
+    var sawCascadeSpecial = false;
+    var sawCascadeSpecialWithoutMoves = false;
+    for (var seed = 1; seed <= 50; seed++) {
+      final setup = _pattern(
+        {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
+        effects: {50: PieceEffect.bomb, 60: PieceEffect.rainbow},
+        seed: seed,
+      );
+      final data = setup.toJson()
+        ..['targets'] = {'0': 1, '1': 1}
+        ..['collected'] = [0, 1, 0, 0, 0, 0]
+        ..['movesLeft'] = seed.isEven ? 1 : 3;
+      data['moveNumber'] = data['initialMoves'] - data['movesLeft'];
+      final board = MatchBoard.fromJson(data);
+      final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
+      final result = board.playSwap(10, 2)!;
+      mirror.playSwap(10, 2);
+      expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+      final bonusIndex = result.frames.indexWhere(
+        (frame) => frame.phase == FramePhase.bonus,
+      );
+      expect(bonusIndex, greaterThanOrEqualTo(0));
+      final bonusFrames = result.frames.skip(bonusIndex).toList();
+      final initialSpecialIds = {
+        for (final piece in bonusFrames.first.pieces.whereType<Piece>())
+          if (piece.effect != PieceEffect.none) piece.id,
+      };
+      sawExistingSpecial |= initialSpecialIds.isNotEmpty;
+      final triggeredIds = <int>{};
+      final cascadeSpecialIds = <int>{};
+      for (var i = 0; i < bonusFrames.length; i++) {
+        final frame = bonusFrames[i];
+        if (frame.phase != FramePhase.clear) continue;
+        triggeredIds.addAll({
+          for (final index in frame.clearing)
+            if (frame.pieces[index] case final Piece piece
+                when piece.effect != PieceEffect.none)
+              piece.id,
+        });
+        // 消除帧中保留下来的特效由连锁匹配生成，而非步数转换。
+        for (var index = 0; index < MatchBoard.cells; index++) {
+          final piece = frame.pieces[index];
+          if (piece == null ||
+              piece.effect == PieceEffect.none ||
+              frame.clearing.contains(index)) {
+            continue;
+          }
+          cascadeSpecialIds.add(piece.id);
+          if (frame.movesLeft == 0) sawCascadeSpecialWithoutMoves = true;
+          // 掉落后位置可变，但下一轮必须按同一个棋子 ID 自动触发。
+          final nextClear = bonusFrames
+              .skip(i + 1)
+              .firstWhere((next) => next.phase == FramePhase.clear);
+          expect(
+            nextClear.clearing.map((cell) => nextClear.pieces[cell]!.id),
+            contains(piece.id),
+            reason: 'seed=$seed, piece=${piece.id}',
+          );
+        }
+      }
+      sawCascadeSpecial |= cascadeSpecialIds.isNotEmpty;
+      expect(triggeredIds, containsAll(initialSpecialIds));
+      expect(triggeredIds, containsAll(cascadeSpecialIds));
+      expect(board.movesLeft, 0);
+      expect(board.status, MatchStatus.won);
+      expect(board.matchRuns(), isEmpty);
+      expect(
+        board.pieces.whereType<Piece>().every(
+          (piece) => piece.effect == PieceEffect.none,
+        ),
+        isTrue,
+      );
+    }
+    // 避免只验证没有产生新特效的局面，确保三种情况都实际发生。
+    expect(sawExistingSpecial, isTrue);
+    expect(sawCascadeSpecial, isTrue);
+    expect(sawCascadeSpecialWithoutMoves, isTrue);
   });
 
   test('步数归零结束，达成全部目标才获胜，结束后不再接受交换', () {

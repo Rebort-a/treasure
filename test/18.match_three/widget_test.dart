@@ -76,6 +76,9 @@ void main() {
   testWidgets('单机顶部只显示步数和当前分数，不显示分数进度条或联机板', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager));
     expect(find.text(S.matchScore), findsOneWidget);
     expect(find.text('${manager.view.value!.score}'), findsOneWidget);
@@ -113,6 +116,8 @@ void main() {
       client.dispose();
       manager.dispose();
     });
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
@@ -158,6 +163,9 @@ void main() {
   testWidgets('目标条目左侧是图标，右侧两行显示名称与数字', (tester) async {
     final manager = MatchManager(seed: 100);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager));
     await tester.pump();
     final view = manager.view.value!;
@@ -198,6 +206,9 @@ void main() {
   testWidgets('随机目标与棋盘可见，交换与重开均有效', (tester) async {
     final manager = MatchManager(seed: 100);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager));
     expect(find.byType(MatchBoardWidget), findsOneWidget);
     expect(find.text(S.matchThree), findsOneWidget);
@@ -241,6 +252,9 @@ void main() {
   testWidgets('滑动交换只推进一步，左右边界不会跨行', (tester) async {
     final manager = MatchManager(seed: 123);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager));
     await tester.ensureVisible(find.byKey(const ValueKey('match-board')));
     await tester.pump();
@@ -263,6 +277,9 @@ void main() {
   testWidgets('无效交换会短暂移动动物后复位且不消耗步数', (tester) async {
     final manager = MatchManager(seed: 100);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     final board = manager.board!;
     final invalidSwap = [
       for (var index = 0; index < MatchBoard.cells; index++)
@@ -318,6 +335,9 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final manager = MatchManager(seed: 99);
       addTearDown(manager.dispose);
+      // 本测试聚焦稳定棋盘，先完成开局入场。
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 220));
       await tester.pumpWidget(_app(manager, dark: dark, textScale: 2));
       await tester.drag(
         find.byType(SingleChildScrollView).first,
@@ -336,6 +356,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final manager = MatchManager(seed: 42);
     addTearDown(manager.dispose);
+    // 本测试聚焦稳定棋盘，先完成开局入场。
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     final key = GlobalKey();
     await tester.pumpWidget(_app(manager, reduceMotion: false, boundary: key));
     final moving = await _pixels(tester, key);
@@ -357,6 +380,8 @@ void main() {
 
   testWidgets('结算动画中卸载后不再写通知器或遗留 ticker', (tester) async {
     final manager = MatchManager(seed: 9);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 220));
     await tester.pumpWidget(_app(manager, reduceMotion: false));
     final swap = manager.board!.legalMoves.first;
     manager.swap(swap.$1, swap.$2);

@@ -47,6 +47,17 @@ class BoardFrame {
        spawnedPieceIds = Set.unmodifiable(spawnedPieceIds),
        movesLeft = movesLeft ?? board.movesLeft,
        score = score ?? board.score;
+
+  /// 开局只清空展示帧，不修改内核棋盘或消耗随机数。
+  BoardFrame.empty(MatchBoard board)
+    : pieces = List.unmodifiable(List<Piece?>.filled(MatchBoard.cells, null)),
+      ice = List.unmodifiable(board.ice),
+      collected = List.unmodifiable(board.collected),
+      clearing = const {},
+      spawnedPieceIds = const {},
+      movesLeft = board.movesLeft,
+      score = board.score,
+      phase = FramePhase.settled;
 }
 
 class SwapResult {
@@ -429,6 +440,42 @@ class MatchBoard {
     return spawnedPieceIds;
   }
 
+  /// 奖励期间的棋盘规则：每轮重新扫描所有特效，掉落连锁生成的特效也会在下一轮触发。
+  /// 步数转换只生成特效，不负责指定触发对象；步数耗尽后仍结算到稳定。
+  int _settleBonus({
+    required List<BoardFrame> frames,
+    required int a,
+    required int b,
+    required int multiplier,
+  }) {
+    var waves = 0;
+    // 与普通连锁一致保留有界保护，防止异常随机序列无限结算。
+    while (waves < 64) {
+      final runs = matchRuns();
+      final specials = {
+        for (var index = 0; index < cells; index++)
+          if (pieces[index] case final Piece piece
+              when piece.effect != PieceEffect.none)
+            index,
+      };
+      if (runs.isEmpty && specials.isEmpty) break;
+      final created = _createEffects(runs, a, b);
+      for (final entry in created.entries) {
+        final old = pieces[entry.key]!;
+        pieces[entry.key] = Piece(old.id, old.kind, entry.value);
+      }
+      _clearWave(
+        frames: frames,
+        initial: {...specials, for (final run in runs) ...run},
+        // 新特效先保留一轮展示，下一轮由棋盘自动扫描触发。
+        protected: created.keys.toSet(),
+        multiplier: multiplier + waves,
+      );
+      waves++;
+    }
+    return waves;
+  }
+
   SwapResult? playSwap(int a, int b) {
     if (status != MatchStatus.playing || !canSwap(a, b)) return null;
     final previousScore = score;
@@ -540,37 +587,16 @@ class MatchBoard {
       totalCleared += wave.cells.length;
       specialEffectsTriggered += wave.specialEffectsTriggered;
     }
-    final bonusMoves = status == MatchStatus.won ? movesLeft : 0;
-    var bonusCascade = 0;
     if (status == MatchStatus.won) {
-      final remainingSpecials = {
-        for (var index = 0; index < cells; index++)
-          if (pieces[index] case final Piece piece
-              when piece.effect != PieceEffect.none)
-            index,
-      };
-      while (bonusCascade < 64) {
-        final bonusRuns = matchRuns();
-        if (bonusRuns.isEmpty && remainingSpecials.isEmpty) break;
-        final created = remainingSpecials.isEmpty
-            ? _createEffects(bonusRuns, a, b)
-            : <int, PieceEffect>{};
-        for (final entry in created.entries) {
-          final old = pieces[entry.key]!;
-          pieces[entry.key] = Piece(old.id, old.kind, entry.value);
-        }
-        _clearWave(
-          frames: frames,
-          initial: {...remainingSpecials, for (final run in bonusRuns) ...run},
-          protected: created.keys.toSet(),
-          multiplier: cascades + bonusCascade + 1,
-        );
-        remainingSpecials.clear();
-        bonusCascade++;
-      }
-    }
-    if (bonusMoves > 0) {
-      for (var move = 0; move < bonusMoves; move++) {
+      // 先进入奖励阶段，再触发已有特效；即使没有剩余步数也适用。
+      frames.add(BoardFrame(this, FramePhase.bonus));
+      var bonusCascade = _settleBonus(
+        frames: frames,
+        a: a,
+        b: b,
+        multiplier: cascades + 1,
+      );
+      while (movesLeft > 0) {
         final index = _next(cells);
         final piece = pieces[index]!;
         pieces[index] = Piece(
@@ -581,27 +607,12 @@ class MatchBoard {
         movesLeft--;
         moveNumber++;
         frames.add(BoardFrame(this, FramePhase.bonus));
-        final bonusForced = {index};
-        var bonusMoveCascade = 0;
-        while (bonusMoveCascade < 64) {
-          final bonusRuns = matchRuns();
-          if (bonusRuns.isEmpty && bonusForced.isEmpty) break;
-          final created = bonusForced.isEmpty
-              ? _createEffects(bonusRuns, a, b)
-              : <int, PieceEffect>{};
-          for (final entry in created.entries) {
-            final old = pieces[entry.key]!;
-            pieces[entry.key] = Piece(old.id, old.kind, entry.value);
-          }
-          _clearWave(
-            frames: frames,
-            initial: {...bonusForced, for (final run in bonusRuns) ...run},
-            protected: created.keys.toSet(),
-            multiplier: cascades + bonusCascade + bonusMoveCascade + 1,
-          );
-          bonusForced.clear();
-          bonusMoveCascade++;
-        }
+        bonusCascade += _settleBonus(
+          frames: frames,
+          a: a,
+          b: b,
+          multiplier: cascades + bonusCascade + 1,
+        );
       }
     }
     _ensurePlayable();

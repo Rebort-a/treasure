@@ -94,6 +94,7 @@ class MatchGameView extends StatelessWidget {
                                         !bonus,
                                     onReplay: manager.restart,
                                     child: MatchBoardWidget(
+                                      key: ValueKey(manager.roundNumber),
                                       manager: manager,
                                       view: view,
                                     ),
@@ -104,6 +105,7 @@ class MatchGameView extends StatelessWidget {
                           RoundReplayBoard(
                             engine: engine!,
                             child: MatchBoardWidget(
+                              key: ValueKey(manager.roundNumber),
                               manager: manager,
                               view: view,
                             ),
@@ -263,7 +265,7 @@ class MatchGameView extends StatelessWidget {
       children: [
         Expanded(child: _movesMetric(context, view.movesLeft)),
         const SizedBox(width: 12),
-        Expanded(child: _metric(S.matchScore, '${view.score}')),
+        Expanded(child: _scoreMetric(context, view.score)),
         if (engine != null) ...[
           const SizedBox(width: 12),
           Expanded(child: _team(context)),
@@ -272,16 +274,29 @@ class MatchGameView extends StatelessWidget {
     ),
   );
 
-  Widget _metric(String label, String value) => Column(
+  Widget _scoreMetric(BuildContext context, int score) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
       Text(
-        value,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.w800,
+        S.matchScore,
+        style: const TextStyle(color: Colors.white70, fontSize: 12),
+      ),
+      TweenAnimationBuilder<double>(
+        // 新局重建数字动画，避免沿用上一局的分数向下滚动。
+        key: ValueKey(manager.roundNumber),
+        tween: Tween(begin: score.toDouble(), end: score.toDouble()),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        builder: (_, value, __) => Text(
+          '${value.round()}',
+          key: const ValueKey('match-score'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     ],

@@ -8,7 +8,7 @@ import '../middle/match_manager.dart';
 /// 结算后的一次性撒花层，不占布局空间，也不拦截重开、聊天等操作。
 class MatchCelebration extends StatefulWidget {
   /// 仅决定庆祝强度，不作为通关条件，也不保存历史成绩。
-  static const richScoreThreshold = 3000;
+  static const richScoreThreshold = 6000;
   final MatchManager manager;
   final Widget child;
 
