@@ -1,23 +1,35 @@
 import '../../00.common/network/client/net_multi_turn_engine.dart';
 import '../../00.common/network/client/socket_client.dart';
 import 'match_manager.dart';
+import '../base/match_board.dart';
 
 /// 联机实现留在游戏模块内部，外部只需要 NetMatchThreePage(room)。
 class NetMatchManager extends MatchManager {
   final NetMultiTurnEngine turnEngine;
   bool _released = false;
 
-  NetMatchManager({required SocketClient room, super.storage})
+  NetMatchManager({required SocketClient room})
     : turnEngine = NetMultiTurnEngine.forClient(room),
       super(generate: false) {
     turnEngine.configureTurns(
       saveState: saveState,
       loadState: loadState,
       applyAction: applyNetworkAction,
+      resetRound: resetNetworkRound,
     );
     turnEngine.currentPlayer.addListener(refreshView);
     turnEngine.synchronized.addListener(refreshView);
     turnEngine.pendingAction.addListener(refreshView);
+    view.addListener(_checkRoundFinished);
+    busy.addListener(_checkRoundFinished);
+  }
+
+  void _checkRoundFinished() {
+    if (!busy.value &&
+        view.value?.status != null &&
+        view.value!.status != MatchStatus.playing) {
+      turnEngine.completeRound();
+    }
   }
 
   @override
@@ -44,6 +56,8 @@ class NetMatchManager extends MatchManager {
     turnEngine.currentPlayer.removeListener(refreshView);
     turnEngine.synchronized.removeListener(refreshView);
     turnEngine.pendingAction.removeListener(refreshView);
+    view.removeListener(_checkRoundFinished);
+    busy.removeListener(_checkRoundFinished);
     turnEngine.releaseGame();
     super.dispose();
   }

@@ -48,6 +48,8 @@ class RoomChatEngine {
   /// 搜索状态属于房间引擎，不由连接或额外的短期对象持有。
   final matchPhase = ValueNotifier(RoomMatchPhase.idle);
   final LinkedHashSet<int> _searchCandidates = LinkedHashSet<int>();
+  // 服务端先补发已有搜索者，再回环本人的搜索，按接收顺序记录本次准备先后。
+  final LinkedHashSet<int> _searchOrder = LinkedHashSet<int>();
   final Set<int> _triedCandidates = {};
   Timer? _candidateTimer;
   Timer? _cooperativeOfferTimer;
@@ -152,6 +154,7 @@ class RoomChatEngine {
     _offered = false;
     _expectedConfirmation = null;
     _searchCandidates.clear();
+    _searchOrder.clear();
     _triedCandidates.clear();
     matchedOpponentId = 0;
     matchInitiated = false;
@@ -178,6 +181,7 @@ class RoomChatEngine {
     _offered = false;
     _expectedConfirmation = null;
     _searchCandidates.clear();
+    _searchOrder.clear();
     _triedCandidates.clear();
     matchedOpponentId = 0;
     matchInitiated = false;
@@ -212,7 +216,7 @@ class RoomChatEngine {
         ? MatchConfirmation.tryParse(message.content)
         : null;
     if (confirmation?.phase == MatchConfirmationPhase.abort &&
-        message.recipientId == identity &&
+        message.recipientIds.contains(identity) &&
         message.gameId != null) {
       _rememberAbort(message.id, message.gameId!, confirmation!.offerId);
       if (message.id == _candidateId &&
@@ -233,6 +237,7 @@ class RoomChatEngine {
       return;
     }
     if (message.type == MessageType.search && message.isRoomMessage) {
+      _searchOrder.add(message.id);
       if (message.id == identity) {
         matchPhase.value = RoomMatchPhase.matching;
       } else {
@@ -244,7 +249,7 @@ class RoomChatEngine {
       return;
     }
     if (message.type == MessageType.reject &&
-        message.recipientId == identity &&
+        message.recipientIds.contains(identity) &&
         message.id == _candidateId &&
         message.gameId == _candidateGameId &&
         message.content == 'busy:$_candidateOfferId') {
@@ -252,9 +257,9 @@ class RoomChatEngine {
       return;
     }
     if (message.type == MessageType.match &&
-        message.isPrivateMessage &&
+        message.recipientIds.length == 1 &&
         message.id != identity &&
-        message.recipientId == identity &&
+        message.recipientIds.contains(identity) &&
         message.messageId != null &&
         message.gameId != null &&
         !_abortedOffers.contains((
@@ -269,16 +274,18 @@ class RoomChatEngine {
         // 重复邀请由连接层去重；不重置已经推进的事务阶段。
         return;
       }
-      if (_candidateId == message.id && _offered && identity < message.id) {
-        // 双向邀请中 ID 较小者保持发起方，等待对方让出并应答。
+      if (_candidateId == message.id &&
+          _offered &&
+          _searchesBefore(identity, message.id)) {
+        // 双向邀请中较早搜索者保持发起方，不能被后来搜索的小 ID 玩家抢占。
         return;
       }
-      // 双方同时出价时 ID 小的一方发起，另一方让出候选锁。
+      // 双方同时出价时按搜索先后确定发起方，另一方让出候选锁。
       if (_candidateId != null && (_candidateId != message.id || !_offered)) {
         client.sendNetworkMessage(
           MessageType.reject,
           'busy:${message.messageId}',
-          recipientId: message.id,
+          recipientIds: {message.id},
           gameId: message.gameId,
         );
         return;
@@ -297,7 +304,7 @@ class RoomChatEngine {
     if (confirmation == null ||
         _candidateId == null ||
         message.id != _candidateId ||
-        message.recipientId != identity ||
+        !message.recipientIds.contains(identity) ||
         message.gameId != _candidateGameId ||
         confirmation.offerId != _candidateOfferId ||
         confirmation.phase != _expectedConfirmation) {
@@ -332,7 +339,7 @@ class RoomChatEngine {
     final id = client.sendNetworkMessage(
       MessageType.confirm,
       MatchConfirmation(phase, _candidateOfferId!).content,
-      recipientId: _candidateId,
+      recipientIds: {_candidateId!},
       gameId: _candidateGameId,
     );
     if (id != null) _candidateDeliveries.add(id);
@@ -359,7 +366,7 @@ class RoomChatEngine {
         _candidateId != null &&
         _expectedConfirmation == MatchConfirmationPhase.joined &&
         message?.gameId == _candidateGameId &&
-        message?.recipientId == _candidateId &&
+        (message?.recipientIds.contains(_candidateId) ?? false) &&
         message?.type == MessageType.confirm &&
         message?.content == 'joined:$_candidateOfferId' &&
         _candidateDeliveries.contains(message?.messageId)) {
@@ -372,7 +379,7 @@ class RoomChatEngine {
       if (matchPhase.value != RoomMatchPhase.matching || _candidateId != null) {
         return;
       }
-      // 合作局优先接受正在进行的队伍邀请；短暂汇集同时准备者，再由最小 ID 发起。
+      // 合作局优先接受正在进行的队伍邀请；短暂汇集准备者，再由较早搜索者发起。
       // 否则四人同时准备容易先拆成两份互不相关的双人棋盘。
       _cooperativeOfferTimer ??= Timer(const Duration(milliseconds: 120), () {
         _cooperativeOfferTimer = null;
@@ -389,7 +396,8 @@ class RoomChatEngine {
     }
     if (_cooperativeTurns &&
         _searchCandidates.any(
-          (id) => id < identity && !_triedCandidates.contains(id),
+          (id) =>
+              _searchesBefore(id, identity) && !_triedCandidates.contains(id),
         )) {
       return;
     }
@@ -404,7 +412,7 @@ class RoomChatEngine {
       _candidateOfferId = client.sendNetworkMessage(
         MessageType.match,
         '',
-        recipientId: id,
+        recipientIds: {id},
         gameId: _candidateGameId,
       );
       if (_candidateOfferId != null) {
@@ -413,6 +421,15 @@ class RoomChatEngine {
       _watchCandidate();
       return;
     }
+  }
+
+  bool _searchesBefore(int first, int second) {
+    final order = _searchOrder.toList();
+    final firstIndex = order.indexOf(first);
+    final secondIndex = order.indexOf(second);
+    // 只有缺少搜索记录时才以 ID 兜底，正常匹配严格按本次搜索先后处理。
+    if (firstIndex < 0 || secondIndex < 0) return first < second;
+    return firstIndex < secondIndex;
   }
 
   void _watchCandidate() {
@@ -465,6 +482,7 @@ class RoomChatEngine {
 
   void _removeCandidate(int id) {
     _searchCandidates.remove(id);
+    _searchOrder.remove(id);
     _triedCandidates.remove(id);
     if (_candidateId == id) _dropCandidate(retryOthers: true);
     if (_cooperativeTurns) _offerNextCandidate();
@@ -502,6 +520,7 @@ class RoomChatEngine {
       }
     }
     _searchCandidates.clear();
+    _searchOrder.clear();
     _triedCandidates.clear();
     matchedOpponentId = opponent;
     matchInitiated = initiated;
@@ -514,7 +533,7 @@ class RoomChatEngine {
     if (message == null || !message.needsAck) return;
     if (_candidateOfferId != null &&
         message.gameId == _candidateGameId &&
-        message.recipientId == _candidateId &&
+        message.recipientIds.contains(_candidateId) &&
         _candidateDeliveries.contains(message.messageId)) {
       _dropCandidate(retryOthers: true);
     }
@@ -532,7 +551,7 @@ class RoomChatEngine {
   ) => client.sendNetworkMessage(
     MessageType.confirm,
     MatchConfirmation(MatchConfirmationPhase.abort, offerId).content,
-    recipientId: inviterId,
+    recipientIds: {inviterId},
     gameId: gameId,
   );
 

@@ -23,7 +23,7 @@ enum MessageType {
   sync,
   action,
   exit,
-  // 追加类型以保持既有消息类型索引不变。
+  // 追加类型
   ack,
   reject,
   cancelSearch,
@@ -137,11 +137,8 @@ class NetworkMessage {
   String content;
   int timestamp;
 
-  /// 私聊只指定对方；服务器先向发送者回环，再发给对方。
-  final int? recipientId;
-
-  /// 指定群体消息包含所有对局玩家，通常也包含自己。
-  final Set<int>? recipientIds;
+  /// 空集合广播给全部已认证成员；非空集合只投递其中成员，不隐式包含发送者。
+  final Set<int> recipientIds;
 
   /// 需要可靠投递的局内消息标识；同一消息重发时必须保持不变。
   final String? messageId;
@@ -155,17 +152,12 @@ class NetworkMessage {
     required this.source,
     required this.content,
     required this.timestamp,
-    this.recipientId,
-    Set<int>? recipientIds,
+    Set<int> recipientIds = const {},
     this.messageId,
     this.gameId,
-  }) : recipientIds = recipientIds == null
-           ? null
-           : Set.unmodifiable(recipientIds);
+  }) : recipientIds = Set.unmodifiable(recipientIds);
 
-  bool get isRoomMessage => recipientId == null && recipientIds == null;
-  bool get isPrivateMessage => recipientId != null && recipientIds == null;
-  bool get isGroupMessage => recipientIds != null && recipientId == null;
+  bool get isRoomMessage => recipientIds.isEmpty;
 
   /// search 是可重复发起的发现请求；ACK 自身不重发，房间聊天也不重发。
   bool get needsAck => switch (type) {
@@ -181,24 +173,19 @@ class NetworkMessage {
     _ => false,
   };
 
-  /// 游戏消息必须指定非空收件集合；空集合绝不能退化为房间广播。
+  /// 空集合只允许公开消息，游戏数据不得因缺失成员退化为房间广播。
   bool get hasValidRoute {
-    final recipients = recipientIds;
-    if ((recipientId != null && recipientId! <= 0) ||
-        (recipientId != null && recipients != null) ||
-        (recipients != null &&
-            (recipients.isEmpty || recipients.any((id) => id <= 0)))) {
-      return false;
-    }
+    if (recipientIds.any((id) => id <= 0)) return false;
     return switch (type) {
       MessageType.match ||
       MessageType.confirm ||
       MessageType.reject ||
-      MessageType.ack => isPrivateMessage,
-      MessageType.publish || MessageType.sync => isGroupMessage,
+      MessageType.ack => recipientIds.length == 1,
+      MessageType.publish ||
+      MessageType.sync ||
       MessageType.resource ||
       MessageType.action ||
-      MessageType.exit => isPrivateMessage || isGroupMessage,
+      MessageType.exit => recipientIds.isNotEmpty,
       MessageType.text => true,
       MessageType.connect => isRoomMessage,
       MessageType.cancelSearch => isRoomMessage,
@@ -221,7 +208,6 @@ class NetworkMessage {
     final source = json['source'];
     final content = json['content'];
     final timestamp = json['timestamp'];
-    final target = json['recipientId'];
     final targets = json['recipientIds'];
     final messageId = json['messageId'];
     final gameId = json['gameId'];
@@ -234,9 +220,11 @@ class NetworkMessage {
                 messageId.length > 128)) ||
         (gameId != null &&
             (gameId is! String || gameId.isEmpty || gameId.length > 128)) ||
-        (target != null && (target is! int || target <= 0)) ||
-        (targets != null &&
-            (targets is! List || targets.any((id) => id is! int || id <= 0)))) {
+        json.containsKey('recipientId') ||
+        json.containsKey('route') ||
+        targets is! List ||
+        targets.any((id) => id is! int || id <= 0) ||
+        targets.toSet().length != targets.length) {
       return null;
     }
     if (typeIndex == MessageType.notify.index &&
@@ -250,19 +238,10 @@ class NetworkMessage {
       source: source as String? ?? '',
       content: content as String? ?? '',
       timestamp: timestamp,
-      recipientId: target as int?,
-      recipientIds: targets == null ? null : Set<int>.from(targets as List),
+      recipientIds: targets.cast<int>().toSet(),
       messageId: messageId as String?,
       gameId: gameId as String?,
     );
-    final route = message.isRoomMessage
-        ? 'room'
-        : message.isPrivateMessage
-        ? 'private'
-        : 'group';
-    if (json['route'] != route) {
-      return null;
-    }
     return message.hasValidRoute ? message : null;
   }
 
@@ -273,13 +252,7 @@ class NetworkMessage {
       'source': source,
       'content': content,
       'timestamp': timestamp,
-      'route': isRoomMessage
-          ? 'room'
-          : isPrivateMessage
-          ? 'private'
-          : 'group',
-      if (recipientId != null) 'recipientId': recipientId,
-      if (recipientIds != null) 'recipientIds': recipientIds!.toList(),
+      'recipientIds': recipientIds.toList(),
       if (messageId != null) 'messageId': messageId,
       if (gameId != null) 'gameId': gameId,
     };

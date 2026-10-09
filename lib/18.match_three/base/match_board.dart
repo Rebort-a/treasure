@@ -22,6 +22,9 @@ class Piece {
 class BoardFrame {
   final List<Piece?> pieces;
   final List<int> ice;
+
+  /// 目标进度随消除帧更新，避免交换刚开始就展示整步结算后的结果。
+  final List<int> collected;
   final Set<int> clearing;
   final Set<int> spawnedPieceIds;
   final int movesLeft;
@@ -39,6 +42,7 @@ class BoardFrame {
     int? score,
   ]) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
+       collected = List.unmodifiable(board.collected),
        clearing = Set.unmodifiable(clearing),
        spawnedPieceIds = Set.unmodifiable(spawnedPieceIds),
        movesLeft = movesLeft ?? board.movesLeft,
@@ -82,7 +86,6 @@ class MatchBoard {
   final List<int> ice;
   final Map<int, int> targets;
   final List<int> collected;
-  final int scoreTarget;
   final int initialMoves;
   int movesLeft;
   int score = 0;
@@ -97,7 +100,6 @@ class MatchBoard {
     required this.ice,
     required this.targets,
     required this.collected,
-    required this.scoreTarget,
     required this.initialMoves,
     required this.movesLeft,
   }) : _randomState = randomState;
@@ -113,7 +115,6 @@ class MatchBoard {
       ice: List.filled(cells, 0),
       targets: {},
       collected: List.filled(kinds, 0),
-      scoreTarget: 1800 + value % 5 * 150,
       initialMoves: 20 + value % 5,
       movesLeft: 20 + value % 5,
     );
@@ -149,8 +150,7 @@ class MatchBoard {
   Piece _piece(int kind) => Piece(_nextId++, kind);
 
   MatchStatus get status {
-    if (score >= scoreTarget &&
-        ice.every((layer) => layer == 0) &&
+    if (ice.every((layer) => layer == 0) &&
         targets.entries.every((entry) => collected[entry.key] >= entry.value)) {
       return MatchStatus.won;
     }
@@ -628,7 +628,6 @@ class MatchBoard {
       for (final entry in targets.entries) '${entry.key}': entry.value,
     },
     'collected': collected.toList(),
-    'scoreTarget': scoreTarget,
     'initialMoves': initialMoves,
     'movesLeft': movesLeft,
     'score': score,
@@ -704,7 +703,6 @@ class MatchBoard {
             ice: integers(data['ice'], cells, 2),
             targets: targets,
             collected: integers(data['collected'], kinds, 10000000),
-            scoreTarget: number('scoreTarget', 1, 1000000),
             initialMoves: number('initialMoves', 1, 1000),
             movesLeft: number('movesLeft', 0, 1000),
           )

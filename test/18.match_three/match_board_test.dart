@@ -292,7 +292,7 @@ void main() {
       ..['targets'] = {'0': 1, '1': 1}
       ..['collected'] = [0, 1, 0, 0, 0, 0]
       ..['ice'] = List.filled(MatchBoard.cells, 0)
-      ..['score'] = setup.scoreTarget;
+      ..['score'] = 0;
     data['movesLeft'] = 3;
     data['moveNumber'] = data['initialMoves'] - 3;
     final board = MatchBoard.fromJson(data);
@@ -337,7 +337,7 @@ void main() {
       ..['targets'] = {'0': 1, '1': 1}
       ..['collected'] = [0, 1, 0, 0, 0, 0]
       ..['ice'] = List.filled(MatchBoard.cells, 0)
-      ..['score'] = setup.scoreTarget;
+      ..['score'] = 0;
     data['movesLeft'] = 3;
     data['moveNumber'] = data['initialMoves'] - 3;
     final board = MatchBoard.fromJson(data);
@@ -345,7 +345,7 @@ void main() {
     final result = board.playSwap(10, 2)!;
 
     // 首帧是玩家交换，分数仍是结算前的分数。
-    expect(result.frames.first.score, setup.scoreTarget);
+    expect(result.frames.first.score, 0);
     var previous = result.frames.first.score;
     var increases = 0;
     for (final frame in result.frames) {
@@ -358,7 +358,7 @@ void main() {
       previous = frame.score;
     }
     expect(previous, board.score);
-    expect(previous, setup.scoreTarget + result.scoreGained);
+    expect(previous, result.scoreGained);
     expect(increases, greaterThan(1));
     // 每个剩余步数生成的特效都触发一次消除，逐步加分而非一次结清。
     final bonusIndex = result.frames.indexWhere(
@@ -383,7 +383,7 @@ void main() {
     expect(lost.status, MatchStatus.lost);
     final move = lost.legalMoves.first;
     expect(lost.playSwap(move.$1, move.$2), isNull);
-    data['score'] = data['scoreTarget'];
+    data['score'] = 0;
     data['collected'] = List.filled(6, 100);
     data['ice'] = List.filled(64, 0);
     expect(MatchBoard.fromJson(data).status, MatchStatus.won);
@@ -400,5 +400,20 @@ void main() {
     for (final data in [short, duplicate, counters, badTarget]) {
       expect(() => MatchBoard.fromJson(data), throwsFormatException);
     }
+  });
+
+  test('胜利只取决于三项目标，不受分数影响，快照不包含分数目标', () {
+    final data = MatchBoard.random(seed: 15).toJson();
+    expect(data.keys, isNot(contains('scoreTarget')));
+    data['score'] = 0;
+    data['collected'] = List.filled(MatchBoard.kinds, 100);
+    data['ice'] = List.filled(MatchBoard.cells, 0);
+    expect(MatchBoard.fromJson(data).status, MatchStatus.won);
+    data['score'] = 1000000;
+    (data['ice'] as List)[0] = 1;
+    expect(MatchBoard.fromJson(data).status, MatchStatus.playing);
+    data['movesLeft'] = 0;
+    data['moveNumber'] = data['initialMoves'];
+    expect(MatchBoard.fromJson(data).status, MatchStatus.lost);
   });
 }

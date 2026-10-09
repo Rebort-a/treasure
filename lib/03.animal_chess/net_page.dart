@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/network/client/socket_client.dart';
 import '../00.common/network/widget/online_game_host.dart';
+import '../00.common/network/widget/round_replay_board.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/component/chat_component.dart';
@@ -47,30 +48,32 @@ class _AnimalChessGame extends StatelessWidget {
       child: ValueListenableBuilder<GameStep>(
         valueListenable: _manager.turnEngine.gameStep,
         builder: (__, step, _) {
-          return Scaffold(appBar: _buildAppBar(step), body: _buildBody(step));
+          return Scaffold(
+            appBar: _buildAppBar(context, step),
+            body: _buildBody(step),
+          );
         },
       ),
     );
   }
 
-  AppBar _buildAppBar(GameStep step) {
-    // 根据游戏步骤确定图标和回调
-    IconData icon;
-    VoidCallback onPressed = _onExit;
-
-    if (step.index < GameStep.action.index) {
-      icon = Icons.arrow_back;
-    } else if (step.index == GameStep.action.index) {
-      icon = Icons.flag;
-      onPressed = _onExit;
-    } else {
-      icon = Icons.exit_to_app;
-    }
-
+  AppBar _buildAppBar(BuildContext context, GameStep step) {
     return AppBar(
-      leading: IconButton(icon: Icon(icon), onPressed: onPressed),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: _onExit,
+      ),
       title: Text(S.netAnimalChess),
       centerTitle: true,
+      actions: [
+        if (step == GameStep.action)
+          IconButton(
+            tooltip: S.surrender,
+            icon: const Icon(Icons.flag),
+            onPressed: () =>
+                confirmRoundSurrender(context, _manager.turnEngine),
+          ),
+      ],
     );
   }
 
@@ -79,14 +82,17 @@ class _AnimalChessGame extends StatelessWidget {
       children: [
         // 弹出页面
         NotifierNavigator(navigatorHandler: _manager.pageNavigator),
-        ...(step == GameStep.action
+        ...(step == GameStep.action || step == GameStep.gameOver
             ? [
                 _buildTurnIndicator(),
                 Expanded(
                   flex: 3,
-                  child: FoundationalWidget(
-                    displayMap: _manager.displayMap,
-                    onCellClick: _manager.onCellClick,
+                  child: RoundReplayBoard(
+                    engine: _manager.turnEngine,
+                    child: FoundationalWidget(
+                      displayMap: _manager.displayMap,
+                      onCellClick: _manager.onCellClick,
+                    ),
                   ),
                 ),
               ]

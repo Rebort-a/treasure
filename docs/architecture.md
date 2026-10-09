@@ -41,17 +41,17 @@ Treasure 是面向开发者的 Flutter 游戏实验室。优先保持规则可�
 
 详细流程与安全边界见 [network-flow.md](network-flow.md)。
 
+棋盘结束蒙版与悬浮重开按钮由 `widget/component/game_replay_board.dart`
+统一显示，不依赖网络。单机传入结束状态与本地重开回调；
+`network/widget/round_replay_board.dart` 只适配联机结束、等待匹配和准备状态。
+三消奖励结算完毕才显示重开层；五行之战的单机迷宫战斗保留冒险结果回传流程。
+
 ## 存储接口与注入
 
 `JsonStore` 仅定义 JSON 对象读写；`StorageService` 提供默认文件实现。插件仍只由原有适配文件导入。
 
-```dart
-final manager = MatchManager(storage: myJsonStore);
-```
-
-省略参数时仍使用 `StorageService.instance`，现有页面无需修改。`NetMatchManager` 同样允许注入 `storage`。
-
-三消记录测试使用独立的内存实现，不修改全局单例，不依赖临时目录，也不等待真实时间。文件读写行为仍由 `test/00.common/tool/storage_service_test.dart` 验证。
+三消只保留本局分数，不读写历史最高分；`MatchManager` 和 `NetMatchManager` 不依赖存储接口。
+文件读写行为由 `test/00.common/tool/storage_service_test.dart` 验证。
 
 当前 Web 存储实现是空操作；这是明确的功能限制，不以接口抽象冒充已经支持浏览器持久化。
 

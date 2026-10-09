@@ -20,6 +20,7 @@ class NetManager extends FoundationalManager {
         resourceHandler: _onResource,
         actionHandler: _onAction,
         exitHandler: _onExit,
+        restartHandler: resetGameState,
       );
   }
 
@@ -54,10 +55,10 @@ class NetManager extends FoundationalManager {
 
   void _onExit() {}
 
-  void surrender() => turnEngine.finishGame();
+  void surrender() => turnEngine.completeRound();
 
   @override
-  void handleGameOver(TurnGamerType winner) => turnEngine.finishGame();
+  void handleGameOver(TurnGamerType winner) => turnEngine.completeRound();
 
   String _mapToString() {
     List<List<int>> animalDistribution = displayMap.value

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../00.common/l10n/strings.dart';
+import '../00.common/widget/component/game_replay_board.dart';
 import 'base.dart';
 import 'foundation_widget.dart';
 import 'intelligence.dart';
@@ -36,6 +37,19 @@ class _GoLocalPageState extends State<GoLocalPage> {
 
   void _onGridSelected(int index) => _manager.placePiece(index);
 
+  /// 与菜单重开一致，不因使用悬浮按钮改变 AI 的先手分配。
+  void _restart() {
+    final oldFaction = _manager.aiFaction;
+    final winnerIsAi =
+        _vsAi && oldFaction != null && _manager.board.lastWinner == oldFaction;
+    final newFaction = winnerIsAi ? StoneState.black : StoneState.white;
+    setState(() {
+      if (_vsAi) _manager.toggleAi(false);
+      _manager.restart();
+      if (_vsAi) _manager.toggleAi(true, faction: newFaction);
+    });
+  }
+
   @override
   void dispose() {
     _manager.dispose();
@@ -56,19 +70,7 @@ class _GoLocalPageState extends State<GoLocalPage> {
                 case 'surrender':
                   _manager.resign();
                 case 'restart':
-                  final oldFaction = _manager.aiFaction;
-                  final winnerIsAi =
-                      _vsAi &&
-                      oldFaction != null &&
-                      _manager.board.lastWinner == oldFaction;
-                  final newFaction = winnerIsAi
-                      ? StoneState.black
-                      : StoneState.white;
-                  setState(() {
-                    if (_vsAi) _manager.toggleAi(false);
-                    _manager.restart();
-                    if (_vsAi) _manager.toggleAi(true, faction: newFaction);
-                  });
+                  _restart();
                 case 'undo':
                   _manager.undo();
                 case 'ai':
@@ -131,40 +133,47 @@ class _GoLocalPageState extends State<GoLocalPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          ValueListenableBuilder<StoneState>(
-            valueListenable: _manager.board.currentPlayer,
-            builder: (context, player, _) {
-              return Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  _manager.board.gameOver
-                      ? S.sideWin(
-                          player == StoneState.white
-                              ? S.blackSide
-                              : S.whiteSide,
-                        )
-                      : S.currentTurn(
-                          player == StoneState.black
-                              ? S.blackSide
-                              : S.whiteSide,
-                        ),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+      body: ValueListenableBuilder<bool>(
+        valueListenable: _manager.board.gameOverNotifier,
+        builder: (_, finished, _) => Column(
+          children: [
+            ValueListenableBuilder<StoneState>(
+              valueListenable: _manager.board.currentPlayer,
+              builder: (context, player, _) {
+                return Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    _manager.board.gameOver
+                        ? S.sideWin(
+                            player == StoneState.white
+                                ? S.blackSide
+                                : S.whiteSide,
+                          )
+                        : S.currentTurn(
+                            player == StoneState.black
+                                ? S.blackSide
+                                : S.whiteSide,
+                          ),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-          Expanded(
-            child: GoFoundationWidget(
-              manager: _manager,
-              onGridSelected: _onGridSelected,
+                );
+              },
             ),
-          ),
-        ],
+            Expanded(
+              child: GameReplayBoard(
+                finished: finished,
+                onReplay: _restart,
+                child: GoFoundationWidget(
+                  manager: _manager,
+                  onGridSelected: _onGridSelected,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

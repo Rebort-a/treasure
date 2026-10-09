@@ -52,8 +52,8 @@ abstract class FoundationalCombatManager {
 
   ResultType combatResult = ResultType.continued;
 
-  late final Elemental player;
-  late final Elemental enemy;
+  late Elemental player;
+  late Elemental enemy;
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});

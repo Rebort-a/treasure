@@ -65,9 +65,14 @@ void main() {
       expect(find.byType(NetMatchThreePage), findsNothing);
       final remote = NetMatchManager(room: bob)..reduceMotion = true;
       remotes.add(remote);
-      startGame(remote.turnEngine);
       await tester.tap(find.text(S.startMatching));
       final local = NetMultiTurnEngine.forClient(alice);
+      // 本地先准备，随后验证自己的回合及 0/3 → 2/3 → 1/3 等待人数。
+      await _until(
+        tester,
+        () => local.matchPhase.value == RoomMatchPhase.matching,
+      );
+      startGame(remote.turnEngine);
       await _until(
         tester,
         () =>
@@ -86,7 +91,9 @@ void main() {
             local.synchronized.value &&
             remotes.every((g) => g.turnEngine.synchronized.value),
       );
-      expect(find.text('Dana'), findsOneWidget);
+      expect(find.text(S.matchYourTurn), findsOneWidget);
+      expect(find.text('0/3'), findsOneWidget);
+      expect(find.byType(Chip), findsNothing);
       final view = tester.widget<MatchGameView>(find.byType(MatchGameView));
       final swap = view.manager.board!.legalMoves.first;
       view.manager.swap(swap.$1, swap.$2);
@@ -99,6 +106,27 @@ void main() {
                   g.board!.moveNumber == 1 && g.turnEngine.synchronized.value,
             ),
       );
+      expect(find.text('2/3'), findsOneWidget);
+      expect(
+        find.text(
+          S.matchPlayerTurn(local.participants[local.currentPlayer.value]!),
+        ),
+        findsOneWidget,
+      );
+      final next = remotes.firstWhere((g) => g.turnEngine.canAct);
+      final nextSwap = next.board!.legalMoves.first;
+      next.swap(nextSwap.$1, nextSwap.$2);
+      await _until(
+        tester,
+        () =>
+            view.manager.board!.moveNumber == 2 &&
+            local.synchronized.value &&
+            remotes.every(
+              (g) =>
+                  g.board!.moveNumber == 2 && g.turnEngine.synchronized.value,
+            ),
+      );
+      expect(find.text('1/3'), findsOneWidget);
       await tester.binding.handlePopRoute();
       await tester.pump();
       expect(find.text(S.coopConfirmLeave), findsOneWidget);
@@ -118,7 +146,7 @@ void main() {
       expect(RoomChatEngine.forClient(alice), same(local));
       expect(local.ended.value, isTrue);
       expect(remotes.first.turnEngine.gameId, originalGame);
-      expect(remotes.first.board!.moveNumber, 1);
+      expect(remotes.first.board!.moveNumber, 2);
       expect(tester.takeException(), isNull);
     } finally {
       await tester.runAsync(() async {

@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_replay_board.dart';
+
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
@@ -67,49 +69,38 @@ class MemoryPage extends StatelessWidget {
   }
 
   /// 棋盘区：Wrap 布局，卡牌固定尺寸，配对成功后该格留空不重排
-  /// 游戏结束后场上无牌，叠加居中的大重开图标
+  /// 游戏结束后使用与其他单机、联机棋盘相同的蒙版和重开按钮。
   Widget _buildBoardArea() {
-    return ValueListenableBuilder<List<MemoryCardNotifier>>(
-      valueListenable: _manager.cards,
-      builder: (_, cards, __) => Stack(
-        children: [
-          Center(
-            child: SingleChildScrollView(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: List.generate(
-                  cards.length,
-                  (i) => SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: CardView(
-                      card: cards[i],
-                      onTap: () => _manager.flipCard(i),
+    return ValueListenableBuilder<bool>(
+      valueListenable: _manager.gameOver,
+      builder: (_, over, __) =>
+          ValueListenableBuilder<List<MemoryCardNotifier>>(
+            valueListenable: _manager.cards,
+            builder: (_, cards, __) => GameReplayBoard(
+              finished: over,
+              onReplay: _manager.resetGame,
+              child: Center(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: List.generate(
+                      cards.length,
+                      (i) => SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: CardView(
+                          card: cards[i],
+                          onTap: () => _manager.flipCard(i),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          ValueListenableBuilder<bool>(
-            valueListenable: _manager.gameOver,
-            builder: (_, over, __) => over
-                ? Center(
-                    child: IconButton(
-                      iconSize: 96,
-                      onPressed: _manager.resetGame,
-                      icon: const Icon(
-                        Icons.replay_circle_filled,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
     );
   }
 }

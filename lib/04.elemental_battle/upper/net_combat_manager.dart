@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../00.common/network/client/net_turn_engine.dart';
 import '../../00.common/game/step.dart';
+import '../../00.common/game/gamer.dart';
 import '../../00.common/network/protocol/network_message.dart';
 import '../../00.common/network/client/socket_client.dart';
 import '../../00.common/l10n/strings.dart';
@@ -30,6 +31,11 @@ class NetCombatManager extends FoundationalCombatManager {
         resourceHandler: _resourceHandler,
         actionHandler: _actionHandler,
         exitHandler: _exitHandler,
+        restartHandler: () {
+          combatResult = ResultType.continued;
+          currentGamer.value = TurnGamerType.front;
+          infoList.value = '';
+        },
       );
   }
 
@@ -124,9 +130,8 @@ class NetCombatManager extends FoundationalCombatManager {
 
   @override
   void handlePlayerAction(ConationType action) {
-    if (combatResult != ResultType.continued) {
-      leavePage();
-    } else {
+    if (turnEngine.gameStep.value != GameStep.action) return;
+    if (combatResult == ResultType.continued) {
       switch (action) {
         case ConationType.attack:
           _sendActionMessage(ConationType.attack.index, enemy.current.index);
@@ -138,7 +143,7 @@ class NetCombatManager extends FoundationalCombatManager {
           showSkillSelection();
           break;
         case ConationType.escape:
-          leavePage();
+          turnEngine.completeRound();
           break;
       }
     }
@@ -146,6 +151,7 @@ class NetCombatManager extends FoundationalCombatManager {
 
   @override
   void handlePlayerSkillTarget(int skillIndex) {
+    if (turnEngine.gameStep.value != GameStep.action) return;
     final actionIndex = ConationType.skill.index + skillIndex;
     final skills = player.getAppointSkills(player.current);
     final skill = skillIndex == -1
@@ -185,6 +191,17 @@ class NetCombatManager extends FoundationalCombatManager {
     return index < ConationType.values.length
         ? ConationType.values[index]
         : ConationType.skill;
+  }
+
+  @override
+  void updateGameStepAfterAction(bool isSelf, CombatResult result) {
+    if (result == CombatResult.undecided) {
+      super.updateGameStepAfterAction(isSelf, result);
+    } else {
+      combatResult =
+          FoundationalCombatManager.stepResultMapping[result]![isSelf]!;
+      turnEngine.completeRound();
+    }
   }
 
   @override

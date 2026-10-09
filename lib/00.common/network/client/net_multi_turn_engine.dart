@@ -9,7 +9,7 @@ import 'socket_client.dart';
 
 /// 多人合作回合引擎：共享一个局面，由发布者校验并提交动作。
 ///
-/// 与双人前后手引擎不同，这里按成员 ID 顺序轮转。每一步发布完整快照，
+/// 首次行动由匹配发起方执行，之后按成员 ID 顺序轮转。每一步发布完整快照，
 /// 收齐所有成员的应用层 ready 后才开放下一步；传输 ACK 不能替代状态同步。
 /// 新成员沿用现有 gameId 并接收当前局面，发布者退出则使用共同快照接管。
 class NetMultiTurnEngine extends NetMultiEngine {
@@ -43,12 +43,15 @@ class NetMultiTurnEngine extends NetMultiEngine {
       isActive &&
       synchronized.value &&
       !pendingAction.value &&
+      !(roundReplay?.finished.value ?? false) &&
+      !(roundReplay?.preparing.value ?? false) &&
       currentPlayer.value == identity;
 
   void configureTurns({
     required Map<String, dynamic> Function() saveState,
     required void Function(Map<String, dynamic>) loadState,
     required bool Function(Map<String, dynamic>) applyAction,
+    VoidCallback? resetRound,
   }) {
     // 先检查/取得本局配置权，防止重复创建 Manager 时破坏仍在运行的一局。
     configureGame(
@@ -69,6 +72,26 @@ class NetMultiTurnEngine extends NetMultiEngine {
     _goRevision = -1;
     _issuedRevision = 0;
     _snapshotPublisher = null;
+    if (resetRound != null) {
+      configureReplay(
+        roster: () => participants,
+        startRound: (players, fresh, joining) {
+          if (fresh || joining) {
+            resetRound();
+            revision.value = 0;
+          }
+          resumeRound(players, roundReplay!.version, roundReplay!.publisher!);
+          _readyPlayers.clear();
+          _goRevision = -1;
+          _issuedRevision = 0;
+          _snapshotPublisher = null;
+          synchronized.value = false;
+          pendingAction.value = false;
+          if (fresh) currentPlayer.value = publisherId;
+          if (publisherId == identity) _publishSnapshot();
+        },
+      );
+    }
   }
 
   /// 只有当前操作者能发请求，不在请求方乐观推进棋盘。
@@ -104,7 +127,10 @@ class NetMultiTurnEngine extends NetMultiEngine {
     if (!isActive || publisherId != identity || participants.isEmpty) return;
     final order = _turnOrder;
     if (!participants.containsKey(currentPlayer.value)) {
-      currentPlayer.value = order.first;
+      // 首次快照从发布者开始；已开始的局面沿用当前行动者及正常轮转顺序。
+      currentPlayer.value = currentPlayer.value == null
+          ? publisherId
+          : order.first;
     }
     synchronized.value = false;
     pendingAction.value = false;
@@ -205,6 +231,8 @@ class NetMultiTurnEngine extends NetMultiEngine {
   void _receiveAction(NetworkMessage message) {
     if (publisherId != identity ||
         !synchronized.value ||
+        (roundReplay?.finished.value ?? false) ||
+        (roundReplay?.preparing.value ?? false) ||
         message.id != currentPlayer.value) {
       return;
     }

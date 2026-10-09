@@ -7,10 +7,21 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
+import 'package:treasure/00.common/network/client/net_multi_turn_engine.dart';
+import 'package:treasure/00.common/network/client/socket_client.dart';
+import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
 import 'package:treasure/18.match_three/upper/game_view.dart';
 import 'package:treasure/18.match_three/upper/match_board_widget.dart';
+
+/// 只提供界面测试所需的成员表，不启动真实匹配。
+class _HeaderEngine extends NetMultiTurnEngine {
+  _HeaderEngine(super.client);
+
+  @override
+  Map<int, String> get participants => const {1: '测试玩家', 2: 'bb'};
+}
 
 Widget _app(
   MatchManager manager, {
@@ -61,6 +72,88 @@ Future<Uint8List> _pixels(
 
 void main() {
   setUp(() => LanguageProvider.instance.resetForTesting());
+
+  testWidgets('单机顶部只显示步数和当前分数，不显示分数进度条或联机板', (tester) async {
+    final manager = MatchManager(seed: 7);
+    addTearDown(manager.dispose);
+    await tester.pumpWidget(_app(manager));
+    expect(find.text(S.matchScore), findsOneWidget);
+    expect(find.text('${manager.view.value!.score}'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text(S.matchYourTurn), findsNothing);
+    expect(find.byType(Chip), findsNothing);
+  });
+
+  testWidgets('联机回合提示简短且信息列与数字列等宽', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    expect(S.matchYourTurn, 'Your turn');
+    expect(S.matchPlayerTurn('bb'), "bb's turn");
+    LanguageProvider.instance.locale.value = AppLocale.zh;
+    final client = SocketClient(
+      userName: '测试玩家',
+      endpoint: RoomInfo(
+        name: 'Test',
+        type: 18,
+        address: '127.0.0.1',
+        port: 1,
+        encryptionKey: 'test-key',
+      ),
+    );
+    // 仅测试布局，不连接服务器，也不启动匹配流程。
+    client.identityNotifier.value = 1;
+    client.status.value = const RoomStatus(RoomConnectionState.joined);
+    final engine = _HeaderEngine(client);
+    engine.currentPlayer.value = engine.identity;
+    final manager = MatchManager(seed: 7);
+    addTearDown(() {
+      engine.dispose();
+      client.dispose();
+      manager.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: MatchGameView(
+              manager: manager,
+              engine: engine,
+              onExit: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(S.matchYourTurn, '你的回合');
+    expect(find.text(S.matchYourTurn), findsOneWidget);
+    final teamColumn = find
+        .ancestor(of: find.text(S.matchYourTurn), matching: find.byType(Column))
+        .first;
+    final scoreColumn = find
+        .ancestor(of: find.text(S.matchScore), matching: find.byType(Column))
+        .first;
+    expect(
+      tester.getSize(teamColumn).width,
+      closeTo(tester.getSize(scoreColumn).width, 0.01),
+    );
+    final text = tester.widget<Text>(find.text(S.matchYourTurn));
+    final painter = TextPainter(
+      text: TextSpan(text: text.data, style: text.style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    expect(painter.width, lessThanOrEqualTo(tester.getSize(teamColumn).width));
+    painter.dispose();
+    engine.currentPlayer.value = 2;
+    manager.refreshView();
+    await tester.pump();
+    expect(find.text('bb 的回合'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text(S.matchYourTurn), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('目标条目左侧是图标，右侧两行显示名称与数字', (tester) async {
     final manager = MatchManager(seed: 100);
@@ -198,7 +291,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 90));
     expect(tester.getTopLeft(piece), isNot(originalPosition));
-    expect(find.text('0'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('match-multiplier')),
+        matching: find.text('0'),
+        matchRoot: true,
+      ),
+      findsOneWidget,
+    );
 
     await tester.pump(const Duration(milliseconds: 90));
     expect(manager.invalidSwap.value, isNull);
@@ -207,7 +307,7 @@ void main() {
     expect(tester.getTopLeft(piece), originalPosition);
     expect(manager.canInteract, isTrue);
     expect(manager.invalidSwapAnimating.value, isFalse);
-    expect(find.text('0'), findsNothing);
+    expect(find.byKey(const ValueKey('match-multiplier')), findsNothing);
   });
 
   for (final dark in [false, true]) {

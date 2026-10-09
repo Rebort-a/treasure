@@ -13,10 +13,10 @@ typedef OnlineGameViewBuilder<M extends Object> = Widget Function(
   VoidCallback requestExit,
 );
 
-/// 单局生命周期容器，由游戏模块内部组合使用，不要求页面继承公共基类。
+/// 对局会话生命周期容器，由游戏模块内部组合使用，不要求页面继承公共基类。
 ///
-/// Manager 在 initState 中创建一次，父页面重建不重复创建；结束后退回下层路由，
-/// 卸载时释放本局 Manager。共享引擎和房间连接始终归聊天室所有。
+/// Manager 在 initState 中创建一次，父页面重建及重开不重复创建；
+/// 会话终止才退回下层路由并释放 Manager，房间连接始终归聊天室所有。
 class OnlineGameHost<M extends Object> extends StatefulWidget {
   final M Function() createManager;
   final GameEngine Function(M manager) engineOf;
@@ -50,6 +50,7 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
     _manager = widget.createManager();
     _game = widget.engineOf(_manager);
     _game.ended.addListener(_gameEnded);
+    _game.roundReplay?.finished.addListener(_roundFinished);
     _game.startFromRoom();
     // 匹配与页面构建之间可能断线，此时退回房间，而不是留下未启动的游戏页。
     if (!_game.isActive) _game.finishGame(sendExit: false);
@@ -72,22 +73,38 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
     WidgetsBinding.instance.ensureVisualUpdate();
   }
 
+  void _roundFinished() {
+    if (!(_game.roundReplay?.finished.value ?? false)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !(_game.roundReplay?.finished.value ?? false)) return;
+      final route = ModalRoute.of(context);
+      if (route == null || !route.isActive) return;
+      // 收起旧局配置和技能弹窗，但保留棋盘页及其聊天历史。
+      Navigator.of(context).popUntil((candidate) => candidate == route);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   Future<void> _requestExit() async {
     if (_game.ended.value || _confirming) return;
+    if (_game.roundReplay?.finished.value ?? false) {
+      _game.leavePage();
+      return;
+    }
     if (!_turnBased) {
       _game.leavePage();
       return;
     }
     _confirming = true;
     try {
-      final surrender = await showDialog<bool>(
+      final leave = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(_game is NetMultiTurnEngine ? S.leave : S.surrender),
+          title: Text(S.leave),
           content: Text(
             _game is NetMultiTurnEngine
                 ? S.coopConfirmLeave
-                : S.confirmSurrender,
+                : S.confirmGameLeave,
           ),
           actions: [
             TextButton(
@@ -101,7 +118,7 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
           ],
         ),
       );
-      if (mounted && surrender == true && !_game.ended.value) {
+      if (mounted && leave == true && !_game.ended.value) {
         _game.leavePage();
       }
     } finally {
@@ -115,7 +132,7 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
     builder: (context, ended, _) => PopScope(
       canPop: ended,
       onPopInvokedWithResult: (didPop, _) {
-        // 双人对战返回即投降，合作回合返回只退出个人；实时仍使用可见退出按钮。
+        // 返回用于退出会话；棋盘中的投降按钮只结束当前轮次。
         if (!didPop && _turnBased) unawaited(_requestExit());
       },
       child: widget.pageBuilder(context, _manager, () {
@@ -127,6 +144,7 @@ class _OnlineGameHostState<M extends Object> extends State<OnlineGameHost<M>> {
   @override
   void dispose() {
     _game.ended.removeListener(_gameEnded);
+    _game.roundReplay?.finished.removeListener(_roundFinished);
     _game.finishGame();
     // 与创建时的所有权配对，不因父组件重建、替换回调而改变释放职责。
     _disposeManager(_manager);

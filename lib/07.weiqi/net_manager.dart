@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/network/client/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
+import '../00.common/game/step.dart';
 import '../00.common/model/notifiers.dart';
 import '../00.common/network/protocol/network_message.dart';
 import '../00.common/network/client/socket_client.dart';
@@ -25,6 +26,7 @@ class GoNetManager extends GoFoundationalManager {
         resourceMode: TurnResourceMode.none,
         actionHandler: _onAction,
         exitHandler: _onExit,
+        restartHandler: board.restart,
       );
   }
 
@@ -33,14 +35,16 @@ class GoNetManager extends GoFoundationalManager {
     if (data['type'] == 'place') {
       board.placeStone(data['index'] as int);
     }
-    if (board.gameOver) turnEngine.finishGame();
+    if (board.gameOver) turnEngine.completeRound();
   }
 
   void _onExit() => turnEngine.leavePage();
 
   @override
   void placePiece(int index) {
-    if (!board.gameOver && board.currentPlayer.value == localPlayer) {
+    if (turnEngine.gameStep.value == GameStep.action &&
+        !board.gameOver &&
+        board.currentPlayer.value == localPlayer) {
       turnEngine.sendGameMessage(
         MessageType.action,
         jsonEncode({'type': 'place', 'index': index}),
@@ -50,7 +54,7 @@ class GoNetManager extends GoFoundationalManager {
 
   @override
   void resign() {
-    turnEngine.finishGame();
+    turnEngine.completeRound();
   }
 
   void leavePage() => turnEngine.leavePage();

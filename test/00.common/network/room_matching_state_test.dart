@@ -87,7 +87,7 @@ void main() {
       final offerId = inviter.sendNetworkMessage(
         MessageType.match,
         '',
-        recipientId: joiner.identity,
+        recipientIds: {joiner.identity},
         gameId: 'test-game',
       )!;
       await waitFor(
@@ -99,7 +99,7 @@ void main() {
       inviter.sendNetworkMessage(
         MessageType.confirm,
         'commit:previous-round',
-        recipientId: joiner.identity,
+        recipientIds: {joiner.identity},
         gameId: 'test-game',
       );
       await Future<void>.delayed(const Duration(milliseconds: 40));
@@ -107,7 +107,7 @@ void main() {
       inviter.sendNetworkMessage(
         MessageType.confirm,
         'commit:$offerId',
-        recipientId: joiner.identity,
+        recipientIds: {joiner.identity},
         gameId: 'test-game',
       );
       await waitFor(
@@ -119,7 +119,7 @@ void main() {
       inviter.sendNetworkMessage(
         MessageType.confirm,
         'start:$offerId',
-        recipientId: joiner.identity,
+        recipientIds: {joiner.identity},
         gameId: 'test-game',
       );
       await waitFor(() => joiner.matchPhase.value == RoomMatchPhase.matched);

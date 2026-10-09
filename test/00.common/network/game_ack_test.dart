@@ -90,7 +90,7 @@ void main() {
       source: 'A',
       content: 'move',
       timestamp: 1,
-      recipientId: 2,
+      recipientIds: {2},
       messageId: 'packet',
       gameId: 'game',
     );
@@ -124,7 +124,7 @@ void main() {
       a.sendNetworkMessage(
         MessageType.action,
         'move',
-        recipientId: b.identity,
+        recipientIds: {b.identity},
         messageId: 'same-packet',
         gameId: 'current',
       );
@@ -132,7 +132,7 @@ void main() {
       b.sendNetworkMessage(
         MessageType.ack,
         'same-packet',
-        recipientId: a.identity,
+        recipientIds: {a.identity},
         gameId: 'old',
       );
       await waitFor(() => a.deliveryFailure.value?.messageId == 'same-packet');
@@ -172,7 +172,11 @@ void main() {
       final seenB = <NetworkMessage>[];
       a.addMessageListener(seenA.add);
       b.addMessageListener(seenB.add);
-      a.sendNetworkMessage(MessageType.action, 'once', recipientId: b.identity);
+      a.sendNetworkMessage(
+        MessageType.action,
+        'once',
+        recipientIds: {a.identity, b.identity},
+      );
       await waitFor(() => dropped && attempts >= 2);
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(attempts, 2);
@@ -285,7 +289,7 @@ void main() {
       a.sendNetworkMessage(
         MessageType.action,
         'timeout',
-        recipientId: b.identity,
+        recipientIds: {b.identity},
       );
       await waitFor(() => a.deliveryFailure.value?.content == 'timeout');
       expect(sends, 2);
@@ -390,7 +394,7 @@ void main() {
             maxGameResendAttempts: 1,
             transport: _InspectTransport(
               drop: (message) {
-                if (message.recipientId != newcomer) return false;
+                if (!message.recipientIds.contains(newcomer)) return false;
                 if (message.type == MessageType.confirm &&
                     message.content.startsWith('start:')) {
                   return true;
@@ -458,7 +462,7 @@ void main() {
             transport: _InspectTransport(
               drop: (message) =>
                   message.type == MessageType.ack &&
-                  message.recipientId == newcomer &&
+                  message.recipientIds.contains(newcomer) &&
                   message.content == joinedMessageId,
             ),
           ),
@@ -492,7 +496,7 @@ void main() {
           sawAbort = true;
         }
         if (message.type == MessageType.resource &&
-            (message.recipientIds?.contains(newcomer) ?? false)) {
+            message.recipientIds.contains(newcomer)) {
           provisionalResource = message;
         }
       });
@@ -530,7 +534,7 @@ void main() {
       roomC.sendNetworkMessage(
         MessageType.confirm,
         joinedContent!,
-        recipientId: a.identity,
+        recipientIds: {a.identity},
         gameId: originalGame,
       );
       await Future<void>.delayed(const Duration(milliseconds: 40));
@@ -666,7 +670,7 @@ void main() {
             transport: _InspectTransport(
               drop: (message) =>
                   message.type == MessageType.ack &&
-                  message.recipientId == newcomer &&
+                  message.recipientIds.contains(newcomer) &&
                   message.content == joinedMessageId,
             ),
           ),

@@ -41,7 +41,7 @@ void main() {
     }
   });
 
-  test('单聊 match 和 confirm 仅回环发送者与指定接收者', () async {
+  test('match 和 confirm 只投递指定对方，无自身回环也能完成匹配', () async {
     final h = RoomHarness(3);
     await h.server.start();
     try {
@@ -63,9 +63,30 @@ void main() {
             b.matchPhase.value == RoomMatchPhase.matched,
       );
       for (final type in [MessageType.match, MessageType.confirm]) {
-        expect(seenA.where((m) => m.type == type), isNotEmpty);
         expect(seenB.where((m) => m.type == type), isNotEmpty);
         expect(seenC.where((m) => m.type == type), isEmpty);
+        expect(
+          seenA
+              .where((m) => m.type == type)
+              .every(
+                (m) =>
+                    m.id == b.identity &&
+                    m.recipientIds.length == 1 &&
+                    m.recipientIds.contains(a.identity),
+              ),
+          isTrue,
+        );
+        expect(
+          seenB
+              .where((m) => m.type == type)
+              .every(
+                (m) =>
+                    m.id == a.identity &&
+                    m.recipientIds.length == 1 &&
+                    m.recipientIds.contains(b.identity),
+              ),
+          isTrue,
+        );
       }
       expect(
         seenA
@@ -77,11 +98,18 @@ void main() {
         isTrue,
       );
       expect(
-        seenA.any(
+        seenB.any(
           (m) =>
               m.type == MessageType.confirm && m.content.startsWith('commit:'),
         ),
         isTrue,
+      );
+      expect(
+        seenA.any(
+          (m) =>
+              m.type == MessageType.confirm && m.content.startsWith('commit:'),
+        ),
+        isFalse,
       );
     } finally {
       await h.close();

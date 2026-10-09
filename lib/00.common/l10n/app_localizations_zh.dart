@@ -16,6 +16,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirmSurrender => '确定要投降吗？';
 
   @override
+  String get confirmGameLeave => '退出游戏并返回聊天室？如果想留在本页重开，请使用投降按钮。';
+
+  @override
   String get cancel => '取消';
 
   @override
@@ -1219,21 +1222,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchMoves => '剩余步数';
 
   @override
-  String get matchScore => '目标分数';
+  String get matchScore => '分数';
 
   @override
-  String get matchYourTurn => '轮到你了，一起完成目标！';
+  String get matchYourTurn => '你的回合';
 
   @override
   String matchPlayerTurn(String name) {
-    return '轮到 $name 操作';
+    return '$name 的回合';
   }
 
   @override
   String get matchWon => '恭喜过关！';
-
-  @override
-  String get matchNewRecord => '恭喜突破记录！';
 
   @override
   String get matchBonusTime => 'Bonus Time';

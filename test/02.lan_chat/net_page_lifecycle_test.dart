@@ -8,6 +8,7 @@ import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/widget/online_game_host.dart';
+import 'package:treasure/00.common/widget/component/chat_component.dart';
 import 'package:treasure/01.home/route.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 
@@ -222,6 +223,17 @@ void main() {
       expect(factories, 0);
       expect(created, 0);
       expect(find.byType(PinnedRoomCard), findsOneWidget);
+      final messages = find.byType(MessageList);
+      final pinned = find.byType(PinnedRoomCard);
+      final overlay = find
+          .ancestor(of: pinned, matching: find.byType(Stack))
+          .first;
+      expect(tester.getTopLeft(messages).dy, tester.getTopLeft(overlay).dy);
+      expect(tester.getSize(messages).height, tester.getSize(overlay).height);
+      expect(
+        tester.getTopLeft(messages).dy,
+        lessThan(tester.getTopLeft(pinned).dy + kToolbarHeight),
+      );
       expect(routes.pushes, 1);
       opponent = configureTurnEngine(
         room: bob,

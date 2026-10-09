@@ -17,8 +17,8 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
   void Function(bool, NetworkMessage) _actionHandler = _noAction;
   VoidCallback _exitHandler = _noSearch;
   TurnGamerType playerType = TurnGamerType.front;
-  int _enemyId = 0;
-  int get enemyId => _enemyId;
+  int get enemyId =>
+      gameMembers.keys.firstWhere((id) => id != identity, orElse: () => 0);
   bool _disposed = false;
 
   NetTurnEngine(super.client);
@@ -42,6 +42,7 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
     void Function(GameStep, NetworkMessage)? resourceHandler,
     required void Function(bool, NetworkMessage) actionHandler,
     required VoidCallback exitHandler,
+    VoidCallback? restartHandler,
   }) {
     prepareGame();
     _resourceMode = resourceMode;
@@ -49,7 +50,23 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
     _resourceHandler = resourceHandler ?? _noResource;
     _actionHandler = actionHandler;
     _exitHandler = exitHandler;
-    _enemyId = 0;
+    if (restartHandler != null) {
+      configureReplay(
+        roster: () => participants,
+        startRound: (players, fresh, joining) {
+          restartHandler();
+          gameStep.value = _resourceMode == TurnResourceMode.none
+              ? GameStep.action
+              : playerType == TurnGamerType.front
+              ? GameStep.frontConfig
+              : GameStep.rearWait;
+          if (playerType == TurnGamerType.front &&
+              _resourceMode != TurnResourceMode.none) {
+            _searchHandler();
+          }
+        },
+      );
+    }
   }
 
   @override
@@ -70,7 +87,12 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
     required String gameId,
   }) {
     if (isActive || ended.value) return;
-    _enemyId = opponentId;
+    gameMembers
+      ..clear()
+      ..addAll({
+        identity: members.value[identity] ?? userName,
+        opponentId: members.value[opponentId] ?? '',
+      });
     playerType = role;
     gameStep.value = _resourceMode == TurnResourceMode.none
         ? GameStep.action
@@ -86,35 +108,19 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
   }
 
   @override
-  void sendGameMessage(
-    MessageType type,
-    String content, {
-    int? recipientId,
-    Set<int>? recipientIds,
-  }) {
-    if (_enemyId == 0 ||
-        type == MessageType.image ||
-        type == MessageType.file ||
-        recipientIds != null ||
-        (recipientId != null && recipientId != _enemyId)) {
-      return;
-    }
-    super.sendGameMessage(type, content, recipientId: _enemyId);
-  }
-
-  @override
   void handleGameMessage(NetworkMessage message) {
     if (!isActive ||
         message.type == MessageType.search ||
         message.type == MessageType.match ||
-        !message.isPrivateMessage ||
+        message.isRoomMessage ||
         // ACK 重发可能晚于下一局开始；同一对手的旧包不得进入新局。
         message.gameId != gameId ||
-        (message.id != identity && message.id != _enemyId) ||
-        (message.recipientId != identity && message.recipientId != _enemyId)) {
+        !gameMembers.containsKey(message.id) ||
+        !message.recipientIds.contains(identity) ||
+        message.recipientIds.any((id) => !gameMembers.containsKey(id))) {
       return;
     }
-    if (message.type == MessageType.exit && message.id == _enemyId) {
+    if (message.type == MessageType.exit && message.id == enemyId) {
       _exitHandler();
       finishGame();
       return;
@@ -135,7 +141,7 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
 
   @override
   void memberLeft(int memberId) {
-    if (memberId != _enemyId) return;
+    if (memberId != enemyId) return;
     finishGame(sendExit: false);
     _exitHandler();
   }
@@ -170,7 +176,6 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
   @override
   void releaseGame() {
     super.releaseGame();
-    _enemyId = 0;
     _searchHandler = _noSearch;
     _resourceHandler = _noResource;
     _actionHandler = _noAction;

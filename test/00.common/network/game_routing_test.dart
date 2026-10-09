@@ -62,7 +62,7 @@ void main() {
     }
   });
 
-  test('房间、私聊和群组各按自己的接收范围转发', () async {
+  test('空集合公开广播，非空集合严格投递且不隐式回环发送者', () async {
     final h = RoomHarness(6);
     await h.server.start();
     try {
@@ -85,13 +85,15 @@ void main() {
         ].every((messages) => messages.any((m) => m.content == 'room')),
       );
 
-      a.sendNetworkMessage(MessageType.match, 'offer', recipientId: b.identity);
-      await waitFor(
-        () =>
-            seenA.any((m) => m.content == 'offer') &&
-            seenB.any((m) => m.content == 'offer'),
+      a.sendNetworkMessage(
+        MessageType.match,
+        'offer',
+        recipientIds: {b.identity},
       );
+      await waitFor(() => seenB.any((m) => m.content == 'offer'));
+      expect(seenA.where((m) => m.content == 'offer'), isEmpty);
       expect(seenC.where((m) => m.content == 'offer'), isEmpty);
+      await waitFor(() => a.deliveryConfirmed.value?.content == 'offer');
 
       a.sendNetworkMessage(
         MessageType.action,
@@ -108,6 +110,25 @@ void main() {
         a.identity,
         b.identity,
       });
+      a.sendNetworkMessage(
+        MessageType.text,
+        'others only',
+        recipientIds: {b.identity, c.identity},
+      );
+      await waitFor(
+        () =>
+            seenB.any((m) => m.content == 'others only') &&
+            seenC.any((m) => m.content == 'others only'),
+      );
+      expect(seenA.where((m) => m.content == 'others only'), isEmpty);
+      a.sendNetworkMessage(
+        MessageType.text,
+        'self only',
+        recipientIds: {a.identity},
+      );
+      await waitFor(() => seenA.any((m) => m.content == 'self only'));
+      expect(seenB.where((m) => m.content == 'self only'), isEmpty);
+      expect(seenC.where((m) => m.content == 'self only'), isEmpty);
     } finally {
       await h.close();
     }
@@ -116,26 +137,30 @@ void main() {
   test('不合法的消息路由不会退化为房间广播', () {
     NetworkMessage message(
       MessageType type, {
-      int? recipientId,
-      Set<int>? recipientIds,
+      Set<int> recipientIds = const {},
     }) => NetworkMessage(
       id: 1,
       type: type,
       source: 'A',
       content: '',
       timestamp: 1,
-      recipientId: recipientId,
       recipientIds: recipientIds,
     );
 
     expect(message(MessageType.search).hasValidRoute, isTrue);
-    expect(message(MessageType.search, recipientId: 2).hasValidRoute, isFalse);
+    expect(
+      message(MessageType.search, recipientIds: {2}).hasValidRoute,
+      isFalse,
+    );
     expect(message(MessageType.match).hasValidRoute, isFalse);
     expect(
       message(MessageType.match, recipientIds: {1, 2}).hasValidRoute,
       isFalse,
     );
-    expect(message(MessageType.confirm, recipientId: 2).hasValidRoute, isTrue);
+    expect(
+      message(MessageType.confirm, recipientIds: {2}).hasValidRoute,
+      isTrue,
+    );
     expect(
       message(MessageType.action, recipientIds: {}).hasValidRoute,
       isFalse,
@@ -144,7 +169,10 @@ void main() {
       message(MessageType.action, recipientIds: {1, 2}).hasValidRoute,
       isTrue,
     );
-    expect(message(MessageType.resource, recipientId: 2).hasValidRoute, isTrue);
+    expect(
+      message(MessageType.resource, recipientIds: {2}).hasValidRoute,
+      isTrue,
+    );
   });
 
   test('收件人不在册时整条消息被丢弃，exit 不再例外', () async {

@@ -26,7 +26,6 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   void Function(NetworkMessage) _syncHandler = _noMessage;
   void Function(NetworkMessage) _actionHandler = _noMessage;
   void Function(int) _exitHandler = _noSearch;
-  final Map<int, String> _participants = {};
   final Map<int, _PendingJoin> _pendingJoins = {};
   final Map<int, String> _completedJoins = {};
   final Set<int> _publishVotes = {};
@@ -34,7 +33,24 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   int? publisherId;
   bool _awaitingResource = false;
   bool _disposed = false;
-  Map<int, String> get participants => Map.unmodifiable(_participants);
+
+  /// 重开名单只包含已准备玩家；未准备者保留会话订阅而不阻塞同步。
+  void resumeRound(List<int> players, int revision, int publisher) {
+    for (final joining in _pendingJoins.values) {
+      joining.timer?.cancel();
+      _clearJoinDeliveries(joining);
+    }
+    _pendingJoins.clear();
+    _completedJoins.clear();
+    _publishVotes.clear();
+    gameMembers
+      ..clear()
+      ..addEntries(players.map((id) => MapEntry(id, members.value[id] ?? '')));
+    publisherId = publisher;
+    _rosterRevision = revision;
+    _awaitingResource = true;
+    gameStep.value = GameStep.synchronizing;
+  }
 
   NetMultiEngine(super.client);
 
@@ -59,7 +75,6 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
     _syncHandler = syncHandler;
     _actionHandler = actionHandler;
     _exitHandler = exitHandler;
-    _participants.clear();
     _pendingJoins.clear();
     _completedJoins.clear();
     _publishVotes.clear();
@@ -72,9 +87,11 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   void _invitationFailed() {
     final message = client.deliveryFailure.value;
     if (message == null || !isActive || message.gameId != gameId) return;
-    final joining = _pendingJoins[message.recipientId];
+    if (message.recipientIds.length != 1) return;
+    final target = message.recipientIds.single;
+    final joining = _pendingJoins[target];
     if (joining != null && joining.deliveries.contains(message.messageId)) {
-      _cancelJoin(message.recipientId!, joining);
+      _cancelJoin(target, joining);
     }
   }
 
@@ -100,7 +117,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
     if (isActive || ended.value) return;
     this.publisherId = publisherId;
     _rosterRevision = 1;
-    _participants
+    gameMembers
       ..clear()
       ..addAll({
         identity: members.value[identity] ?? userName,
@@ -118,19 +135,12 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   void sendGameMessage(
     MessageType type,
     String content, {
-    int? recipientId,
     Set<int>? recipientIds,
   }) {
-    if (!isActive ||
-        recipientId != null ||
-        type == MessageType.image ||
-        type == MessageType.file) {
-      return;
-    }
     if (type == MessageType.resource) {
-      if (publisherId != identity) return;
+      if (!isActive || publisherId != identity) return;
       content = jsonEncode({
-        'players': _participants.keys.toList(),
+        'players': gameMembers.keys.toList(),
         'revision': _rosterRevision,
         'admissions': {
           for (final entry in _completedJoins.entries)
@@ -139,12 +149,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
         'data': content,
       });
     }
-    final targets = recipientIds ?? _participants.keys.toSet();
-    if (targets.isEmpty ||
-        targets.any((id) => !_participants.containsKey(id))) {
-      return;
-    }
-    super.sendGameMessage(type, content, recipientIds: targets);
+    super.sendGameMessage(type, content, recipientIds: recipientIds);
   }
 
   @override
@@ -155,14 +160,14 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       final memberId = message.id;
       if (publisherId == identity &&
           memberId != identity &&
-          !_participants.containsKey(memberId) &&
+          !gameMembers.containsKey(memberId) &&
           !_pendingJoins.containsKey(memberId) &&
           (_maxPlayers == null ||
-              _participants.length + _pendingJoins.length < _maxPlayers!)) {
+              gameMembers.length + _pendingJoins.length < _maxPlayers!)) {
         final offerId = client.sendNetworkMessage(
           MessageType.match,
           '',
-          recipientId: memberId,
+          recipientIds: {memberId},
           gameId: gameId,
         );
         if (offerId != null) {
@@ -178,14 +183,15 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       if (joining != null) _cancelJoin(message.id, joining);
       return;
     }
-    // 私聊的入局控制和群发的游戏数据都必须属于本局。
+    // 入局控制与游戏数据均使用收件集合，并且必须属于本局。
     if (message.gameId != gameId) return;
-    if (message.isPrivateMessage && message.recipientId == identity) {
+    if ((message.type == MessageType.confirm ||
+            message.type == MessageType.reject) &&
+        message.recipientIds.contains(identity)) {
       _handleJoinConfirmation(message);
       return;
     }
-    if (!message.isGroupMessage ||
-        !(message.recipientIds?.contains(identity) ?? false)) {
+    if (message.isRoomMessage || !message.recipientIds.contains(identity)) {
       return;
     }
     if (message.type == MessageType.exit) {
@@ -193,21 +199,21 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       return;
     }
     if (message.type == MessageType.publish) {
-      if (publisherId != null || !_participants.containsKey(message.id)) return;
+      if (publisherId != null || !gameMembers.containsKey(message.id)) return;
       _publishVotes.add(message.id);
-      if (_publishVotes.length == _participants.length) {
-        publisherId = (_participants.keys.toList()..sort()).first;
+      if (_publishVotes.length == gameMembers.length) {
+        publisherId = (gameMembers.keys.toList()..sort()).first;
         _publishVotes.clear();
         if (publisherId == identity) _searchHandler(identity);
       }
       return;
     }
-    if (!_participants.containsKey(message.id)) return;
+    if (!gameMembers.containsKey(message.id)) return;
     if (message.type == MessageType.resource) {
       // 胜选资源可能先于最后一票到达；仅允许当前名单最小 ID 接管。
       // 活跃发布者不因新成员 ID 更小或收到其 action/sync 而被替换。
       final expectedPublisher =
-          publisherId ?? (_participants.keys.toList()..sort()).first;
+          publisherId ?? (gameMembers.keys.toList()..sort()).first;
       if (message.id != expectedPublisher) return;
       final envelope = jsonDecode(message.content) as Map<String, dynamic>;
       final ids = (envelope['players'] as List<dynamic>).cast<int>();
@@ -224,7 +230,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
           revision < _rosterRevision ||
           admissions.keys.any((id) => !ids.contains(id)) ||
           admissions.values.any((id) => id.isEmpty || id.length > 128) ||
-          !ids.toSet().containsAll(message.recipientIds!)) {
+          !ids.toSet().containsAll(message.recipientIds)) {
         return;
       }
       // 同局内入局/撤销也会产生不同名单；旧资源重发不能把撤销的成员加回来。
@@ -233,7 +239,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       _completedJoins
         ..clear()
         ..addAll(admissions);
-      _participants
+      gameMembers
         ..clear()
         ..addEntries(ids.map((id) => MapEntry(id, members.value[id] ?? '')));
       _awaitingResource = false;
@@ -308,7 +314,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
         joining.timer?.cancel();
         _pendingJoins.remove(message.id);
         _completedJoins[message.id] = joining.offerId;
-        _participants[message.id] = members.value[message.id] ?? '';
+        gameMembers[message.id] = members.value[message.id] ?? '';
         _rosterRevision++;
         _awaitingResource = true;
         gameStep.value = GameStep.synchronizing;
@@ -328,7 +334,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
     final id = client.sendNetworkMessage(
       MessageType.confirm,
       MatchConfirmation(phase, joining.offerId).content,
-      recipientId: memberId,
+      recipientIds: {memberId},
       gameId: gameId,
     );
     if (id != null) joining.deliveries.add(id);
@@ -367,7 +373,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
           MatchConfirmationPhase.abort,
           joining.offerId,
         ).content,
-        recipientId: memberId,
+        recipientIds: {memberId},
         gameId: gameId,
       );
     }
@@ -391,7 +397,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       if (message.type == MessageType.resource &&
           message.id == inviterId &&
           message.gameId == gameId) {
-        targets.addAll(message.recipientIds ?? {});
+        targets.addAll(message.recipientIds);
       }
     }
     targets.remove(identity);
@@ -401,7 +407,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       client.sendNetworkMessage(
         MessageType.confirm,
         MatchConfirmation(MatchConfirmationPhase.abort, offerId).content,
-        recipientId: target,
+        recipientIds: {target},
         gameId: gameId,
       );
     }
@@ -411,7 +417,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
     final joining = _pendingJoins[id];
     if (joining != null) _cancelJoin(id, joining);
     _completedJoins.remove(id);
-    if (_participants.remove(id) == null) return;
+    if (gameMembers.remove(id) == null) return;
     _rosterRevision++;
     final lostPublisher = publisherId == id;
     _awaitingResource = true;
@@ -421,8 +427,8 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       _cancelAllJoins();
       publisherId = null;
       _publishVotes.clear();
-      if (_participants.isNotEmpty) sendGameMessage(MessageType.publish, '');
-    } else if (publisherId == identity && _participants.isNotEmpty) {
+      if (gameMembers.isNotEmpty) sendGameMessage(MessageType.publish, '');
+    } else if (publisherId == identity && gameMembers.isNotEmpty) {
       _searchHandler(identity);
     }
   }
@@ -433,7 +439,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   bool completeSynchronization() {
     if (!isActive ||
         _awaitingResource ||
-        _participants.length < minimumParticipants) {
+        gameMembers.length < minimumParticipants) {
       return false;
     }
     gameStep.value = GameStep.action;
@@ -451,7 +457,6 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   void releaseGame() {
     client.deliveryFailure.removeListener(_invitationFailed);
     super.releaseGame();
-    _participants.clear();
     _pendingJoins.clear();
     _completedJoins.clear();
     _publishVotes.clear();

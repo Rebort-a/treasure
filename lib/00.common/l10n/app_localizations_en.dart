@@ -16,6 +16,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirmSurrender => 'Are you sure you want to surrender?';
 
   @override
+  String get confirmGameLeave =>
+      'Leave the game and return to chat? Use Surrender instead to stay here and replay.';
+
+  @override
   String get cancel => 'Cancel';
 
   @override
@@ -1227,10 +1231,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchMoves => 'Moves left';
 
   @override
-  String get matchScore => 'Score goal';
+  String get matchScore => 'Score';
 
   @override
-  String get matchYourTurn => 'Your turn — reach the goals together!';
+  String get matchYourTurn => 'Your turn';
 
   @override
   String matchPlayerTurn(String name) {
@@ -1239,9 +1243,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get matchWon => 'Congratulations, you won!';
-
-  @override
-  String get matchNewRecord => 'Congratulations, new record!';
 
   @override
   String get matchBonusTime => 'Bonus Time';

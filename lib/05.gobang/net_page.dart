@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/network/client/socket_client.dart';
 import '../00.common/network/widget/online_game_host.dart';
+import '../00.common/network/widget/round_replay_board.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
@@ -37,10 +38,10 @@ class _GomokuGame extends StatelessWidget {
   Widget build(BuildContext context) => _buildPage(context);
 
   Widget _buildPage(BuildContext context) {
-    return Scaffold(appBar: _buildAppBar(), body: _buildBody());
+    return Scaffold(appBar: _buildAppBar(context), body: _buildBody());
   }
 
-  AppBar _buildAppBar() {
+  AppBar _buildAppBar(BuildContext context) {
     return AppBar(
       title: Text(S.netGobang),
       centerTitle: true,
@@ -52,7 +53,7 @@ class _GomokuGame extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.flag),
           tooltip: S.surrender,
-          onPressed: _onExit,
+          onPressed: () => confirmRoundSurrender(context, _manager.turnEngine),
         ),
       ],
     );
@@ -66,12 +67,15 @@ class _GomokuGame extends StatelessWidget {
           child: Column(
             children: [
               NotifierNavigator(navigatorHandler: _manager.pageNavigator),
-              ...(step == GameStep.action
+              ...(step == GameStep.action || step == GameStep.gameOver
                   ? [
                       _buildTurnIndicator(),
                       Expanded(
                         flex: 3,
-                        child: FoundationalWidget(manager: _manager),
+                        child: RoundReplayBoard(
+                          engine: _manager.turnEngine,
+                          child: FoundationalWidget(manager: _manager),
+                        ),
                       ),
                     ]
                   : [

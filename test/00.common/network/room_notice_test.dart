@@ -93,7 +93,7 @@ void main() {
     ]) {
       final json = {
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.notify.index,
         'source': 'Alice',
         'content': content,

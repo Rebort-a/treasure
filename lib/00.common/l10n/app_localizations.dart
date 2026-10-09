@@ -110,6 +110,12 @@ abstract class AppLocalizations {
   /// **'Are you sure you want to surrender?'**
   String get confirmSurrender;
 
+  /// No description provided for @confirmGameLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave the game and return to chat? Use Surrender instead to stay here and replay.'**
+  String get confirmGameLeave;
+
   /// No description provided for @cancel.
   ///
   /// In en, this message translates to:
@@ -2333,13 +2339,13 @@ abstract class AppLocalizations {
   /// No description provided for @matchScore.
   ///
   /// In en, this message translates to:
-  /// **'Score goal'**
+  /// **'Score'**
   String get matchScore;
 
   /// No description provided for @matchYourTurn.
   ///
   /// In en, this message translates to:
-  /// **'Your turn — reach the goals together!'**
+  /// **'Your turn'**
   String get matchYourTurn;
 
   /// No description provided for @matchPlayerTurn.
@@ -2353,12 +2359,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Congratulations, you won!'**
   String get matchWon;
-
-  /// No description provided for @matchNewRecord.
-  ///
-  /// In en, this message translates to:
-  /// **'Congratulations, new record!'**
-  String get matchNewRecord;
 
   /// No description provided for @matchBonusTime.
   ///

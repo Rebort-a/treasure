@@ -5,6 +5,7 @@ import '../../00.common/l10n/strings.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
 import 'animal_piece.dart';
+import 'match_clear_effects.dart';
 
 class MatchBoardWidget extends StatefulWidget {
   final MatchManager manager;
@@ -64,7 +65,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
   Widget build(BuildContext context) {
     final frame = widget.view.frame;
     final duration = _animate
-        ? const Duration(milliseconds: 180)
+        ? Duration(milliseconds: frame.phase == FramePhase.fall ? 210 : 180)
         : Duration.zero;
     return AspectRatio(
       aspectRatio: 1,
@@ -167,7 +168,9 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                   AnimatedPositioned(
                                     key: ValueKey('piece-${piece.id}'),
                                     duration: duration,
-                                    curve: Curves.easeOutCubic,
+                                    curve: frame.phase == FramePhase.fall
+                                        ? const Cubic(0.2, 0.8, 0.3, 1.04)
+                                        : Curves.easeInOutCubic,
                                     left:
                                         _displayIndex(index, invalidSwap) %
                                         MatchBoard.side *
@@ -184,24 +187,22 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                       button: true,
                                       onTap: () =>
                                           widget.manager.selectCell(index),
-                                      child: AnimatedSlide(
-                                        offset:
-                                            frame.spawnedPieceIds.contains(
-                                              piece.id,
-                                            )
-                                            ? const Offset(0, -1)
-                                            : Offset.zero,
-                                        duration: duration,
-                                        curve: Curves.easeOutCubic,
+                                      child: MatchPieceEntrance(
+                                        spawned: frame.spawnedPieceIds.contains(
+                                          piece.id,
+                                        ),
+                                        animated: _animate,
+                                        row: index ~/ MatchBoard.side,
+                                        cell: cell,
                                         child: AnimatedScale(
                                           scale: frame.clearing.contains(index)
-                                              ? 0.45
+                                              ? 0.15
                                               : 1,
                                           duration: duration,
                                           child: AnimatedOpacity(
                                             opacity:
                                                 frame.clearing.contains(index)
-                                                ? 0.15
+                                                ? 0
                                                 : 1,
                                             duration: duration,
                                             child: Stack(
@@ -260,6 +261,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                             ],
                           ),
                         ),
+                        Positioned.fill(child: MatchClearEffects(frame: frame)),
                         ValueListenableBuilder<int?>(
                           valueListenable: widget.manager.selected,
                           builder: (_, selected, __) => IgnorePointer(

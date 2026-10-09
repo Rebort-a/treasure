@@ -3,14 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../../00.common/service/json_store.dart';
-import '../../00.common/service/storage_service.dart';
 import '../base/match_board.dart';
 
 class MatchView {
   final BoardFrame frame;
   final int score;
-  final int scoreTarget;
   final int movesLeft;
   final int seed;
   final int iceLeft;
@@ -20,26 +17,22 @@ class MatchView {
 
   MatchView(MatchBoard board, this.frame)
     : score = frame.score,
-      scoreTarget = board.scoreTarget,
       movesLeft = frame.movesLeft,
       seed = board.seed,
-      iceLeft = board.iceLeft,
+      iceLeft = frame.ice.fold(0, (sum, layers) => sum + layers),
       targets = Map.unmodifiable(board.targets),
-      collected = List.unmodifiable(board.collected),
+      collected = frame.collected,
       status = board.status;
 }
 
 /// 负责选择和展示帧的生命周期，三消判定始终由纯 Dart 内核完成。
 class MatchManager {
-  final JsonStore _storage;
   final view = ValueNotifier<MatchView?>(null);
   final selected = ValueNotifier<int?>(null);
   final busy = ValueNotifier(false);
   final comboMultiplier = ValueNotifier<int?>(null);
   final comboPraise = ValueNotifier<String?>(null);
   final bonusTime = ValueNotifier(false);
-  final highScore = ValueNotifier(0);
-  final brokeRecord = ValueNotifier(false);
   final invalidSwap = ValueNotifier<(int, int)?>(null);
   final invalidSwapAnimating = ValueNotifier(false);
   MatchBoard? _board;
@@ -48,12 +41,9 @@ class MatchManager {
   int _invalidSwapEpoch = 0;
   bool _disposed = false;
   final Map<Timer, Completer<void>> _pendingDelays = {};
-  late final Future<void> _highScoreLoaded;
   bool reduceMotion = false;
 
-  MatchManager({bool generate = true, int? seed, JsonStore? storage})
-    : _storage = storage ?? StorageService.instance {
-    _highScoreLoaded = _loadHighScore();
+  MatchManager({bool generate = true, int? seed}) {
     if (generate) restart(seed: seed);
   }
 
@@ -64,31 +54,6 @@ class MatchManager {
       !invalidSwapAnimating.value &&
       _board?.status == MatchStatus.playing;
   bool get canRestart => true;
-
-  Future<void> _loadHighScore() async {
-    final data = await _storage.read('match_three', project: '18.match_three');
-    final score = data['highScore'];
-    if (!_disposed && score is int && score >= 0) {
-      highScore.value = score;
-    }
-  }
-
-  Future<void> _updateHighScore(int epoch) async {
-    await _highScoreLoaded;
-    final board = _board;
-    if (_disposed ||
-        epoch != _animationEpoch ||
-        board == null ||
-        board.status != MatchStatus.won ||
-        board.score <= highScore.value) {
-      return;
-    }
-    highScore.value = board.score;
-    brokeRecord.value = true;
-    await _storage.write('match_three', {
-      'highScore': board.score,
-    }, project: '18.match_three');
-  }
 
   void restart({int? seed}) {
     if (_disposed || !canRestart) return;
@@ -102,7 +67,6 @@ class MatchManager {
     comboMultiplier.value = null;
     comboPraise.value = null;
     bonusTime.value = false;
-    brokeRecord.value = false;
     selected.value = null;
     _show(BoardFrame(_board!, FramePhase.settled));
   }
@@ -117,6 +81,23 @@ class MatchManager {
     } else {
       selected.value = index;
     }
+  }
+
+  /// 联机新局丢弃旧棋盘与动画，由发布者重新生成并通过快照同步。
+  void resetNetworkRound() {
+    _cancelDelays();
+    _animationEpoch++;
+    _invalidSwapEpoch++;
+    _publishedResult = null;
+    _board = null;
+    view.value = null;
+    busy.value = false;
+    selected.value = null;
+    invalidSwap.value = null;
+    invalidSwapAnimating.value = false;
+    comboMultiplier.value = null;
+    comboPraise.value = null;
+    bonusTime.value = false;
   }
 
   void swap(int a, int b) {
@@ -281,24 +262,15 @@ class MatchManager {
     final hasBonusTime = result.frames.any(
       (frame) => frame.phase == FramePhase.bonus,
     );
-    final recordUpdate = _board?.status == MatchStatus.won
-        ? _updateHighScore(epoch)
-        : null;
     comboPraise.value = null;
     bonusTime.value = false;
     if (reduceMotion && !hasBonusTime) {
       busy.value = true;
       comboMultiplier.value = null;
       _show(result.frames.last);
-      if (recordUpdate == null) {
-        busy.value = false;
+      busy.value = false;
+      if (_board?.status == MatchStatus.playing) {
         _showPraiseBriefly(praise, epoch);
-      } else {
-        unawaited(() async {
-          await recordUpdate;
-          if (_disposed || epoch != _animationEpoch) return;
-          busy.value = false;
-        }());
       }
       return;
     }
@@ -315,7 +287,6 @@ class MatchManager {
         }
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
-        if (recordUpdate != null) await recordUpdate;
         if (_disposed || epoch != _animationEpoch) return;
         bonusTime.value = false;
         busy.value = false;
@@ -352,11 +323,10 @@ class MatchManager {
           );
         }
       }
-      if (!praiseShown && recordUpdate == null) {
+      if (!praiseShown && _board?.status == MatchStatus.playing) {
         comboMultiplier.value = null;
         _showPraiseBriefly(praise, epoch);
       }
-      if (recordUpdate != null) await recordUpdate;
       if (!_disposed && epoch == _animationEpoch) {
         comboMultiplier.value = null;
         bonusTime.value = false;
@@ -376,8 +346,6 @@ class MatchManager {
     comboMultiplier.dispose();
     comboPraise.dispose();
     bonusTime.dispose();
-    highScore.dispose();
-    brokeRecord.dispose();
     invalidSwap.dispose();
     invalidSwapAnimating.dispose();
   }

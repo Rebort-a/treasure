@@ -9,7 +9,7 @@ import 'package:treasure/00.common/model/chat_message.dart';
 /// 网络消息层单测：覆盖必选时间戳校验、解析健壮性与 XOR 加密往返。
 /// 纯逻辑、无需真实 socket。
 void main() {
-  test('连接认证请求使用 NetworkMessage room 路由', () {
+  test('连接认证请求使用空收件集合', () {
     final request = NetworkMessage(
       id: 0,
       type: MessageType.connect,
@@ -58,8 +58,8 @@ void main() {
 
   test('纯表情和混合文字都以 text 传输并按普通聊天展示', () {
     for (final content in ['🙂', '你好 👨‍👩‍👧‍👦，一起玩吧']) {
-      for (final recipients in <Set<int>?>[
-        null,
+      for (final recipients in <Set<int>>[
+        {},
         {1, 2},
       ]) {
         final original = NetworkMessage(
@@ -83,7 +83,7 @@ void main() {
     }
   });
 
-  test('搜索是房间广播；匹配和确认是单人私聊', () {
+  test('搜索使用空集合广播，匹配和确认只指定一个成员', () {
     final search = NetworkMessage(
       id: 1,
       type: MessageType.search,
@@ -102,11 +102,11 @@ void main() {
         source: 'Alice',
         content: '',
         timestamp: 1,
-        recipientId: 2,
+        recipientIds: {2},
       );
       expect(
-        NetworkMessage.fromJsonString(message.toJsonString())?.recipientId,
-        2,
+        NetworkMessage.fromJsonString(message.toJsonString())?.recipientIds,
+        {2},
       );
       expect(
         NetworkMessage.fromJsonString(
@@ -123,11 +123,76 @@ void main() {
     }
   });
 
+  test('线协议收件字段必须存在且类型合法，不再包含旧路由字段', () {
+    final recipients = <int>{2, 3};
+    final message = NetworkMessage(
+      id: 1,
+      type: MessageType.text,
+      source: 'A',
+      content: 'hello',
+      timestamp: 1,
+      recipientIds: recipients,
+    );
+    recipients.add(4);
+    expect(message.recipientIds, {2, 3});
+    expect(() => message.recipientIds.add(4), throwsUnsupportedError);
+    final json = message.toJson();
+    expect(json.keys, isNot(contains('recipientId')));
+    expect(json.keys, isNot(contains('route')));
+    expect(json['recipientIds'], [2, 3]);
+    expect(NetworkMessage.fromJson({...json}..remove('recipientIds')), isNull);
+    for (final invalid in [
+      null,
+      '2',
+      2,
+      [0],
+      [-1],
+      [2.0],
+      ['2'],
+      [null],
+      [2, 2],
+    ]) {
+      expect(
+        NetworkMessage.fromJson({...json, 'recipientIds': invalid}),
+        isNull,
+      );
+    }
+    expect(NetworkMessage.fromJson({...json, 'recipientId': 2}), isNull);
+    expect(NetworkMessage.fromJson({...json, 'route': 'group'}), isNull);
+    final broadcast = NetworkMessage.fromJson({...json, 'recipientIds': []})!;
+    expect(broadcast.isRoomMessage, isTrue);
+    expect(broadcast.toJson()['recipientIds'], isEmpty);
+  });
+
+  test('构造时省略收件集合默认公开广播，仍序列化不可变的空集合', () {
+    final message = NetworkMessage(
+      id: 1,
+      type: MessageType.text,
+      source: 'A',
+      content: 'hello',
+      timestamp: 1,
+    );
+    expect(message.recipientIds, isEmpty);
+    expect(message.isRoomMessage, isTrue);
+    expect(message.hasValidRoute, isTrue);
+    expect(message.toJson()['recipientIds'], isEmpty);
+    expect(NetworkMessage.fromJson(message.toJson())!.recipientIds, isEmpty);
+    expect(() => message.recipientIds.add(2), throwsUnsupportedError);
+    final action = NetworkMessage(
+      id: 1,
+      type: MessageType.action,
+      source: 'A',
+      content: 'move',
+      timestamp: 1,
+    );
+    expect(action.hasValidRoute, isFalse);
+  });
+
   group('NetworkMessage.fromJson', () {
     test('解析合法消息', () {
       final msg = NetworkMessage.fromJson({
         'id': 5,
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.text.index,
         'source': 'alice',
         'content': 'hello',
@@ -144,7 +209,7 @@ void main() {
     test('type 越界返回 null（不 RangeError）', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': 9999,
         'source': 'x',
         'content': 'x',
@@ -155,7 +220,7 @@ void main() {
     test('type 负数返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': -1,
         'source': 'x',
         'content': 'x',
@@ -166,7 +231,7 @@ void main() {
     test('type 非 int 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': 'text',
         'source': 'x',
         'content': 'x',
@@ -177,7 +242,7 @@ void main() {
     test('id 非 int 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': '5',
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.text.index,
         'source': 'x',
         'content': 'x',
@@ -188,7 +253,7 @@ void main() {
     test('负数 id 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': -1,
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.text.index,
       });
       expect(msg, isNull);
@@ -197,7 +262,7 @@ void main() {
     test('字段类型错误返回 null（不抛 TypeError）', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.text.index,
         'source': 123,
         'timestamp': 'now',
@@ -208,7 +273,7 @@ void main() {
     test('缺少必选 timestamp 返回 null', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.text.index,
         'source': 'x',
         'content': 'x',
@@ -219,7 +284,7 @@ void main() {
     test('source/content 缺失回退空串（不崩溃）', () {
       final msg = NetworkMessage.fromJson({
         'id': 1,
-        'route': 'room',
+        'recipientIds': [],
         'type': MessageType.text.index,
         'timestamp': 1,
       });
@@ -233,7 +298,6 @@ void main() {
     test('合法 JSON 解析', () {
       final json = jsonEncode({
         'id': 2,
-        'route': 'group',
         'recipientIds': [1, 2],
         'type': MessageType.action.index,
         'source': 'bob',

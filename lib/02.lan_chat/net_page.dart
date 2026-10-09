@@ -262,32 +262,41 @@ class _NetChatPageState extends State<NetChatPage> {
       return Column(
         children: [
           NotifierNavigator(navigatorHandler: _manager.pageNavigator),
-          if (showStatus || hasGame)
-            PinnedRoomCard(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (showStatus)
-                    ListTile(
-                      title: Text(text),
-                      trailing: TextButton(
-                        onPressed: _manager.leavePage,
-                        child: Text(failed ? S.close : S.cancel),
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                MessageList(
+                  identity: widget.room.identity,
+                  userName: widget.room.userName,
+                  messageList: _engine.messageList,
+                  theme: _theme,
+                  topPadding:
+                      MediaQuery.paddingOf(context).top + kToolbarHeight + 4,
+                ),
+                if (showStatus || hasGame)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: PinnedRoomCard(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showStatus)
+                            ListTile(
+                              title: Text(text),
+                              trailing: TextButton(
+                                onPressed: _manager.leavePage,
+                                child: Text(failed ? S.close : S.cancel),
+                              ),
+                            ),
+                          if (hasGame) _gameCard(),
+                        ],
                       ),
                     ),
-                  if (hasGame) _gameCard(),
-                ],
-              ),
-            ),
-          Expanded(
-            child: MessageList(
-              identity: widget.room.identity,
-              userName: widget.room.userName,
-              messageList: _engine.messageList,
-              theme: _theme,
-              topPadding: showStatus || hasGame
-                  ? 4
-                  : MediaQuery.paddingOf(context).top + kToolbarHeight + 4,
+                  ),
+              ],
             ),
           ),
           MessageInput(

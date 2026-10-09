@@ -335,19 +335,12 @@ class SocketClient {
         return;
       }
     }
-    // 私聊只接受「我发出后的回环」与「发给我的」两种。
-    if (message.isPrivateMessage &&
-        message.id != identity &&
-        message.recipientId != identity) {
-      return;
-    }
-    // 群发只接受收件集合包含我的。
-    if (message.isGroupMessage &&
-        !(message.recipientIds?.contains(identity) ?? false)) {
+    // 发送者没有隐式接收权，定向消息必须明确包含本客户端。
+    if (!message.isRoomMessage && !message.recipientIds.contains(identity)) {
       return;
     }
     if (message.type == MessageType.ack) {
-      if (message.recipientId == identity && message.id != identity) {
+      if (message.recipientIds.contains(identity) && message.id != identity) {
         final key = _deliveryKey(message.gameId, message.content);
         final pending = _pendingDeliveries[key];
         if (pending != null &&
@@ -367,7 +360,7 @@ class SocketClient {
         sendNetworkMessage(
           MessageType.ack,
           message.messageId!,
-          recipientId: message.id,
+          recipientIds: {message.id},
           gameId: message.gameId,
         );
       }
@@ -507,8 +500,7 @@ class SocketClient {
   String? sendNetworkMessage(
     MessageType type,
     String content, {
-    int? recipientId,
-    Set<int>? recipientIds,
+    Set<int> recipientIds = const {},
     String? messageId,
     String? gameId,
   }) {
@@ -525,7 +517,6 @@ class SocketClient {
       source: userName,
       type: type,
       content: content,
-      recipientId: recipientId,
       recipientIds: recipientIds,
       gameId: gameId,
       timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -541,17 +532,14 @@ class SocketClient {
                     MessageType.action,
                     MessageType.exit,
                   }.contains(type) ||
-                  (type == MessageType.text &&
-                      (recipientId != null || recipientIds != null)))
+                  (type == MessageType.text && recipientIds.isNotEmpty))
               ? '$identity-${DateTime.now().microsecondsSinceEpoch}-${++_nextMessageId}'
               : null),
     );
-    // 路由形态不合法（例如群发收件集合为空）属于调用方错误。
+    // 游戏消息没有收件人属于调用方错误，不能意外广播给全房间。
     if (!message.hasValidRoute) throw ArgumentError('Invalid message route');
     if (message.needsAck && message.messageId != null) {
-      final expected = recipientIds == null
-          ? {recipientId!}
-          : Set<int>.of(recipientIds);
+      final expected = Set<int>.of(message.recipientIds);
       expected.remove(identity);
       if (expected.isNotEmpty) {
         final delivery = _PendingDelivery(message, expected, _generation);

@@ -13,6 +13,8 @@ class LocalManager extends FoundationalManager {
 
   /// AI动作执行锁：防止异步并发多次执行
   bool _isAiMoving = false;
+  int _aiEpoch = 0;
+  bool _disposed = false;
 
   bool get aiEnabled => _aiController != null;
 
@@ -22,6 +24,7 @@ class LocalManager extends FoundationalManager {
 
   /// 统一销毁AI资源
   void _disposeAiController() {
+    _aiEpoch++;
     _aiController?.dispose();
     _aiController = null;
     _isAiMoving = false;
@@ -55,6 +58,7 @@ class LocalManager extends FoundationalManager {
 
   @override
   void endTurn() {
+    if (_disposed || winner.value != null) return;
     _switchCurrentGamer();
     final aiCtrl = _aiController;
     if (aiCtrl != null && currentGamer.value == aiCtrl.faction) {
@@ -64,26 +68,39 @@ class LocalManager extends FoundationalManager {
 
   /// 执行AI走棋（加锁防并发）
   Future<void> _performAiMove() async {
-    if (_isAiMoving || _aiController == null) return;
+    if (_disposed ||
+        winner.value != null ||
+        _isAiMoving ||
+        _aiController == null) {
+      return;
+    }
 
     _isAiMoving = true;
+    final epoch = _aiEpoch;
+    final aiCtrl = _aiController!;
     try {
       await Future.delayed(_aiMoveDelay);
-      final aiCtrl = _aiController;
-      if (aiCtrl == null) return;
+      // 旧局 AI 延迟不能作用于重开后的棋盘，也不能在投降后继续落子。
+      if (_disposed ||
+          epoch != _aiEpoch ||
+          aiCtrl != _aiController ||
+          winner.value != null) {
+        return;
+      }
 
       final action = aiCtrl.getAction();
       if (action != null) {
         executeAction(action);
       }
-      _switchCurrentGamer();
+      if (winner.value == null) _switchCurrentGamer();
     } finally {
-      _isAiMoving = false;
+      if (epoch == _aiEpoch) _isAiMoving = false;
     }
   }
 
   @override
   void onCellClick(int index) {
+    if (_disposed || winner.value != null) return;
     final aiCtrl = _aiController;
     if (aiCtrl == null) {
       autoProcess(index);
@@ -106,6 +123,9 @@ class LocalManager extends FoundationalManager {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _disposeAiController();
+    winner.dispose();
   }
 }

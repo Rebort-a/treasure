@@ -39,7 +39,9 @@ class Board {
   AlwaysNotifier<TurnGamerType> currentGamer = AlwaysNotifier(
     TurnGamerType.front,
   );
-  bool gameOver = false;
+  final gameOverNotifier = ValueNotifier(false);
+  bool get gameOver => gameOverNotifier.value;
+  set gameOver(bool value) => gameOverNotifier.value = value;
   TurnGamerType? lastWinner;
 
   Board({required this.size}) {

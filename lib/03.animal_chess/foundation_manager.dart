@@ -17,6 +17,7 @@ abstract class FoundationalManager {
   final ValueNotifier<TurnGamerType> currentGamer = ValueNotifier(
     TurnGamerType.front,
   );
+  final winner = ValueNotifier<TurnGamerType?>(null);
   final ListNotifier<CellNotifier> displayMap = ListNotifier([]);
   final List<int> _markedCell = [];
 
@@ -81,14 +82,17 @@ abstract class FoundationalManager {
 
   void resetGameState() {
     _markedCell.clear();
+    winner.value = null;
     currentGamer.value = TurnGamerType.front;
     _redAnimalsCount = AnimalType.values.length;
     _blueAnimalsCount = AnimalType.values.length;
+    _hiddenCount = AnimalType.values.length * 2;
   }
 
   void onCellClick(int index) {}
 
   GameAction? autoProcess(int index) {
+    if (winner.value != null) return null;
     final action = _selectCell(index);
     if (action != null) {
       executeAction(action);
@@ -130,6 +134,7 @@ abstract class FoundationalManager {
   }
 
   void executeAction(GameAction action) {
+    if (winner.value != null) return;
     _clearSelectionAndHighlight();
     if (action is FlipAction) {
       _revealPiece(action.index);
@@ -279,54 +284,11 @@ abstract class FoundationalManager {
   }
 
   void handleSurrender() {
+    if (winner.value != null) return;
     handleGameOver(currentGamer.value.opponent);
   }
 
   void handleGameOver(TurnGamerType winner) {
-    pageNavigator.value = (context) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text(S.gameOver),
-            content: Text(
-              winner == TurnGamerType.front ? S.redWin() : S.blueWin(),
-            ),
-            actions: _buildDialogActions(context),
-          );
-        },
-      );
-    };
-  }
-
-  List<Widget> _buildDialogActions(BuildContext context) {
-    return [
-      TextButton(
-        child: Text(S.exit),
-        onPressed: () {
-          Navigator.pop(context);
-          _navigateToBack();
-        },
-      ),
-      TextButton(
-        child: Text(S.restart),
-        onPressed: () {
-          Navigator.pop(context);
-          initGame();
-        },
-      ),
-      TextButton(
-        child: Text(S.cancel),
-        onPressed: () {
-          Navigator.pop(context);
-        },
-      ),
-    ];
-  }
-
-  void _navigateToBack() {
-    pageNavigator.value = (context) {
-      Navigator.pop(context);
-    };
+    this.winner.value = winner;
   }
 }

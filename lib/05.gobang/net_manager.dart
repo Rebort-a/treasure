@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../00.common/network/client/net_turn_engine.dart';
+import '../00.common/game/step.dart';
 import '../00.common/model/notifiers.dart';
 import '../00.common/network/protocol/network_message.dart';
 import '../00.common/network/client/socket_client.dart';
@@ -19,6 +20,7 @@ class NetManager extends FoundationalManager {
         resourceMode: TurnResourceMode.none,
         actionHandler: _onAction,
         exitHandler: _onExit,
+        restartHandler: board.restart,
       );
   }
 
@@ -26,18 +28,19 @@ class NetManager extends FoundationalManager {
     final data = jsonDecode(message.content) as Map<String, dynamic>;
     int index = data['index'] as int;
     board.placePiece(index);
-    if (board.gameOver) turnEngine.finishGame();
+    if (board.gameOver) turnEngine.completeRound();
   }
 
   void resign() {
-    turnEngine.finishGame();
+    turnEngine.completeRound();
   }
 
   void _onExit() => turnEngine.leavePage();
 
   @override
   void placePiece(int index) {
-    if (board.currentGamer.value == turnEngine.playerType) {
+    if (turnEngine.gameStep.value == GameStep.action &&
+        board.currentGamer.value == turnEngine.playerType) {
       turnEngine.sendGameMessage(
         MessageType.action,
         jsonEncode({'index': index}),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../00.common/game/gamer.dart';
 import '../00.common/l10n/strings.dart';
+import '../00.common/widget/component/game_replay_board.dart';
 import 'foundation_widget.dart';
 import 'intelligence.dart';
 import 'local_manager.dart';
@@ -40,6 +41,19 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
 
   void _onGridSelected(int index) => _manager.placePiece(index);
 
+  /// 菜单与棋盘悬浮按钮使用相同重开逻辑，保留 AI 开关和先手规则。
+  void _restart() {
+    final oldFaction = _manager.aiFaction;
+    final winnerIsAi =
+        _vsAi && oldFaction != null && _manager.board.lastWinner == oldFaction;
+    final newFaction = winnerIsAi ? TurnGamerType.front : TurnGamerType.rear;
+    setState(() {
+      if (_vsAi) _manager.toggleAi(false);
+      _manager.restart();
+      if (_vsAi) _manager.toggleAi(true, faction: newFaction);
+    });
+  }
+
   @override
   void dispose() {
     _manager.dispose();
@@ -58,19 +72,7 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
             onSelected: (value) {
               switch (value) {
                 case 'restart':
-                  final oldFaction = _manager.aiFaction;
-                  final winnerIsAi =
-                      _vsAi &&
-                      oldFaction != null &&
-                      _manager.board.lastWinner == oldFaction;
-                  final newFaction = winnerIsAi
-                      ? TurnGamerType.front
-                      : TurnGamerType.rear;
-                  setState(() {
-                    if (_vsAi) _manager.toggleAi(false);
-                    _manager.restart();
-                    if (_vsAi) _manager.toggleAi(true, faction: newFaction);
-                  });
+                  _restart();
                 case 'undo':
                   _manager.undo();
                 case 'ai':
@@ -153,9 +155,16 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
             },
           ),
           Expanded(
-            child: FoundationalWidget(
-              manager: _manager,
-              onGridSelected: _onGridSelected,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _manager.board.gameOverNotifier,
+              builder: (_, finished, _) => GameReplayBoard(
+                finished: finished,
+                onReplay: _restart,
+                child: FoundationalWidget(
+                  manager: _manager,
+                  onGridSelected: _onGridSelected,
+                ),
+              ),
             ),
           ),
         ],

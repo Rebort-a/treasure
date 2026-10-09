@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../00.common/network/client/socket_client.dart';
 import '../../00.common/network/widget/online_game_host.dart';
+import '../../00.common/network/widget/round_replay_board.dart';
 import 'foundation_combat_widget.dart';
 
 import '../../00.common/game/step.dart';
@@ -42,8 +43,8 @@ class _CombatGame extends StatelessWidget {
     return ValueListenableBuilder<GameStep>(
       valueListenable: _manager.turnEngine.gameStep,
       builder: (__, step, _) {
-        if (step.index == GameStep.action.index) {
-          return _buildGame(step);
+        if (step == GameStep.action || step == GameStep.gameOver) {
+          return _buildGame(context, step);
         } else {
           return _buildPrepare(step);
         }
@@ -51,14 +52,38 @@ class _CombatGame extends StatelessWidget {
     );
   }
 
-  Widget _buildGame(GameStep step) {
+  Widget _buildGame(BuildContext context, GameStep step) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(S.roomTypeString('elementalBattle')),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _onExit,
+        ),
+        actions: [
+          IconButton(
+            tooltip: S.surrender,
+            icon: const Icon(Icons.flag),
+            onPressed: () =>
+                confirmRoundSurrender(context, _manager.turnEngine),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // 弹出页面
           NotifierNavigator(navigatorHandler: _manager.pageNavigator),
 
-          ...FoundationalCombatWidget(combatManager: _manager).buildPage(),
+          Expanded(
+            flex: 2,
+            child: RoundReplayBoard(
+              engine: _manager.turnEngine,
+              child: Column(
+                children: FoundationalCombatWidget(combatManager: _manager)
+                    .buildPage(),
+              ),
+            ),
+          ),
 
           Expanded(
             child: MessageList(

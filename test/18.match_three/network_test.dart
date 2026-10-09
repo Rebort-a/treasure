@@ -44,7 +44,8 @@ class _DropOnceConnection implements ClientConnection {
         NetworkMessage.fromPlainSocketData(data) ??
         NetworkMessage.fromSocketData(data, encryptionKey: 'test-key');
     if (message?.type == MessageType.sync &&
-        jsonDecode(message!.content)['phase'] == 'ready' &&
+        jsonDecode(jsonDecode(message!.content)['data'] as String)['phase'] ==
+            'ready' &&
         !owner.droppedReady) {
       owner.droppedReady = true;
       return;

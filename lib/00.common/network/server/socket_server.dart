@@ -262,15 +262,12 @@ class SocketServer {
       return;
     }
 
-    // 协议层按类型限定路由形态（match/confirm 须私聊，publish/sync 须群发），
+    // 协议层限定收件集合：握手和 ACK 为单成员，游戏数据非空，公开消息为空。
     // 非法路由在此统一拦截。
     if (!message.hasValidRoute) return;
 
     // 收件人必须是在册成员：名单过期的消息整条丢弃，避免向已离开的成员投递。
-    if ((message.recipientId != null &&
-            !_members.containsKey(message.recipientId)) ||
-        (message.recipientIds?.any((id) => !_members.containsKey(id)) ??
-            false)) {
+    if (message.recipientIds.any((id) => !_members.containsKey(id))) {
       return;
     }
 
@@ -302,30 +299,18 @@ class SocketServer {
             MatchConfirmationPhase.joined) {
       // 预留和 start 不代表入局；只有新玩家应用层 joined 才撤销搜索状态。
       _searching.remove(sender.id);
-      _searching.remove(message.recipientId);
+      _searching.removeAll(message.recipientIds);
     }
 
     // 以房间密钥重新封装，接收端用同一密钥解析。
     final forwarded = message.toSocketData(encryptionKey: encryptionKey);
 
-    if (message.isPrivateMessage) {
-      // 私聊先向发送者回环，再投递唯一接收者。
-      _sendTo(sender, forwarded);
-      final target = _clients
-          .where(
-            (client) => client.authorized && client.id == message.recipientId,
-          )
-          .firstOrNull;
-      if (target != null && target != sender) _sendTo(target, forwarded);
-      return;
-    }
-
     final recipients = message.recipientIds;
-    // recipientIds 为空表示广播全房间，否则仅投递给指定成员。
+    // 空集合广播全房间，否则只投递指定成员；发送者需要回环时必须显式包含自己。
     for (final client in _clients) {
       // 未认证连接不接收任何业务消息。
       if (!client.authorized) continue;
-      if (recipients == null || recipients.contains(client.id)) {
+      if (recipients.isEmpty || recipients.contains(client.id)) {
         _sendTo(client, forwarded);
       }
     }

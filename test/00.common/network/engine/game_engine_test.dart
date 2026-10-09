@@ -61,6 +61,14 @@ void main() {
       expect(a.playerType, TurnGamerType.front);
       expect(b.playerType, TurnGamerType.rear);
       expect(a.gameStep.value, GameStep.action);
+      expect(a.participants, {aRoom.identity: 'Alice', bRoom.identity: 'Bob'});
+      expect(b.participants, a.participants);
+      expect(a.enemyId, bRoom.identity);
+      expect(b.enemyId, aRoom.identity);
+      expect(
+        () => a.participants[cRoom.identity] = 'Carol',
+        throwsUnsupportedError,
+      );
       final c = turn(cRoom);
       games.add(c);
       startGame(c);
@@ -80,6 +88,29 @@ void main() {
             aRoom.messageList.value.any(
               (m) => m.content == 'room message while playing',
             ),
+      );
+      expect(c.gameMessageList.value, isEmpty);
+      expect(
+        a.gameMessageList.value
+            .firstWhere((m) => m.content == 'private')
+            .recipientIds,
+        {aRoom.identity, bRoom.identity},
+      );
+      // 显式空集合或混入房间旁观者的目标都不能从游戏接口意外公开广播。
+      a.sendGameMessage(
+        MessageType.text,
+        'empty game targets',
+        recipientIds: {},
+      );
+      a.sendGameMessage(
+        MessageType.text,
+        'foreign game target',
+        recipientIds: {aRoom.identity, cRoom.identity},
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(
+        a.gameMessageList.value.any((m) => m.content == 'empty game targets'),
+        isFalse,
       );
       expect(c.gameMessageList.value, isEmpty);
       expect(
@@ -114,14 +145,14 @@ void main() {
       aRoom.sendNetworkMessage(
         MessageType.exit,
         'late old exit',
-        recipientId: bRoom.identity,
+        recipientIds: {bRoom.identity},
         messageId: '$firstGameId-old-exit',
         gameId: firstGameScope,
       );
       aRoom.sendNetworkMessage(
         MessageType.text,
         'late old text',
-        recipientId: bRoom.identity,
+        recipientIds: {bRoom.identity},
         messageId: '$firstGameId-old-text',
         gameId: firstGameScope,
       );
@@ -136,7 +167,7 @@ void main() {
         source: 'Alice',
         content: 'old delivery failure',
         timestamp: DateTime.now().millisecondsSinceEpoch,
-        recipientId: bRoom.identity,
+        recipientIds: {bRoom.identity},
         messageId: firstGameId,
         gameId: firstGameScope,
       );

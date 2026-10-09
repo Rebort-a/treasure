@@ -24,7 +24,6 @@ class S {
   static String get matchYourTurn => _l.matchYourTurn;
   static String matchPlayerTurn(String name) => _l.matchPlayerTurn(name);
   static String get matchWon => _l.matchWon;
-  static String get matchNewRecord => _l.matchNewRecord;
   static String get matchBonusTime => _l.matchBonusTime;
   static String get matchLost => _l.matchLost;
   static String get matchIceLeft => _l.matchIceLeft;
@@ -46,6 +45,7 @@ class S {
   // ==================== 通用 ====================
   static String get confirm => _l.confirm;
   static String get confirmSurrender => _l.confirmSurrender;
+  static String get confirmGameLeave => _l.confirmGameLeave;
   static String get cancel => _l.cancel;
   static String get close => _l.close;
   static String get ok => _l.ok;

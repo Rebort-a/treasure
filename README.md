@@ -210,7 +210,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 - **Room / Game Lifecycle** — One persistent connection and reusable game engine; each match resets its game state. | 房间保持一条连接和一个可复用游戏引擎，每局重置对局状态，退出游戏不关闭房间。
 - **Room Entry** — Home always opens LAN chat with an optional lazy game-page builder; matched games run on a separate route and return to the retained chat. | 首页统一进入聊天室，可选注入游戏页面工厂；匹配成功后打开单局路由，结束返回保留的聊天室。
 - **Game Pages** — Plain `StatelessWidget` entries compose a shared lifecycle host; concrete managers stay inside each game module. | 游戏入口保持普通 `StatelessWidget`，通过组合使用通用生命周期容器，具体 Manager 不对外暴露。
-- **Message Routing** — `recipientId` / `recipientIds` target private or group messages; `gameId` isolates matches, with ACK, retry and deduplication for directed game messages. | 私聊与群聊定向转发；`gameId` 隔离对局，局内消息有 ACK、重发和去重，搜索与房间聊天没有。
+- **Message Routing** — `recipientIds` defaults to empty for public broadcasts; nonempty targets only that set, without implicit sender echo. Directed game messages use ACK, retry and deduplication. | 收件集合默认为空，用于公开广播；非空集合仅投递指定成员，发送者不再自动回环；定向游戏消息保留 ACK、重发及去重。
 - **Game Admission** — Reserved invitations commit only after application-level confirmation; real-time newcomers share the current game ID, with rollback and resynchronization on failure. | 邀请先预留、确认后入局；实时中途加入复用当前对局 ID，失败时撤销并重新同步。
 - **Reconnection** — Exponential backoff (1s→2s→4s→8s→16s, max 5 attempts) | 指数退避重连
 - **Transport Security** — XOR with a room-shared key exchanged in the handshake is obfuscation, not secure transport. Use trusted LANs only. | 房间共享密钥在握手中交换；XOR 仅用于混淆，不提供安全传输保证。

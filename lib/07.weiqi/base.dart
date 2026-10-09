@@ -170,7 +170,9 @@ class GoBoard {
   final ListNotifier<GoGridNotifier> grids = ListNotifier([]);
   List<Map<String, dynamic>> moveHistory = []; // 记录落子历史：位置、颜色、提子
   AlwaysNotifier<StoneState> currentPlayer = AlwaysNotifier(StoneState.black);
-  bool gameOver = false;
+  final gameOverNotifier = ValueNotifier(false);
+  bool get gameOver => gameOverNotifier.value;
+  set gameOver(bool value) => gameOverNotifier.value = value;
   StoneState? lastWinner;
   Map<String, dynamic>? lastCapture; // 用于处理劫争
 

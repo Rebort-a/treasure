@@ -144,9 +144,11 @@ void main() {
         );
         await tester.tap(find.byIcon(Icons.arrow_back));
         await tester.pump();
-        expect(find.text('Surrender'), findsWidgets);
+        expect(find.text('Leave'), findsWidgets);
         expect(
-          find.text('Are you sure you want to surrender?'),
+          find.text(
+            'Leave the game and return to chat? Use Surrender instead to stay here and replay.',
+          ),
           findsOneWidget,
         );
         await tester.tap(find.text('Cancel'));
@@ -155,7 +157,9 @@ void main() {
         await tester.binding.handlePopRoute();
         await tester.pump();
         expect(
-          find.text('Are you sure you want to surrender?'),
+          find.text(
+            'Leave the game and return to chat? Use Surrender instead to stay here and replay.',
+          ),
           findsOneWidget,
         );
         await tester.tap(find.text('Confirm'));
