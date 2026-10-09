@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.1] - 2026-10-09
+Improve match-three score and opening animations, automatically trigger all bonus special pieces, use compact replay panels, and apply Zoom transitions to maze encounters.
+
+### Added
+- refine game animations and replay presentation
+- unify game replay and improve match-three feedback
+- improve project sharing and community entry points
+- show score gradually and rework goal chips
+
+### Fixed
+- left align goal chip numbers
+
 ## [1.3.0] - 2026-10-08
 Improve Match Three gameplay, bonus effects, score records, and animations
 
