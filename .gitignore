@@ -18,6 +18,11 @@ migrate_working_dir/
 *.iws
 .idea/
 
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+.vscode/
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
@@ -30,14 +35,6 @@ migrate_working_dir/
 /coverage/
 .metadata
 
-# FVM (Flutter Version Management) — 本地 SDK 符号链接，不提交；.fvmrc 需提交
-.fvm/flutter_sdk
-
-# Android
-android/.gradle/
-android/local.properties
-android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
-
 # Symbolication related
 app.*.symbols
 
@@ -49,17 +46,15 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Widget Preview related
+.widget_preview/
+
+# FVM (Flutter Version Management) — 本地 SDK 符号链接，不提交；.fvmrc 需提交
+.fvm/flutter_sdk
+
 # AI related
-.claude/
 .mcp.json
 AGENTS.md
-CLAUDE.md
-TASK_QUEUE.md
-NIGHT_SHIFT.md
 
 # Local data
 .treasure/
-# pubspec.lock 已纳入版本控制：锁定传递依赖，保证 CI 与本地构建一致
-
-# Flutter widget preview generated project
-.widget_preview/

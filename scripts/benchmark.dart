@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import '../lib/00.common/network/protocol/tcp_frame_codec.dart';
-import '../lib/13.minecraft/base/matrix.dart';
-import '../lib/13.minecraft/base/vector.dart';
-import '../lib/18.match_three/base/match_board.dart';
+import 'package:treasure/00.common/network/protocol/tcp_frame_codec.dart';
+import 'package:treasure/13.minecraft/base/matrix.dart';
+import 'package:treasure/13.minecraft/base/vector.dart';
+import 'package:treasure/18.match_three/base/match_board.dart';
 
 /// 固定输入的 CPU 微基准，不把内核耗时当作界面帧率或跨设备网络性能。
 class BenchmarkCase {
