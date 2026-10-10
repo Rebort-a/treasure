@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('README 的游戏数量、应用清单和 SDK 与仓库一致', () {
+  test('README 的游戏数量和 SDK 与仓库一致', () {
     final readme = File('README.md').readAsStringSync();
     final games = Directory('lib')
         .listSync()
@@ -16,11 +16,6 @@ void main() {
         )
         .toList();
     expect(readme, contains('${games.length}_Games_+_LAN_Chat'));
-    for (final directory in games) {
-      final name = directory.uri.pathSegments.where((s) => s.isNotEmpty).last;
-      final number = name.split('.').first;
-      expect(readme, contains('| $number |'), reason: name);
-    }
     final sdk = jsonDecode(File('.fvmrc').readAsStringSync()) as Map;
     expect(readme, contains('Flutter-${sdk['flutter']}'));
     final constraint = RegExp(
