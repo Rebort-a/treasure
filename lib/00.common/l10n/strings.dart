@@ -103,6 +103,11 @@ class S {
   static String get leaveRoom => _l.leaveRoom;
   static String get language => _l.language;
   static String get theme => _l.theme;
+  static String get background => _l.background;
+  static String get homeBackgroundHint => _l.homeBackgroundHint;
+  static String get restoreDefaultBackground => _l.restoreDefaultBackground;
+  static String get backgroundImageTooLarge => _l.backgroundImageTooLarge;
+  static String get backgroundImageFailed => _l.backgroundImageFailed;
   static String get themeLight => _l.themeLight;
   static String get themeDark => _l.themeDark;
   static String get chinese => _l.chinese;

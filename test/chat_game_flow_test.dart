@@ -63,6 +63,13 @@ void main() {
         });
         await tester.pump();
         expect(find.byType(PinnedRoomCard), findsOneWidget);
+        final gameCard = tester.widget<Card>(
+          find.byKey(const ValueKey('room-game-card')),
+        );
+        expect(gameCard.color!.a, closeTo(0.72, 0.01));
+        expect(gameCard.elevation, 0);
+        expect(gameCard.surfaceTintColor, Colors.transparent);
+        expect(gameCard.shadowColor, Colors.transparent);
         expect(find.text('Start matching'), findsOneWidget);
         expect(find.byType(NetChatPage), findsOneWidget);
         await tester.tap(find.text('Start matching'));

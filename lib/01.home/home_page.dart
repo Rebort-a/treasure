@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 
 import '../00.common/config/network_config.dart';
@@ -12,7 +12,9 @@ import '../00.common/style/theme.dart';
 import '../00.common/tool/app_info.dart';
 import '../00.common/service/storage_service.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
+import '../00.common/widget/component/chat_component.dart' show MediaFilePicker;
 
+import 'background_settings.dart';
 import 'home_manager.dart';
 import 'route.dart';
 import 'floating_navigation_bar.dart';
@@ -31,6 +33,7 @@ class _HomePageState extends State<HomePage> {
   int _selectedTabIndex = 0;
   String _appSearchQuery = '';
   List<AppItemType> _recentApps = [];
+  bool _changingBackground = false;
 
   @override
   void initState() {
@@ -103,13 +106,15 @@ class _HomePageState extends State<HomePage> {
           children: [
             NotifierNavigator(navigatorHandler: _manager.pageNavigator),
             Expanded(
-              child: IndexedStack(
-                index: _selectedTabIndex,
-                children: [
-                  _appsPage(MediaQuery.paddingOf(bodyContext).bottom),
-                  _onlinePage(MediaQuery.paddingOf(bodyContext).bottom),
-                  _settingsPage(),
-                ],
+              child: _homeBackground(
+                IndexedStack(
+                  index: _selectedTabIndex,
+                  children: [
+                    _appsPage(MediaQuery.paddingOf(bodyContext).bottom),
+                    _onlinePage(MediaQuery.paddingOf(bodyContext).bottom),
+                    _settingsPage(),
+                  ],
+                ),
               ),
             ),
           ],
@@ -181,6 +186,33 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
+
+  Widget _homeBackground(Widget child) => ValueListenableBuilder<Uint8List?>(
+    valueListenable: BackgroundSettings.instance.image,
+    builder: (context, bytes, _) => Stack(
+      fit: StackFit.expand,
+      children: [
+        if (bytes != null) ...[
+          Image.memory(
+            bytes,
+            key: const ValueKey('home-background-image'),
+            fit: BoxFit.cover,
+            cacheWidth: 1920,
+            excludeFromSemantics: true,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+          ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.65
+                  : 0.55,
+            ),
+          ),
+        ],
+        child,
+      ],
+    ),
+  );
 
   Widget _appCard(AppItemType item) {
     final canPlayOnline = item.onlineType != null;
@@ -314,7 +346,12 @@ class _HomePageState extends State<HomePage> {
       _settingsSection(
         context,
         title: S.general,
-        children: [_defaultNameTile(), _languageTile(), _themeTile()],
+        children: [
+          _defaultNameTile(),
+          _languageTile(),
+          _themeTile(),
+          _backgroundTile(),
+        ],
       ),
       _settingsSection(
         context,
@@ -436,6 +473,50 @@ class _HomePageState extends State<HomePage> {
       onTap: () => _showThemeDialog(currentTheme),
     ),
   );
+
+  Widget _backgroundTile() => ValueListenableBuilder<Uint8List?>(
+    valueListenable: BackgroundSettings.instance.image,
+    builder: (_, bytes, __) => ListTile(
+      leading: const Icon(Icons.wallpaper_outlined),
+      title: Text(S.background),
+      subtitle: Text(S.homeBackgroundHint),
+      trailing: _changingBackground
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : bytes == null
+          ? const Icon(Icons.chevron_right)
+          : IconButton(
+              tooltip: S.restoreDefaultBackground,
+              icon: const Icon(Icons.restore),
+              onPressed: () => unawaited(_changeBackground(clear: true)),
+            ),
+      onTap: _changingBackground ? null : () => unawaited(_changeBackground()),
+    ),
+  );
+
+  Future<void> _changeBackground({bool clear = false}) async {
+    if (_changingBackground) return;
+    setState(() => _changingBackground = true);
+    try {
+      final bytes = clear ? null : await MediaFilePicker.pickImage();
+      if (!mounted || (!clear && bytes == null)) return;
+      if (bytes != null && bytes.length > BackgroundSettings.maxImageBytes) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(S.backgroundImageTooLarge)));
+        return;
+      }
+      await BackgroundSettings.instance.setImage(bytes);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(S.backgroundImageFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _changingBackground = false);
+    }
+  }
 
   void _showThemeDialog(ThemeMode currentTheme) {
     showDialog<void>(

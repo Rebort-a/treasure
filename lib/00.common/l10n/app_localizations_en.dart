@@ -189,6 +189,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get theme => 'Theme';
 
   @override
+  String get background => 'Background';
+
+  @override
+  String get homeBackgroundHint => 'Select image';
+
+  @override
+  String get restoreDefaultBackground => 'Restore default background';
+
+  @override
+  String get backgroundImageTooLarge => 'Choose an image no larger than 10 MB';
+
+  @override
+  String get backgroundImageFailed =>
+      'Could not set the background. Try a valid image.';
+
+  @override
   String get themeLight => 'Light';
 
   @override

@@ -186,6 +186,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get theme => '主题';
 
   @override
+  String get background => '背景';
+
+  @override
+  String get homeBackgroundHint => '选择图片';
+
+  @override
+  String get restoreDefaultBackground => '恢复默认背景';
+
+  @override
+  String get backgroundImageTooLarge => '请选择不超过 10 MB 的图片';
+
+  @override
+  String get backgroundImageFailed => '无法设置背景，请选择有效的图片后重试';
+
+  @override
   String get themeLight => '浅色';
 
   @override

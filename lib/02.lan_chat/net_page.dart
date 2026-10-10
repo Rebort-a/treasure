@@ -327,7 +327,14 @@ class _NetChatPageState extends State<NetChatPage> {
             _openingGame;
         final pending = match == RoomMatchPhase.sending;
         return Card(
+          key: const ValueKey('room-game-card'),
           margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          // 只让底板半透明，保留文字和按钮的对比度，并关闭材质染色与阴影。
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          clipBehavior: Clip.antiAlias,
           child: ListTile(
             leading: const Icon(Icons.gamepad),
             title: Text(S.roomTypeString(_gameName)),

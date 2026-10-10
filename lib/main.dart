@@ -7,6 +7,7 @@ import '00.common/tool/app_info.dart';
 import '00.common/service/storage_service.dart';
 
 import '01.home/home_page.dart';
+import '01.home/background_settings.dart';
 
 void main() async {
   // 初始化 Flutter 引擎与插件绑定。
@@ -25,6 +26,7 @@ void main() async {
 Future<void> _loadConfiguration() async {
   await LanguageProvider.instance.load();
   await ThemeProvider.instance.load();
+  await BackgroundSettings.instance.load();
 }
 
 class MyApp extends StatelessWidget {

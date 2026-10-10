@@ -446,6 +446,36 @@ abstract class AppLocalizations {
   /// **'Theme'**
   String get theme;
 
+  /// No description provided for @background.
+  ///
+  /// In en, this message translates to:
+  /// **'Background'**
+  String get background;
+
+  /// No description provided for @homeBackgroundHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select image'**
+  String get homeBackgroundHint;
+
+  /// No description provided for @restoreDefaultBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore default background'**
+  String get restoreDefaultBackground;
+
+  /// No description provided for @backgroundImageTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an image no larger than 10 MB'**
+  String get backgroundImageTooLarge;
+
+  /// No description provided for @backgroundImageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not set the background. Try a valid image.'**
+  String get backgroundImageFailed;
+
   /// No description provided for @themeLight.
   ///
   /// In en, this message translates to:

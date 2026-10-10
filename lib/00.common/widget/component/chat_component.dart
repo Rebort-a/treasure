@@ -16,6 +16,14 @@ import '../../network/protocol/network_message.dart';
 
 import '../image/blur_hash_image.dart';
 
+/// 复用现有文件插件适配入口，避免第三方依赖扩散到首页设置。
+class MediaFilePicker {
+  static Future<Uint8List?> pickImage() async {
+    final file = await FilePicker.pickFile(type: FileType.image);
+    return file == null ? null : await file.readAsBytes();
+  }
+}
+
 /// 现代化消息列表
 class MessageList extends StatefulWidget {
   final int identity;
