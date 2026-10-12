@@ -23,6 +23,7 @@ class S {
   static String get matchScore => _l.matchScore;
   static String get matchYourTurn => _l.matchYourTurn;
   static String matchPlayerTurn(String name) => _l.matchPlayerTurn(name);
+  static String matchYourRank(int rank) => _l.matchYourRank(rank);
   static String get matchWon => _l.matchWon;
   static String get matchBonusTime => _l.matchBonusTime;
   static String get matchLost => _l.matchLost;

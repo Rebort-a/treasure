@@ -91,4 +91,49 @@ void main() {
     expect(manager.bonusTime.value, isFalse);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('减少动画时彩虹转换仍保留展示状态，重开取消待触发的旧局', (tester) async {
+    final manager = MatchManager(seed: 7)..reduceMotion = true;
+    addTearDown(manager.dispose);
+    final data = _winningState()
+      ..['targets'] = {'0': 1000, '1': 1000}
+      ..['pieces'] = [
+        for (var index = 0; index < MatchBoard.cells; index++)
+          [
+            index + 1,
+            (index ~/ MatchBoard.side * 2 + index % MatchBoard.side) %
+                MatchBoard.kinds,
+            (index == 0
+                    ? PieceEffect.rainbow
+                    : index == 1
+                    ? PieceEffect.bomb
+                    : PieceEffect.none)
+                .index,
+          ],
+      ];
+    manager.loadState(data);
+    manager.swap(0, 1);
+    expect(manager.busy.value, isTrue);
+    expect(manager.view.value!.frame.phase, FramePhase.transform);
+    expect(manager.view.value!.frame.convertedPieceIds, isNotEmpty);
+    expect(manager.bonusTime.value, isFalse);
+    expect(manager.canInteract, isFalse);
+
+    await tester.pump(const Duration(seconds: 5));
+    expect(manager.busy.value, isFalse);
+    expect(manager.view.value!.frame.phase, FramePhase.settled);
+    expect(manager.view.value!.score, manager.board!.score);
+    expect(manager.canInteract, isTrue);
+
+    manager.loadState(data);
+    manager.swap(0, 1);
+    expect(manager.busy.value, isTrue);
+    manager.restart(seed: 9);
+    await tester.pump(const Duration(seconds: 30));
+    expect(manager.view.value!.seed, 9);
+    expect(manager.view.value!.score, 0);
+    expect(manager.busy.value, isFalse);
+    expect(manager.bonusTime.value, isFalse);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -287,46 +287,247 @@ void main() {
     }
   });
 
-  test('通关后剩余步数进入 Bonus Time 并转成直线特效', () {
-    final setup = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0});
+  test('通关后剩余步数进入 Bonus Time，可转换直线或炸弹并保持确定性', () {
+    final generatedEffects = <PieceEffect>{};
+    for (var seed = 1; seed <= 12; seed++) {
+      final setup = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0}, seed: seed);
+      final data = setup.toJson()
+        ..['targets'] = {'0': 1, '1': 1}
+        ..['collected'] = [0, 1, 0, 0, 0, 0]
+        ..['ice'] = List.filled(MatchBoard.cells, 0)
+        ..['score'] = 0;
+      data['movesLeft'] = 3;
+      data['moveNumber'] = data['initialMoves'] - 3;
+      final board = MatchBoard.fromJson(data);
+      final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
+
+      final result = board.playSwap(10, 2)!;
+      mirror.playSwap(10, 2);
+
+      expect(board.status, MatchStatus.won);
+      expect(board.movesLeft, 0);
+      expect(board.moveNumber, board.initialMoves);
+      expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+      expect(
+        result.frames.any((frame) => frame.phase == FramePhase.bonus),
+        isTrue,
+      );
+      expect(
+        result.frames
+            .where((frame) => frame.phase == FramePhase.bonus)
+            .map((frame) => frame.movesLeft)
+            .toList(),
+        [2, 1, 0],
+      );
+      expect(result.initialMatchCount, 4);
+      expect(
+        result.frames.any(
+          (frame) =>
+              frame.phase == FramePhase.bonus &&
+              frame.pieces.any(
+                (piece) =>
+                    piece?.effect == PieceEffect.row ||
+                    piece?.effect == PieceEffect.column ||
+                    piece?.effect == PieceEffect.bomb,
+              ),
+        ),
+        isTrue,
+      );
+      for (final frame in result.frames.where(
+        (frame) => frame.convertedPieceIds.isNotEmpty,
+      )) {
+        expect(frame.convertedPieceIds.length, 1);
+        final converted = frame.pieces.whereType<Piece>().singleWhere(
+          (piece) => frame.convertedPieceIds.contains(piece.id),
+        );
+        expect(
+          converted.effect,
+          anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
+        );
+        generatedEffects.add(converted.effect);
+      }
+    }
+    expect(generatedEffects, {
+      PieceEffect.row,
+      PieceEffect.column,
+      PieceEffect.bomb,
+    });
+  });
+
+  test('彩虹炸弹组合先转换，再逐只触发，坠落后仍按棋子身份处理剩余目标', () {
+    final board = _pattern(
+      {},
+      effects: {0: PieceEffect.rainbow, 1: PieceEffect.bomb},
+    );
+    final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(board.toJson())));
+    final result = board.playSwap(0, 1)!;
+    mirror.playSwap(0, 1);
+    expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+    final converted = result.frames.singleWhere(
+      (frame) => frame.phase == FramePhase.transform,
+    );
+    expect(converted.convertedPieceIds.length, greaterThan(1));
+    final clearFrames = result.frames
+        .where((frame) => frame.phase == FramePhase.clear)
+        .toList();
+    // 彩虹只消耗自己，不提前触发刚转换的全部动物。
+    expect(clearFrames.first.clearing, {1});
+    final firstTrigger = clearFrames[1];
+    expect(firstTrigger.clearing, {0, 1, 8, 9});
+    expect(
+      firstTrigger.clearing
+          .where(
+            (index) => firstTrigger.pieces[index]!.effect != PieceEffect.none,
+          )
+          .length,
+      1,
+    );
+    final triggeredIds = {
+      for (final frame in clearFrames)
+        for (final index in frame.clearing) frame.pieces[index]!.id,
+    };
+    expect(triggeredIds, containsAll(converted.convertedPieceIds));
+    final clearPositions = [
+      for (var index = 0; index < result.frames.length; index++)
+        if (result.frames[index].phase == FramePhase.clear) index,
+    ];
+    for (var index = 1; index < clearPositions.length; index++) {
+      final falls = result.frames
+          .sublist(clearPositions[index - 1] + 1, clearPositions[index])
+          .where((frame) => frame.phase == FramePhase.fall);
+      expect(falls, isNotEmpty);
+      expect(falls.last.pieces.every((piece) => piece != null), isTrue);
+    }
+  });
+
+  test('自动触发的一只特效波及其他特效时，仍在同一波完整连锁', () {
+    final board = _pattern(
+      {},
+      effects: {
+        0: PieceEffect.rainbow,
+        1: PieceEffect.bomb,
+        8: PieceEffect.bomb,
+      },
+    );
+    final clears = board
+        .playSwap(0, 1)!
+        .frames
+        .where((frame) => frame.phase == FramePhase.clear)
+        .toList();
+    final firstTrigger = clears[1];
+    expect(firstTrigger.clearing, containsAll([0, 8, 16, 17]));
+    expect(firstTrigger.pieces[0]!.effect, PieceEffect.bomb);
+    expect(firstTrigger.pieces[8]!.effect, PieceEffect.bomb);
+  });
+
+  test('双彩虹先结算其他特效及自然连锁，保护交换双方直到稳定后的全盘消除', () {
+    final scenarios = [
+      (
+        overrides: <int, int>{},
+        effects: {8: PieceEffect.column, 63: PieceEffect.bomb},
+      ),
+      (
+        overrides: <int, int>{},
+        effects: {8: PieceEffect.bomb, 50: PieceEffect.rainbow},
+      ),
+      (overrides: {2: 0, 3: 0}, effects: <int, PieceEffect>{}),
+    ];
+    for (final scenario in scenarios) {
+      final setup = _pattern(
+        scenario.overrides,
+        effects: {
+          0: PieceEffect.rainbow,
+          1: PieceEffect.rainbow,
+          ...scenario.effects,
+        },
+      );
+      final data = setup.toJson()..['targets'] = {'0': 1000, '1': 1000};
+      final board = MatchBoard.fromJson(data);
+      final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
+      final pairedIds = {board.pieces[0]!.id, board.pieces[1]!.id};
+      final otherIds = {
+        for (final index in scenario.effects.keys) board.pieces[index]!.id,
+      };
+      final previousMoves = board.movesLeft;
+      final result = board.playSwap(0, 1)!;
+      mirror.playSwap(0, 1);
+      expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+      expect(board.movesLeft, previousMoves - 1);
+      final fullIndex = result.frames.indexWhere(
+        (frame) =>
+            frame.phase == FramePhase.clear &&
+            frame.clearing.length == MatchBoard.cells,
+      );
+      expect(fullIndex, greaterThan(1));
+      final priorClears = result.frames
+          .take(fullIndex)
+          .where((frame) => frame.phase == FramePhase.clear)
+          .toList();
+      expect(priorClears, isNotEmpty);
+      final triggeredIds = {
+        for (final frame in priorClears)
+          for (final index in frame.clearing) frame.pieces[index]!.id,
+      };
+      expect(triggeredIds, containsAll(otherIds));
+      expect(triggeredIds.intersection(pairedIds), isEmpty);
+
+      final full = result.frames[fullIndex];
+      // 最终全盘消除前，场上仅剩保留的两只彩虹特效，且已经没有自然匹配。
+      expect({
+        for (final piece in full.pieces.whereType<Piece>())
+          if (piece.effect != PieceEffect.none) piece.id,
+      }, pairedIds);
+      final stable = MatchBoard.fromJson({
+        ...board.toJson(),
+        'pieces': full.pieces.map((piece) => piece!.toJson()).toList(),
+      });
+      expect(stable.matchRuns(), isEmpty);
+      expect(result.frames[fullIndex - 1].phase, FramePhase.fall);
+      expect(
+        result.frames[fullIndex - 1].pieces.every((piece) => piece != null),
+        isTrue,
+      );
+      expect(board.pieces.every((piece) => piece != null), isTrue);
+      expect(board.matchRuns(), isEmpty);
+    }
+  });
+
+  test('Bonus 每次主动触发一只特效，未波及的特效保留到后续波次', () {
+    final setup = _pattern(
+      {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
+      effects: {50: PieceEffect.bomb, 60: PieceEffect.rainbow},
+    );
     final data = setup.toJson()
       ..['targets'] = {'0': 1, '1': 1}
       ..['collected'] = [0, 1, 0, 0, 0, 0]
-      ..['ice'] = List.filled(MatchBoard.cells, 0)
-      ..['score'] = 0;
-    data['movesLeft'] = 3;
-    data['moveNumber'] = data['initialMoves'] - 3;
+      ..['movesLeft'] = 1;
+    data['moveNumber'] = data['initialMoves'] - 1;
     final board = MatchBoard.fromJson(data);
-    final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
-
     final result = board.playSwap(10, 2)!;
-    mirror.playSwap(10, 2);
-
-    expect(board.status, MatchStatus.won);
-    expect(board.movesLeft, 0);
-    expect(board.moveNumber, board.initialMoves);
-    expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+    final bonusFrames = result.frames
+        .skipWhile((frame) => frame.phase != FramePhase.bonus)
+        .toList();
+    final firstTrigger = bonusFrames.firstWhere(
+      (frame) => frame.phase == FramePhase.clear,
+    );
+    // 开局四连留下的直线特效先触发，底部两只特效不应被同时主动触发。
+    expect(firstTrigger.clearing, {0, 1, 2, 3, 4, 5, 6, 7});
+    expect(firstTrigger.pieces[50]!.effect, PieceEffect.bomb);
+    expect(firstTrigger.pieces[60]!.effect, PieceEffect.rainbow);
     expect(
-      result.frames.any((frame) => frame.phase == FramePhase.bonus),
+      bonusFrames
+          .where((frame) => frame.phase == FramePhase.clear)
+          .skip(1)
+          .any(
+            (frame) => frame.clearing.any(
+              (index) => frame.pieces[index]!.id == firstTrigger.pieces[60]!.id,
+            ),
+          ),
       isTrue,
     );
     expect(
-      result.frames
-          .where((frame) => frame.phase == FramePhase.bonus)
-          .map((frame) => frame.movesLeft)
-          .toList(),
-      [2, 1, 0],
-    );
-    expect(result.initialMatchCount, 4);
-    expect(
-      result.frames.any(
-        (frame) =>
-            frame.phase == FramePhase.bonus &&
-            frame.pieces.any(
-              (piece) =>
-                  piece?.effect == PieceEffect.row ||
-                  piece?.effect == PieceEffect.column,
-            ),
+      board.pieces.whereType<Piece>().every(
+        (piece) => piece.effect == PieceEffect.none,
       ),
       isTrue,
     );
@@ -428,12 +629,15 @@ void main() {
           }
           cascadeSpecialIds.add(piece.id);
           if (frame.movesLeft == 0) sawCascadeSpecialWithoutMoves = true;
-          // 掉落后位置可变，但下一轮必须按同一个棋子 ID 自动触发。
-          final nextClear = bonusFrames
+          // 逐只触发后不要求紧接的下一波就轮到它，但最终必须按棋子身份触发。
+          final laterClearedIds = bonusFrames
               .skip(i + 1)
-              .firstWhere((next) => next.phase == FramePhase.clear);
+              .where((next) => next.phase == FramePhase.clear)
+              .expand(
+                (next) => next.clearing.map((cell) => next.pieces[cell]!.id),
+              );
           expect(
-            nextClear.clearing.map((cell) => nextClear.pieces[cell]!.id),
+            laterClearedIds,
             contains(piece.id),
             reason: 'seed=$seed, piece=${piece.id}',
           );

@@ -6,6 +6,7 @@ import '../../00.common/network/widget/round_replay_board.dart';
 import '../../00.common/widget/component/game_replay_board.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
+import '../middle/net_manager.dart';
 import 'animal_piece.dart';
 import 'match_board_widget.dart';
 import 'match_celebration.dart';
@@ -274,10 +275,11 @@ class MatchGameView extends StatelessWidget {
         Expanded(child: _movesMetric(context, view.movesLeft)),
         const SizedBox(width: 12),
         Expanded(child: _scoreMetric(context, view.score)),
-        if (engine != null) ...[
-          const SizedBox(width: 12),
-          Expanded(child: _team(context)),
-        ],
+        const SizedBox(width: 12),
+        // 单机保留相同栏位，步数与分数不会因缺少联机信息而改变布局。
+        Expanded(
+          child: engine == null ? const SizedBox.shrink() : _team(context),
+        ),
       ],
     ),
   );
@@ -461,11 +463,44 @@ class MatchGameView extends StatelessWidget {
   );
 
   Widget _team(BuildContext context) {
+    final netManager = manager;
+    if (netManager is! NetMatchManager) return _turnMetric(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: netManager.showPersonalScore,
+      child: _turnMetric(context),
+      builder: (context, showScore, turnInfo) => !showScore
+          ? turnInfo!
+          : ValueListenableBuilder<Map<int, int>>(
+              valueListenable: netManager.playerScores,
+              builder: (_, _, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    S.matchYourRank(netManager.personalRank),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  Text(
+                    '${netManager.personalScore}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _turnMetric(BuildContext context) {
     final engine = this.engine!;
-    final order = engine.participants.keys.toList()..sort();
+    final order = engine.participants.keys.toList();
     final current = order.indexOf(engine.currentPlayer.value ?? -1);
     final own = order.indexOf(engine.identity);
-    // 与引擎的成员 ID 轮转顺序一致，计算轮到自己前还需经过几人。
+    // 与引擎的入局轮转顺序一致，计算轮到自己前还需经过几人。
     final waiting = current < 0 || own < 0
         ? null
         : (own - current + order.length) % order.length;

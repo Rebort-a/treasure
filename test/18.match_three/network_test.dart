@@ -8,6 +8,7 @@ import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/18.match_three/middle/net_manager.dart';
+import 'package:treasure/18.match_three/base/match_board.dart';
 
 import '../00.common/network/support/match_game_driver.dart';
 import '../00.common/network/support/network_room_harness.dart';
@@ -97,6 +98,7 @@ void _sameBoards(List<NetMatchManager> games) {
   final reference = jsonEncode(games.first.board!.toJson());
   for (final game in games) {
     expect(jsonEncode(game.board!.toJson()), reference);
+    expect(game.playerScores.value, games.first.playerScores.value);
     expect(game.turnEngine.gameId, games.first.turnEngine.gameId);
     expect(
       game.turnEngine.currentPlayer.value,
@@ -106,6 +108,67 @@ void _sameBoards(List<NetMatchManager> games) {
 }
 
 void main() {
+  test('个人贡献快照校验、同分排名、旧快照兼容和新局清空', () async {
+    final h = RoomHarness(OnlineItemType.matchThree.index);
+    final games = <NetMatchManager>[];
+    await h.server.start();
+    try {
+      games.add(_start(await h.join('A')));
+      games.add(_start(await h.join('B')));
+      await _synced(games, players: 2);
+      final first = games.first;
+      final a = first.turnEngine.identity;
+      final b = games.last.turnEngine.identity;
+      final data = first.saveState()
+        ..['score'] = 600
+        ..['playerScores'] = {'$a': 200, '$b': 200, '99': 200};
+      for (final game in games) {
+        game.loadState(data);
+        expect(game.personalScore, 200);
+        expect(game.personalRank, 1);
+      }
+      _sameBoards(games);
+      final saved = Map.of(first.playerScores.value);
+      for (final invalid in <Object>[
+        [],
+        {'bad': 1},
+        {'0': 1},
+        {'2147483648': 1},
+        {'$a': -1},
+        {'$a': 1.5},
+        {'$a': 10000001},
+        {'$a': 601},
+        {'$a': 1, '0$a': 1},
+        {for (var id = 1; id <= 1001; id++) '$id': 0},
+      ]) {
+        expect(
+          () => first.loadState({...data, 'playerScores': invalid}),
+          throwsFormatException,
+        );
+        expect(first.playerScores.value, saved);
+      }
+      first.loadState({
+        ...data,
+        'playerScores': {'$a': 100, '$b': 250, '99': 250},
+      });
+      expect(first.personalRank, 3);
+      final legacy = Map<String, dynamic>.of(data)..remove('playerScores');
+      first.loadState(legacy);
+      expect(first.personalScore, 0);
+      first.loadState(data);
+      first.bonusTime.value = true;
+      expect(first.showPersonalScore.value, isTrue);
+      first.resetNetworkRound();
+      expect(first.playerScores.value, isEmpty);
+      expect(first.showPersonalScore.value, isFalse);
+    } finally {
+      for (final game in games) {
+        game.dispose();
+      }
+      await h.close();
+    }
+  });
+
   test('匹配、轮转和提醒不依赖 ID，只有发布者退出才按最小 ID 接管', () async {
     final h = RoomHarness(OnlineItemType.matchThree.index);
     final games = <NetMatchManager>[];
@@ -295,9 +358,22 @@ void main() {
         final other = games.firstWhere((g) => g != actor);
         expect(other.turnEngine.submitAction({'from': 0, 'to': 1}), isFalse);
         final swap = actor.board!.legalMoves.first;
+        final beforeScore = actor.board!.score;
+        final previousPersonal = actor.personalScore;
+        final replay = MatchBoard.fromJson(actor.board!.toJson());
+        final result = replay.playSwap(swap.$1, swap.$2)!;
+        final turnScore =
+            result.frames
+                .firstWhere(
+                  (frame) => frame.phase == FramePhase.bonus,
+                  orElse: () => result.frames.last,
+                )
+                .score -
+            beforeScore;
         actor.swap(swap.$1, swap.$2);
         await _synced(games, moves: step + 1, players: 4);
         _sameBoards(games);
+        expect(actor.personalScore, previousPersonal + turnScore);
         expect(
           games.first.turnEngine.currentPlayer.value,
           rooms[(step + 1) % 4].identity,
@@ -305,6 +381,7 @@ void main() {
       }
       final engine = games.first.turnEngine;
       final before = games.first.board!.moveNumber;
+      final scoresBeforeInvalid = Map.of(games.first.playerScores.value);
       // 合法传输的迟到请求仍携带旧修订，不能在同一人的下一轮重放。
       rooms.first.sendNetworkMessage(
         MessageType.action,
@@ -333,6 +410,11 @@ void main() {
       }
       await Future<void>.delayed(const Duration(milliseconds: 80));
       expect(games.first.board!.moveNumber, before);
+      expect(games.first.playerScores.value, scoresBeforeInvalid);
+      games.add(_start(await h.join('Late')));
+      await _synced(games, moves: before, players: 5);
+      _sameBoards(games);
+      expect(games.last.personalScore, 0);
       engine.sendGameText('队伍聊天');
       rooms.last.sendNetworkMessage(MessageType.text, '房间聊天');
       await waitFor(
@@ -368,6 +450,11 @@ void main() {
       await _synced(games, players: 2);
       games.add(_start(c));
       await _synced(games, players: 3);
+      final first = games.first;
+      final firstSwap = first.board!.legalMoves.first;
+      first.swap(firstSwap.$1, firstSwap.$2);
+      await _synced(games, moves: 1, players: 3);
+      final contributions = Map.of(first.playerScores.value);
       final reference = jsonEncode(games.first.board!.toJson());
       final gameId = games.first.turnEngine.gameId;
       final publisher = games.first.turnEngine.publisherId!;
@@ -380,6 +467,8 @@ void main() {
       expect(remaining.first.turnEngine.gameId, gameId);
       expect(jsonEncode(remaining.first.board!.toJson()), reference);
       expect(remaining.first.turnEngine.publisherId, isNot(publisher));
+      _sameBoards(remaining);
+      expect(remaining.first.playerScores.value, contributions);
       final current = remaining.first.turnEngine.currentPlayer.value;
       final secondLeaving = remaining.firstWhere(
         (g) => g.turnEngine.identity == current,
@@ -389,7 +478,7 @@ void main() {
       await _synced([survivor], players: 1);
       final swap = survivor.board!.legalMoves.first;
       survivor.swap(swap.$1, swap.$2);
-      await _synced([survivor], moves: 1, players: 1);
+      await _synced([survivor], moves: 2, players: 1);
       expect(
         survivor.turnEngine.currentPlayer.value,
         survivor.turnEngine.identity,

@@ -456,6 +456,8 @@
   "matchYourTurn": "Your turn",
   "matchPlayerTurn": "{name}'s turn",
   "@matchPlayerTurn": {"placeholders": {"name": {"type": "String"}}},
+  "matchYourRank": "Your rank {rank}",
+  "@matchYourRank": {"placeholders": {"rank": {"type": "int"}}},
   "matchWon": "Congratulations, you won!",
   "matchBonusTime": "Bonus Time",
   "matchLost": "Out of moves",

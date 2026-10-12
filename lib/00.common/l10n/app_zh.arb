@@ -412,6 +412,8 @@
   "matchYourTurn": "你 的回合",
   "matchPlayerTurn": "{name} 的回合",
   "@matchPlayerTurn": {"placeholders": {"name": {"type": "String"}}},
+  "matchYourRank": "你的排名 {rank}",
+  "@matchYourRank": {"placeholders": {"rank": {"type": "int"}}},
   "matchWon": "恭喜过关！",
   "matchBonusTime": "Bonus Time",
   "matchLost": "步数用尽",

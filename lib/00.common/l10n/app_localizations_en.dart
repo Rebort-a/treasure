@@ -1252,6 +1252,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String matchYourRank(int rank) {
+    return 'Your rank $rank';
+  }
+
+  @override
   String get matchWon => 'Congratulations, you won!';
 
   @override

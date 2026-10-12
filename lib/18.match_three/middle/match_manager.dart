@@ -27,6 +27,9 @@ class MatchView {
 
 /// 负责选择和展示帧的生命周期，三消判定始终由纯 Dart 内核完成。
 class MatchManager {
+  /// 转换演出结束后保留一段静态展示，再开始自动触发。
+  static const _conversionPause = Duration(milliseconds: 350);
+
   final view = ValueNotifier<MatchView?>(null);
   final selected = ValueNotifier<int?>(null);
   final busy = ValueNotifier(false);
@@ -157,11 +160,17 @@ class MatchManager {
     final a = action['from'];
     final b = action['to'];
     if (a is! int || b is! int || _board == null) return false;
+    final previousScore = _board!.score;
     final result = _board!.playSwap(a, b);
     if (result == null) return false;
     _publishedResult = result;
+    onNetworkActionApplied(result, previousScore);
     return true;
   }
+
+  /// 仅在发布者成功应用动作后通知派生业务，重演动画或重复快照不会再次计分。
+  @protected
+  void onNetworkActionApplied(SwapResult result, int previousScore) {}
 
   void loadState(Map<String, dynamic> data) {
     _cancelDelays();
@@ -313,9 +322,12 @@ class MatchManager {
     final hasBonusTime = result.frames.any(
       (frame) => frame.phase == FramePhase.bonus,
     );
+    final hasConversion = result.frames.any(
+      (frame) => frame.convertedPieceIds.isNotEmpty,
+    );
     comboPraise.value = null;
     bonusTime.value = false;
-    if (reduceMotion && !hasBonusTime) {
+    if (reduceMotion && !hasBonusTime && !hasConversion) {
       busy.value = true;
       comboMultiplier.value = null;
       _show(result.frames.last);
@@ -329,18 +341,25 @@ class MatchManager {
       busy.value = true;
       comboMultiplier.value = null;
       unawaited(() async {
-        bonusTime.value = true;
         for (final frame in result.frames) {
-          if (frame.phase != FramePhase.bonus) continue;
+          if (frame.phase != FramePhase.bonus &&
+              frame.convertedPieceIds.isEmpty) {
+            continue;
+          }
           if (_disposed || epoch != _animationEpoch) return;
+          if (frame.phase == FramePhase.bonus) bonusTime.value = true;
           _show(frame);
-          await _delay(const Duration(milliseconds: 350));
+          // 减少动画时跳过运动效果，但仍保留转换结果的静态展示与取消能力。
+          await _delay(_conversionPause);
         }
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
         if (_disposed || epoch != _animationEpoch) return;
         bonusTime.value = false;
         busy.value = false;
+        if (!hasBonusTime && _board?.status == MatchStatus.playing) {
+          _showPraiseBriefly(praise, epoch);
+        }
       }());
       return;
     }
@@ -363,14 +382,18 @@ class MatchManager {
         }
         _show(frame);
         if (frame.phase != FramePhase.settled) {
+          final duration = Duration(
+            milliseconds: switch (frame.phase) {
+              FramePhase.clear => 180,
+              FramePhase.bonus => 420,
+              FramePhase.transform => 120,
+              _ => 220,
+            },
+          );
           await _delay(
-            Duration(
-              milliseconds: switch (frame.phase) {
-                FramePhase.clear => 180,
-                FramePhase.bonus => 420,
-                _ => 220,
-              },
-            ),
+            frame.convertedPieceIds.isEmpty
+                ? duration
+                : duration + _conversionPause,
           );
         }
       }

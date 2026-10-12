@@ -2372,6 +2372,12 @@ abstract class AppLocalizations {
   /// **'{name}\'s turn'**
   String matchPlayerTurn(String name);
 
+  /// No description provided for @matchYourRank.
+  ///
+  /// In en, this message translates to:
+  /// **'Your rank {rank}'**
+  String matchYourRank(int rank);
+
   /// No description provided for @matchWon.
   ///
   /// In en, this message translates to:

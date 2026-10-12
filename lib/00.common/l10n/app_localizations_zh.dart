@@ -1242,6 +1242,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String matchYourRank(int rank) {
+    return '你的排名 $rank';
+  }
+
+  @override
   String get matchWon => '恭喜过关！';
 
   @override
