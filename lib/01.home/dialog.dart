@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/model/app_item_type.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/network/protocol/network_room.dart';
 import '../00.common/network/client/socket_client.dart';
@@ -83,7 +82,6 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
   late final _password = TextEditingController(text: widget.password);
   final _host = TextEditingController();
   final _port = TextEditingController();
-  final _encryptionKey = TextEditingController();
   final _busy = ValueNotifier(false);
   final _error = ValueNotifier<String?>(null);
   SocketClient? _engine;
@@ -107,7 +105,6 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
     if (name.isEmpty ||
         (widget.room == null &&
             (_host.text.trim().isEmpty ||
-                _encryptionKey.text.trim().isEmpty ||
                 port == null ||
                 port <= 0 ||
                 port > 65535))) {
@@ -117,14 +114,7 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
     _error.value = null;
     _engine?.dispose();
     final target =
-        widget.room ??
-        RoomInfo(
-          name: _host.text.trim(),
-          type: OnlineItemType.onlyChat.index,
-          address: _host.text.trim(),
-          port: port!,
-          encryptionKey: _encryptionKey.text.trim(),
-        );
+        widget.room ?? RoomEndpoint(address: _host.text.trim(), port: port!);
     final engine = SocketClient(
       userName: name,
       endpoint: target.withPassword(_password.text),
@@ -166,7 +156,6 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
     _password.dispose();
     _host.dispose();
     _port.dispose();
-    _encryptionKey.dispose();
     _busy.dispose();
     _error.dispose();
     super.dispose();
@@ -205,22 +194,15 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(labelText: S.port),
                 ),
-                TextField(
-                  controller: _encryptionKey,
-                  enabled: !busy,
-                  decoration: InputDecoration(
-                    labelText: S.roomEncryptionKey,
-                    helperText: S.roomEncryptionKeyRequired,
-                  ),
-                ),
               ],
-              TextField(
-                controller: _password,
-                enabled: !busy,
-                obscureText: true,
-                decoration: InputDecoration(labelText: S.roomPassword),
-                onSubmitted: (_) => _join(),
-              ),
+              if (widget.room == null || widget.room!.hasPassword)
+                TextField(
+                  controller: _password,
+                  enabled: !busy,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: S.roomPassword),
+                  onSubmitted: (_) => _join(),
+                ),
               if (busy) ...[
                 const SizedBox(height: 16),
                 const LinearProgressIndicator(),

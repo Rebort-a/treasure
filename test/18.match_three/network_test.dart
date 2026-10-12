@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/network/client/base/client_abstract.dart';
 import 'package:treasure/00.common/network/client/net_multi_turn_engine.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/18.match_three/middle/net_manager.dart';
@@ -105,6 +106,96 @@ void _sameBoards(List<NetMatchManager> games) {
 }
 
 void main() {
+  test('匹配、轮转和提醒不依赖 ID，只有发布者退出才按最小 ID 接管', () async {
+    final h = RoomHarness(OnlineItemType.matchThree.index);
+    final games = <NetMatchManager>[];
+    await h.server.start();
+    try {
+      final low = await h.join('Low');
+      final middle = await h.join('Middle');
+      final high = await h.join('High');
+      final first = _start(high);
+      games.add(first);
+      await waitFor(
+        () => first.turnEngine.matchPhase.value == RoomMatchPhase.matching,
+      );
+      final second = _start(middle);
+      games.add(second);
+      await _synced(games, players: 2);
+      final third = _start(low);
+      games.add(third);
+      await _synced(games, players: 3);
+      expect(
+        games.every(
+          (g) =>
+              g.turnEngine.publisherId == high.identity &&
+              g.turnEngine.currentPlayer.value == high.identity,
+        ),
+        isTrue,
+      );
+
+      final before = jsonEncode(first.board!.toJson());
+      second.selectCell(0);
+      await waitFor(() => games.every((g) => g.hint.value == 0));
+      // 相邻的第二次点击只移动提醒，不会被解释成交换。
+      second.selectCell(1);
+      await waitFor(() => games.every((g) => g.hint.value == 1));
+      third.selectCell(7);
+      await waitFor(() => games.every((g) => g.hint.value == 7));
+      expect(games.every((g) => g.selected.value == null), isTrue);
+      expect(first.turnEngine.submitHint({'cell': 8}), isFalse);
+      second.swap(0, 1);
+      second.selectCell(-1);
+      second.selectCell(64);
+      expect(jsonEncode(first.board!.toJson()), before);
+      expect(games.every((g) => g.hint.value == 7), isTrue);
+
+      final swap = first.board!.legalMoves.first;
+      first.swap(swap.$1, swap.$2);
+      await _synced(games, moves: 1);
+      expect(
+        games.every(
+          (g) =>
+              g.turnEngine.currentPlayer.value == middle.identity &&
+              g.hint.value == null,
+        ),
+        isTrue,
+      );
+      // 迟到提醒不能落到下一步棋盘上。
+      third.turnEngine.sendGameMessage(
+        MessageType.sync,
+        jsonEncode({
+          'phase': 'hint',
+          'revision': third.turnEngine.revision.value - 1,
+          'data': {'cell': 9},
+        }),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(games.every((g) => g.hint.value == null), isTrue);
+
+      // 当前行动者退出，按入局顺序交给后继，不触发发布者竞选。
+      second.turnEngine.leavePage();
+      await _synced([first, third], players: 2);
+      expect(
+        [first, third].every(
+          (g) =>
+              g.turnEngine.publisherId == high.identity &&
+              g.turnEngine.currentPlayer.value == low.identity,
+        ),
+        isTrue,
+      );
+      first.turnEngine.leavePage();
+      await _synced([third], players: 1);
+      expect(third.turnEngine.publisherId, low.identity);
+      expect(third.board!.moveNumber, 1);
+    } finally {
+      for (final game in games) {
+        game.dispose();
+      }
+      await h.close();
+    }
+  });
+
   test('六人同时准备进入同一个合作局，而不是被拆成多个双人局', () async {
     final h = RoomHarness(OnlineItemType.matchThree.index);
     final games = <NetMatchManager>[];

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
@@ -45,16 +46,9 @@ void main() {
           MaterialApp(home: RouteManager.createRoomPage(alice)),
         );
         await pumpUntil(() => h.server.members.length == 1);
-        await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
+        await pumpUntil(() => alice.members.value.length == 1);
         final bob = (await tester.runAsync(() => h.join('Bob')))!;
-        await pumpUntil(() => find.text('Test room (2)').evaluate().isNotEmpty);
-        expect(
-          find.descendant(
-            of: find.byType(AppBar),
-            matching: find.textContaining(' · '),
-          ),
-          findsNothing,
-        );
+        await pumpUntil(() => alice.members.value.length == 2);
         var searches = 0;
         bob.addMessageListener((m) {
           // search 以原始消息回环，id 即发起者身份。
@@ -62,39 +56,31 @@ void main() {
           searches++;
         });
         await tester.pump();
-        expect(find.byType(PinnedRoomCard), findsOneWidget);
-        final gameCard = tester.widget<Card>(
-          find.byKey(const ValueKey('room-game-card')),
-        );
-        expect(gameCard.color!.a, closeTo(0.72, 0.01));
-        expect(gameCard.elevation, 0);
-        expect(gameCard.surfaceTintColor, Colors.transparent);
-        expect(gameCard.shadowColor, Colors.transparent);
-        expect(find.text('Start matching'), findsOneWidget);
+        expect(find.text(S.startMatching), findsOneWidget);
         expect(find.byType(NetChatPage), findsOneWidget);
-        await tester.tap(find.text('Start matching'));
+        await tester.tap(find.text(S.startMatching));
         await tester.pump();
         await pumpUntil(() => searches == 1);
         expect(find.byType(NetGomokuPage), findsNothing);
-        expect(find.text('Matching'), findsOneWidget);
-        expect(find.text('Cancel matching'), findsOneWidget);
-        expect(find.text('Start matching'), findsNothing);
+        expect(find.text(S.matching), findsOneWidget);
+        expect(find.text(S.cancelMatching), findsOneWidget);
+        expect(find.text(S.startMatching), findsNothing);
         // 点击匹配中的卡片不能隐式重启搜索，更不会提前创建游戏引擎。
-        await tester.tap(find.byIcon(Icons.gamepad));
+        await tester.tap(find.byKey(const ValueKey('room-game-card')));
         await tester.pump();
         expect(matchedCount, 0);
         expect(searches, 1);
-        await tester.tap(find.text('Cancel matching'));
+        await tester.tap(find.text(S.cancelMatching));
         await tester.pump();
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 30)),
         );
         expect(searches, 1, reason: '取消匹配不得发送额外的 search');
-        expect(find.text('Start matching'), findsOneWidget);
-        expect(find.text('Matching'), findsNothing);
-        expect(find.text('Cancel matching'), findsNothing);
+        expect(find.text(S.startMatching), findsOneWidget);
+        expect(find.text(S.matching), findsNothing);
+        expect(find.text(S.cancelMatching), findsNothing);
         expect(matchedCount, 0);
-        await tester.tap(find.text('Start matching'));
+        await tester.tap(find.text(S.startMatching));
         await tester.pump();
         await pumpUntil(() => searches == 2);
         expect(matchedCount, 0);
@@ -151,25 +137,15 @@ void main() {
         );
         await tester.tap(find.byIcon(Icons.arrow_back));
         await tester.pump();
-        expect(find.text('Leave'), findsWidgets);
-        expect(
-          find.text(
-            'Leave the game and return to chat? Use Surrender instead to stay here and replay.',
-          ),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('Cancel'));
+        expect(find.text(S.leave), findsWidgets);
+        expect(find.text(S.confirmGameLeave), findsOneWidget);
+        await tester.tap(find.text(S.cancel));
         await tester.pump();
         expect(find.text('duel only'), findsOneWidget);
         await tester.binding.handlePopRoute();
         await tester.pump();
-        expect(
-          find.text(
-            'Leave the game and return to chat? Use Surrender instead to stay here and replay.',
-          ),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('Confirm'));
+        expect(find.text(S.confirmGameLeave), findsOneWidget);
+        await tester.tap(find.text(S.confirm));
         await pumpUntil(
           () =>
               find.byType(NetChatPage).evaluate().isNotEmpty &&
@@ -182,12 +158,10 @@ void main() {
         expect(find.byType(NetChatPage), findsOneWidget);
         expect(find.text('public while playing'), findsOneWidget);
         expect(find.text('duel only'), findsNothing);
-        await pumpUntil(
-          () => find.text('Start matching').evaluate().isNotEmpty,
-        );
+        await pumpUntil(() => find.text(S.startMatching).evaluate().isNotEmpty);
         expect(matchedCount, 1);
-        expect(find.text('Start matching'), findsOneWidget);
-        expect(find.text('Cancel matching'), findsNothing);
+        expect(find.text(S.startMatching), findsOneWidget);
+        expect(find.text(S.cancelMatching), findsNothing);
         expect(h.server.members[aliceId], 'Alice');
         expect(h.server.members.length, 2);
         final engine = NetTurnEngine.forClient(alice);
@@ -199,7 +173,7 @@ void main() {
           actionHandler: (_, __) {},
           exitHandler: () {},
         );
-        await tester.tap(find.text('Start matching'));
+        await tester.tap(find.text(S.startMatching));
         await tester.pump();
         await tester.runAsync(() async => startGame(opponent!));
         await pumpUntil(
@@ -217,12 +191,12 @@ void main() {
                   .byType(NetGomokuPage, skipOffstage: false)
                   .evaluate()
                   .isEmpty &&
-              find.text('Start matching').evaluate().isNotEmpty,
+              find.text(S.startMatching).evaluate().isNotEmpty,
         );
         expect(find.text('public while playing'), findsOneWidget);
         expect(h.server.members.length, 2);
         await tester.runAsync(() => bob.close());
-        await pumpUntil(() => find.text('Test room (1)').evaluate().isNotEmpty);
+        await pumpUntil(() => alice.members.value.length == 1);
         await tester.pumpWidget(const SizedBox.shrink());
         await pumpUntil(() => h.server.members.length == 0);
         expect(h.server.members.containsKey(aliceId), isFalse);

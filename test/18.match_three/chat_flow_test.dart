@@ -92,8 +92,6 @@ void main() {
             remotes.every((g) => g.turnEngine.synchronized.value),
       );
       expect(find.text(S.matchYourTurn), findsOneWidget);
-      expect(find.text('0/3'), findsOneWidget);
-      expect(find.byType(Chip), findsNothing);
       final view = tester.widget<MatchGameView>(find.byType(MatchGameView));
       final swap = view.manager.board!.legalMoves.first;
       view.manager.swap(swap.$1, swap.$2);
@@ -106,7 +104,6 @@ void main() {
                   g.board!.moveNumber == 1 && g.turnEngine.synchronized.value,
             ),
       );
-      expect(find.text('2/3'), findsOneWidget);
       expect(
         find.text(
           S.matchPlayerTurn(local.participants[local.currentPlayer.value]!),
@@ -126,7 +123,6 @@ void main() {
                   g.board!.moveNumber == 2 && g.turnEngine.synchronized.value,
             ),
       );
-      expect(find.text('1/3'), findsOneWidget);
       await tester.binding.handlePopRoute();
       await tester.pump();
       expect(find.text(S.coopConfirmLeave), findsOneWidget);

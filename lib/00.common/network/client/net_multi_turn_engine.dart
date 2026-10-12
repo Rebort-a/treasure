@@ -9,7 +9,7 @@ import 'socket_client.dart';
 
 /// 多人合作回合引擎：共享一个局面，由发布者校验并提交动作。
 ///
-/// 首次行动由匹配发起方执行，之后按成员 ID 顺序轮转。每一步发布完整快照，
+/// 首次行动由匹配发起方执行，之后按入局顺序轮转。每一步发布完整快照，
 /// 收齐所有成员的应用层 ready 后才开放下一步；传输 ACK 不能替代状态同步。
 /// 新成员沿用现有 gameId 并接收当前局面，发布者退出则使用共同快照接管。
 class NetMultiTurnEngine extends NetMultiEngine {
@@ -20,7 +20,9 @@ class NetMultiTurnEngine extends NetMultiEngine {
   Map<String, dynamic> Function()? _saveState;
   void Function(Map<String, dynamic>)? _loadState;
   bool Function(Map<String, dynamic>)? _applyAction;
+  void Function(Map<String, dynamic>)? _receiveHint;
   final Set<int> _readyPlayers = {};
+  List<int> _lastTurnOrder = [];
   int _goRevision = -1;
   int _issuedRevision = 0;
   int? _snapshotPublisher;
@@ -51,6 +53,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
     required Map<String, dynamic> Function() saveState,
     required void Function(Map<String, dynamic>) loadState,
     required bool Function(Map<String, dynamic>) applyAction,
+    void Function(Map<String, dynamic>)? receiveHint,
     VoidCallback? resetRound,
   }) {
     // 先检查/取得本局配置权，防止重复创建 Manager 时破坏仍在运行的一局。
@@ -64,11 +67,13 @@ class NetMultiTurnEngine extends NetMultiEngine {
     _saveState = saveState;
     _loadState = loadState;
     _applyAction = applyAction;
+    _receiveHint = receiveHint;
     currentPlayer.value = null;
     revision.value = 0;
     pendingAction.value = false;
     synchronized.value = false;
     _readyPlayers.clear();
+    _lastTurnOrder = [];
     _goRevision = -1;
     _issuedRevision = 0;
     _snapshotPublisher = null;
@@ -106,26 +111,50 @@ class NetMultiTurnEngine extends NetMultiEngine {
     return true;
   }
 
-  List<int> get _turnOrder => participants.keys.toList()..sort();
+  /// 提醒走同步通道，只传展示数据，不校验或提交棋盘动作。
+  bool submitHint(Map<String, dynamic> hint) {
+    if (!isActive ||
+        !synchronized.value ||
+        currentPlayer.value == identity ||
+        (roundReplay?.finished.value ?? false) ||
+        (roundReplay?.preparing.value ?? false)) {
+      return false;
+    }
+    sendGameMessage(
+      MessageType.sync,
+      jsonEncode({'phase': 'hint', 'revision': revision.value, 'data': hint}),
+    );
+    return true;
+  }
+
+  List<int> get _turnOrder => participants.keys.toList();
 
   void _memberExited(int id) {
     synchronized.value = false;
     _readyPlayers.remove(id);
     if (currentPlayer.value == id) {
-      // 成员删除后寻找离开者之后的第一人，避免总是回到队首。
+      // 退出者在删除前的后继已记录，轮转不以成员 ID 的大小判断。
       final order = _turnOrder;
+      final oldIndex = _lastTurnOrder.indexOf(id);
+      final successors = oldIndex < 0
+          ? order
+          : [
+              ..._lastTurnOrder.skip(oldIndex + 1),
+              ..._lastTurnOrder.take(oldIndex),
+            ].where(participants.containsKey).toList();
       currentPlayer.value = order.isEmpty
           ? null
-          : order.firstWhere(
-              (candidate) => candidate > id,
-              orElse: () => order.first,
-            );
+          : successors.isEmpty
+          ? order.first
+          : successors.first;
     }
+    _lastTurnOrder = _turnOrder;
   }
 
   void _publishSnapshot() {
     if (!isActive || publisherId != identity || participants.isEmpty) return;
     final order = _turnOrder;
+    _lastTurnOrder = order;
     if (!participants.containsKey(currentPlayer.value)) {
       // 首次快照从发布者开始；已开始的局面沿用当前行动者及正常轮转顺序。
       currentPlayer.value = currentPlayer.value == null
@@ -151,6 +180,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
   }
 
   void _receiveSnapshot(NetworkMessage message) {
+    _lastTurnOrder = _turnOrder;
     final data = jsonDecode(message.content) as Map<String, dynamic>;
     final number = data['revision'];
     final turn = data['turn'];
@@ -189,6 +219,16 @@ class NetMultiTurnEngine extends NetMultiEngine {
     final number = data['revision'];
     if (number is! int) return;
     switch (data['phase']) {
+      case 'hint':
+        if (number != revision.value ||
+            message.id == currentPlayer.value ||
+            !synchronized.value ||
+            (roundReplay?.finished.value ?? false) ||
+            (roundReplay?.preparing.value ?? false)) {
+          return;
+        }
+        final hint = data['data'];
+        if (hint is Map<String, dynamic>) _receiveHint?.call(hint);
       case 'ready':
         if (publisherId != identity || number != _issuedRevision) return;
         _readyPlayers.add(message.id);
@@ -258,6 +298,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
     _saveState = null;
     _loadState = null;
     _applyAction = null;
+    _receiveHint = null;
     _readyPlayers.clear();
     synchronized.value = false;
     pendingAction.value = false;

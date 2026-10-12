@@ -58,7 +58,7 @@ class _PendingDelivery {
 class SocketClient {
   final ClientTransport _transport;
 
-  final RoomInfo endpoint; // 房间信息
+  final RoomEndpoint endpoint; // 连接目标与可选的预期密钥
   final String userName; // 用户名称
 
   final Duration handshakeTimeout; // 握手超时时间
@@ -104,7 +104,10 @@ class SocketClient {
   /// 由房间类型推导对局形态：回合制、实时或纯聊天房间。
   RoomGameMode get gameMode =>
       OnlineItemType.tryFromRoomType(_roomType)?.gameMode ?? RoomGameMode.none;
-  String get encryptionKey => _encryptionKey;
+
+  /// 预期密钥不等于通信密钥；只有成功解析认证回执后才能取得通信密钥。
+  String get encryptionKey =>
+      _encryptionKey ?? (throw StateError('Room is not authenticated'));
 
   /// 三重条件同时成立才算入房：未关闭、已认证、状态机已进入 joined。
   bool get isJoined =>
@@ -112,10 +115,12 @@ class SocketClient {
       identity != 0 &&
       status.value.state == RoomConnectionState.joined;
 
-  // 以下三项先取广播发现里的值，认证后以服务端 accept 回执为准。
-  late String _roomName = endpoint.name;
+  // 房间名称和类型最终以服务端 accept 回执为准，通信密钥认证前保持未知。
+  late String _roomName = endpoint is RoomInfo
+      ? (endpoint as RoomInfo).name
+      : endpoint.address;
   int _roomType = 0;
-  late String _encryptionKey = endpoint.encryptionKey;
+  String? _encryptionKey;
 
   /// 当前连接；每次重连都会替换，旧连接由代次判定为过期。
   ClientConnection? _connection;
@@ -310,6 +315,7 @@ class SocketClient {
     _connection = null;
     _authentication = null;
     _opening = false;
+    _encryptionKey = null;
     if (!_disposed) identityNotifier.value = 0;
   }
 
@@ -317,7 +323,7 @@ class SocketClient {
     // 认证前只接受明文 accept；拿到服务端密钥后才按房间密钥解析后续消息。
     final message = identity == 0
         ? NetworkMessage.fromPlainSocketData(bytes)
-        : NetworkMessage.fromSocketData(bytes, encryptionKey: _encryptionKey);
+        : NetworkMessage.fromSocketData(bytes, encryptionKey: encryptionKey);
     if (message == null) return;
     if (identity == 0) {
       _accept(message);
@@ -385,7 +391,7 @@ class SocketClient {
           );
           return;
         }
-        // 身份、名单与密钥之间必须自洽，密钥还要与广播发现得到的一致。
+        // 身份、名单与密钥必须有效；只有预设了广播密钥的连接才额外核对一致性。
         final id = data['clientId'] as int;
         if (id <= 0) throw const FormatException('invalid identity');
         final roster = (data['members'] as Map<String, dynamic>).map(
@@ -396,7 +402,13 @@ class SocketClient {
           throw const FormatException('invalid member roster');
         }
         final key = data['key'];
-        if (key is! String || key.isEmpty || key != endpoint.encryptionKey) {
+        final expectedKey = switch (endpoint) {
+          RoomInfo room => room.encryptionKey,
+          _ => null,
+        };
+        if (key is! String ||
+            key.isEmpty ||
+            (expectedKey != null && key != expectedKey)) {
           throw const FormatException('invalid encryption key');
         }
         // 一次性写入房间参数：此后收发都按服务端确认的类型与密钥进行。
@@ -594,7 +606,7 @@ class SocketClient {
     _writes = _writes
         .then((_) async {
           if (generation != _generation || connection == null) return;
-          connection.send(message.toSocketData(encryptionKey: _encryptionKey));
+          connection.send(message.toSocketData(encryptionKey: encryptionKey));
           await connection.flush();
         })
         .catchError((Object _) {
@@ -640,6 +652,7 @@ class SocketClient {
     }
     _generation++;
     _connection = null;
+    _encryptionKey = null;
     await connection?.close();
   }
 

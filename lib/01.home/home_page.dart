@@ -310,28 +310,29 @@ class _HomePageState extends State<HomePage> {
     return Card(
       child: ListTile(
         leading: Icon(isGame ? Icons.gamepad : Icons.forum_outlined),
-        title: Row(
-          children: [
-            if (room.hasPassword) ...[
-              const Icon(Icons.lock_outline, size: 16),
-              const SizedBox(width: 6),
-            ],
-            Expanded(child: Text('${room.name} ($count)')),
-          ],
+        title: Text(
+          '[${S.roomTypeString((onlineType ?? OnlineItemType.onlyChat).name)}] ${room.name} ($count)',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          [
-            if (isGame) S.roomTypeString(onlineType.name),
-            '${room.address}:${room.port}',
-          ].join(' · '),
-        ),
+        subtitle: Text('${room.address}:${room.port}'),
         onTap: () => _manager.showJoinRoomDialog(room),
-        trailing: onStop == null
-            ? const Icon(Icons.chevron_right)
-            : IconButton(
-                icon: const Icon(Icons.stop_circle_outlined),
-                tooltip: S.stop,
-                onPressed: onStop,
+        trailing: onStop == null && !room.hasPassword
+            ? null
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (room.hasPassword)
+                    const Icon(Icons.lock_outline, size: 20),
+                  if (room.hasPassword && onStop != null)
+                    const SizedBox(width: 4),
+                  if (onStop != null)
+                    IconButton(
+                      icon: const Icon(Icons.stop_circle_outlined),
+                      tooltip: S.stop,
+                      onPressed: onStop,
+                    ),
+                ],
               ),
       ),
     );

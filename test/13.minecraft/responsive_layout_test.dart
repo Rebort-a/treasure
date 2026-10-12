@@ -4,9 +4,8 @@ import 'package:treasure/00.common/widget/input/soft_keyboard.dart';
 import 'package:treasure/13.minecraft/upper/page.dart';
 
 void main() {
-  testWidgets('custom keyboard scales from its available width', (
-    tester,
-  ) async {
+  testWidgets('自定义键盘输入会传递给使用者', (tester) async {
+    final input = <String>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -14,7 +13,7 @@ void main() {
             child: SizedBox(
               width: 360,
               child: CustomKeyboard(
-                onInputContent: (_) {},
+                onInputContent: input.add,
                 onDeleteContent: () {},
                 onHideKeyboard: () {},
                 onCursorMove: (_) {},
@@ -25,16 +24,12 @@ void main() {
       ),
     );
 
-    final button = tester.widget<KeyboardButton>(
-      find.byType(KeyboardButton).first,
-    );
-    expect(button.buttonSize, closeTo(25.2, 0.001));
+    await tester.tap(find.text('a'));
+    expect(input, ['a']);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Minecraft hotbar lays out with local orientation constraints', (
-    tester,
-  ) async {
+  testWidgets('Minecraft 页面可正常构建和卸载', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: MinecraftPage()));
     await tester.pump();
 

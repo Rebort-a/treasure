@@ -8,11 +8,13 @@ import '../client/base/game_engine.dart';
 class RoundReplayBoard extends StatelessWidget {
   final GameEngine engine;
   final Widget child;
+  final bool presentationReady;
 
   const RoundReplayBoard({
     super.key,
     required this.engine,
     required this.child,
+    this.presentationReady = true,
   });
 
   @override
@@ -26,7 +28,7 @@ class RoundReplayBoard extends StatelessWidget {
         builder: (_, waiting, _) => ValueListenableBuilder<bool>(
           valueListenable: replay.preparing,
           builder: (_, preparing, _) => GameReplayBoard(
-            finished: finished,
+            finished: finished && presentationReady,
             waiting: waiting,
             preparing: preparing,
             onReplay: engine.requestReplay,

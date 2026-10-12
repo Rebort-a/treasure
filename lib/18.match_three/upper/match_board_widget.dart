@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart' show EagerGestureRecognizer;
 import '../../00.common/l10n/strings.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
+import '../middle/net_manager.dart';
 import 'animal_piece.dart';
 import 'match_clear_effects.dart';
 
@@ -262,6 +263,35 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                           ),
                         ),
                         Positioned.fill(child: MatchClearEffects(frame: frame)),
+                        if (widget.manager case final NetMatchManager manager)
+                          ValueListenableBuilder<int?>(
+                            valueListenable: manager.hint,
+                            builder: (_, hint, _) => IgnorePointer(
+                              child: Stack(
+                                children: [
+                                  if (hint != null)
+                                    Positioned(
+                                      left: hint % MatchBoard.side * cell,
+                                      top: hint ~/ MatchBoard.side * cell,
+                                      width: cell,
+                                      height: cell,
+                                      child: DecoratedBox(
+                                        key: const ValueKey('match-hint'),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF59C7FF),
+                                            width: 3,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ValueListenableBuilder<int?>(
                           valueListenable: widget.manager.selected,
                           builder: (_, selected, __) => IgnorePointer(

@@ -15,7 +15,7 @@ import '../00.common/network/support/match_game_driver.dart';
 import '../00.common/network/support/network_room_harness.dart';
 
 void main() {
-  testWidgets('投降和自然胜负均停留棋盘，灰色重开层不影响聊天且重开不换路由', (tester) async {
+  testWidgets('投降和自然胜负均停留棋盘，重开不影响聊天或更换路由', (tester) async {
     HttpOverrides.global = null;
     LanguageProvider.instance.resetForTesting();
     final h = RoomHarness(3);

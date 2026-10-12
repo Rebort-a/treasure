@@ -10,6 +10,7 @@ import 'package:treasure/05.gobang/foundation_widget.dart' as gomoku;
 import 'package:treasure/05.gobang/local_page.dart';
 import 'package:treasure/07.weiqi/foundation_widget.dart' as go;
 import 'package:treasure/07.weiqi/local_page.dart';
+import 'package:treasure/15.memory_card/base.dart' as memory;
 import 'package:treasure/15.memory_card/page.dart';
 
 final _replay = find.byKey(const ValueKey('round-replay'));
@@ -90,28 +91,44 @@ void main() {
     expect(tester.element(find.byType(GoLocalPage)), same(page));
   });
 
-  testWidgets('记忆翻牌复用公共蒙版而不是自行绘制重开按钮', (tester) async {
+  testWidgets('记忆翻牌结束后可以重开', (tester) async {
     await tester.pumpWidget(MaterialApp(home: MemoryPage()));
-    final finished =
-        tester
-                .widget<ValueListenableBuilder<bool>>(
-                  find
-                      .ancestor(
-                        of: find.byType(GameReplayBoard),
-                        matching: find.byType(ValueListenableBuilder<bool>),
-                      )
-                      .first,
-                )
-                .valueListenable
-            as ValueNotifier<bool>;
-    finished.value = true;
-    await tester.pump();
-    expect(find.byType(GameReplayBoard), findsOneWidget);
+    // 从公开卡牌数据取得配对，用实际点击完成游戏，不改写内部通知器。
+    final pairs = <String, List<memory.MemoryCardNotifier>>{};
+    for (final view in tester.widgetList<CardView>(find.byType(CardView))) {
+      pairs.putIfAbsent(view.card.pattern, () => []).add(view.card);
+    }
+    for (final pair in pairs.values) {
+      for (final card in pair) {
+        final tile = find.byWidgetPredicate(
+          (widget) => widget is CardView && identical(widget.card, card),
+        );
+        await tester.ensureVisible(tile);
+        await tester.tap(tile);
+        await tester.pump();
+      }
+      for (
+        var step = 0;
+        step < 30 && pair.any((card) => card.state != memory.CardState.matched);
+        step++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        pair.every((card) => card.state == memory.CardState.matched),
+        isTrue,
+      );
+    }
     expect(_replay, findsOneWidget);
     await tester.tap(_replay);
     await tester.pumpAndSettle();
-    expect(finished.value, isFalse);
     expect(_replay, findsNothing);
+    expect(
+      tester
+          .widgetList<CardView>(find.byType(CardView))
+          .every((view) => view.card.state == memory.CardState.hidden),
+      isTrue,
+    );
   });
 
   testWidgets('斗兽棋投降后旧 AI 延迟不改棋盘，重开后不执行旧局动作', (tester) async {

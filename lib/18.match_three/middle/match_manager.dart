@@ -57,6 +57,13 @@ class MatchManager {
       _board?.status == MatchStatus.playing;
   bool get canRestart => true;
 
+  /// 发布者尚待回环的结算结果也属于忙碌阶段，不能提前结束联机轮次。
+  bool get roundSettled =>
+      _publishedResult == null &&
+      !busy.value &&
+      !bonusTime.value &&
+      view.value?.frame.phase == FramePhase.settled;
+
   void restart({int? seed}) {
     if (_disposed || !canRestart) return;
     _cancelDelays();

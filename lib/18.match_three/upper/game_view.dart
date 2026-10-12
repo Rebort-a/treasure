@@ -102,13 +102,21 @@ class MatchGameView extends StatelessWidget {
                                 ),
                           )
                         else
-                          RoundReplayBoard(
-                            engine: engine!,
-                            child: MatchBoardWidget(
-                              key: ValueKey(manager.roundNumber),
-                              manager: manager,
-                              view: view,
-                            ),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: manager.busy,
+                            builder: (_, busy, _) =>
+                                ValueListenableBuilder<bool>(
+                                  valueListenable: manager.bonusTime,
+                                  builder: (_, bonus, _) => RoundReplayBoard(
+                                    engine: engine!,
+                                    presentationReady: manager.roundSettled,
+                                    child: MatchBoardWidget(
+                                      key: ValueKey(manager.roundNumber),
+                                      manager: manager,
+                                      view: view,
+                                    ),
+                                  ),
+                                ),
                           ),
                         const SizedBox(height: 12),
                         SizedBox(

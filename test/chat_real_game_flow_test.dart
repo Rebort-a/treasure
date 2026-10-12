@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
@@ -38,11 +39,11 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: RouteManager.createRoomPage(host)),
       );
-      await tester.tap(find.text('Start matching'));
+      await tester.tap(find.text(S.startMatching));
       await tester.pump();
-      await pumpUntil(() => find.text('Cancel matching').evaluate().isNotEmpty);
+      await pumpUntil(() => find.text(S.cancelMatching).evaluate().isNotEmpty);
       expect(find.byType(GameScreen), findsNothing);
-      expect(find.text('Cancel matching'), findsOneWidget);
+      expect(find.text(S.cancelMatching), findsOneWidget);
 
       final guest = (await tester.runAsync(() => h.join('Guest')))!;
       guest.matchPhase.addListener(() {

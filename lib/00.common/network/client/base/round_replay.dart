@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../protocol/network_message.dart';
 
 /// 会话内重开协议：聊天沿用会话，棋盘消息用轮次及名单版本隔离。
-/// 最小成员 ID 协调准备屏障，不要求协调者本人参加下一局。
+/// 当前发布者协调准备屏障，不要求协调者本人参加下一局。
 class RoundReplay {
   static const prefix = '@round-replay:';
   final int Function() identity;
@@ -41,8 +41,8 @@ class RoundReplay {
     required this.onMemberLeft,
   });
 
-  int? get _coordinator =>
-      members.isEmpty ? null : (members.keys.toList()..sort()).first;
+  // 发布者退出后等待多人引擎完成竞选，不另外按本地成员顺序推选协调者。
+  int? get _coordinator => members.containsKey(publisher) ? publisher : null;
 
   void observe(Map<int, String> roster) {
     final added = roster.keys.any((id) => !members.containsKey(id));
@@ -57,6 +57,8 @@ class RoundReplay {
         'active': _active.toList(),
       });
     }
+    // 竞选资源到达后，新的发布者继续处理竞选期间积累的准备请求。
+    _tryPropose();
   }
 
   /// 大厅新加入者从已确认邀请方的首份快照继承当前轮次。
@@ -240,8 +242,7 @@ class RoundReplay {
 
   void _tryPropose() {
     if (identity() != _coordinator || _proposal != null) return;
-    final players = (_closed ? _requests : {..._active, ..._requests}).toList()
-      ..sort();
+    final players = (_closed ? _requests : {..._active, ..._requests}).toList();
     if (players.length < 2 || (!_closed && players.length == _active.length)) {
       return;
     }
@@ -255,7 +256,7 @@ class RoundReplay {
           ? _requests.first
           : _active.contains(publisher)
           ? publisher
-          : (_active.toList()..sort()).first,
+          : _active.first,
     };
     _acks.clear();
     _send(_proposal!);

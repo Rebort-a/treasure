@@ -47,6 +47,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       ..clear()
       ..addEntries(players.map((id) => MapEntry(id, members.value[id] ?? '')));
     publisherId = publisher;
+    roundReplay?.publisher = publisher;
     _rosterRevision = revision;
     _awaitingResource = true;
     gameStep.value = GameStep.synchronizing;
@@ -116,12 +117,14 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
   }) {
     if (isActive || ended.value) return;
     this.publisherId = publisherId;
+    roundReplay?.publisher = publisherId;
     _rosterRevision = 1;
     gameMembers
       ..clear()
       ..addAll({
-        identity: members.value[identity] ?? userName,
-        opponentId: members.value[opponentId] ?? '',
+        publisherId: members.value[publisherId] ?? '',
+        (isPublisher ? opponentId : identity):
+            members.value[isPublisher ? opponentId : identity] ?? '',
       });
     _awaitingResource = true;
     gameStep.value = isPublisher ? GameStep.frontWait : GameStep.rearWait;
@@ -203,6 +206,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       _publishVotes.add(message.id);
       if (_publishVotes.length == gameMembers.length) {
         publisherId = (gameMembers.keys.toList()..sort()).first;
+        roundReplay?.publisher = publisherId;
         _publishVotes.clear();
         if (publisherId == identity) _searchHandler(identity);
       }
@@ -235,6 +239,7 @@ abstract class NetMultiEngine extends RoomChatEngine with GameEngine {
       }
       // 同局内入局/撤销也会产生不同名单；旧资源重发不能把撤销的成员加回来。
       publisherId = expectedPublisher;
+      roundReplay?.publisher = expectedPublisher;
       _rosterRevision = revision;
       _completedJoins
         ..clear()

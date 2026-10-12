@@ -9,6 +9,16 @@ import 'package:treasure/00.common/model/chat_message.dart';
 /// 网络消息层单测：覆盖必选时间戳校验、解析健壮性与 XOR 加密往返。
 /// 纯逻辑、无需真实 socket。
 void main() {
+  test('手动连接目标只保存地址、端口和握手密码', () {
+    final endpoint = RoomEndpoint(address: '127.0.0.1', port: 1234);
+    final authenticatedTarget = endpoint.withPassword('secret');
+    expect(authenticatedTarget.address, '127.0.0.1');
+    expect(authenticatedTarget.port, 1234);
+    expect(authenticatedTarget.password, 'secret');
+    expect(authenticatedTarget, isNot(isA<RoomInfo>()));
+    expect(endpoint.password, isNull);
+  });
+
   test('连接认证请求使用空收件集合', () {
     final request = NetworkMessage(
       id: 0,
@@ -35,6 +45,15 @@ void main() {
       encryptionKey: 'room-key',
     );
     expect(room.toJson()['key'], 'room-key');
+    // 以父类类型传入连接时，添加密码仍须保留房间信息与广播密钥。
+    final RoomEndpoint endpoint = room;
+    final copied = endpoint.withPassword('secret');
+    expect(copied, isA<RoomInfo>());
+    final copiedRoom = copied as RoomInfo;
+    expect(copiedRoom.encryptionKey, 'room-key');
+    expect(copiedRoom.name, room.name);
+    expect(copiedRoom.type, room.type);
+    expect(copiedRoom.password, 'secret');
     expect(
       () => RoomInfo(
         name: 'room',

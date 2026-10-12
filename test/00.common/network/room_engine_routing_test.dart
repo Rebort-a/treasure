@@ -54,7 +54,6 @@ void main() {
       await waitFor(() => arrived.contains('最后一条'));
 
       chat = RoomChatEngine.forClient(first);
-      expect(chat.runtimeType, RoomChatEngine);
       expect(
         chat.messageList.value.any((m) => m.content == '页面出现前的消息'),
         isTrue,

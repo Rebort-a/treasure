@@ -94,6 +94,9 @@ class NetTurnEngine extends RoomChatEngine with GameEngine {
         opponentId: members.value[opponentId] ?? '',
       });
     playerType = role;
+    roundReplay?.publisher = role == TurnGamerType.front
+        ? identity
+        : opponentId;
     gameStep.value = _resourceMode == TurnResourceMode.none
         ? GameStep.action
         : role == TurnGamerType.front

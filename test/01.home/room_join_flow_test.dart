@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/00.common/widget/navigator/notifier_navigator.dart';
 import 'package:treasure/01.home/home_manager.dart';
@@ -40,6 +41,58 @@ Widget _home(HomeManager manager, VoidCallback join) => MaterialApp(
 );
 
 void main() {
+  for (final password in <String?>[null, 'secret']) {
+    testWidgets('手动加入从服务器取得密钥并打开正确游戏入口：password=$password', (tester) async {
+      HttpOverrides.global = null;
+      LanguageProvider.instance.resetForTesting();
+      PlayerSettings.instance.resetForTesting();
+      final h = RoomHarness(3, password: password, key: 'server-only-key');
+      final manager = HomeManager(startDiscovery: false);
+      await tester.runAsync(() => h.server.start());
+      try {
+        await tester.pumpWidget(_home(manager, manager.showJoinByIpDialog));
+        await tester.tap(find.text('Open room'));
+        await _pumpUntil(
+          tester,
+          () => find.byType(JoinRoomDialog).evaluate().isNotEmpty,
+        );
+        await tester.enterText(_field(S.enterUserName), 'Alice');
+        await tester.enterText(_field('IP'), '127.0.0.1');
+        await tester.enterText(_field(S.port), '${h.server.port}');
+        if (password != null) {
+          await tester.enterText(_field(S.roomPassword), 'wrong');
+          await tester.tap(find.text(S.join));
+          await _pumpUntil(
+            tester,
+            () => find.text(S.incorrectRoomPassword).evaluate().isNotEmpty,
+          );
+          expect(find.byType(NetChatPage), findsNothing);
+          expect(h.server.members, isEmpty);
+          await tester.enterText(_field(S.roomPassword), password);
+        }
+        await tester.tap(find.text(S.join));
+        await _pumpUntil(
+          tester,
+          () => find.byType(NetChatPage).evaluate().isNotEmpty,
+        );
+        final page = tester.widget<NetChatPage>(find.byType(NetChatPage));
+        expect(page.room.endpoint, isNot(isA<RoomInfo>()));
+        expect(page.room.encryptionKey, 'server-only-key');
+        expect(page.room.roomName, 'Test room');
+        expect(page.room.roomType, 3);
+        expect(page.gamePageBuilder, isNotNull);
+        expect(page.gameName, 'gobang');
+        expect(h.server.members, {page.room.identity: 'Alice'});
+        expect(find.byType(JoinRoomDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        manager.dispose();
+        await tester.runAsync(() => h.close());
+      }
+    });
+  }
+
   testWidgets('密码错误留在主页并保留输入，认证成功后才打开聊天室且只创建一个成员', (tester) async {
     HttpOverrides.global = null;
     LanguageProvider.instance.resetForTesting();
@@ -68,24 +121,26 @@ void main() {
         tester,
         () => find.byType(JoinRoomDialog).evaluate().isNotEmpty,
       );
-      final fields = find.byType(TextField);
-      await tester.enterText(fields.at(0), 'Alice');
-      await tester.enterText(_field('Room password'), 'wrong');
-      await tester.tap(find.text('Join'));
+      await tester.enterText(_field(S.enterUserName), 'Alice');
+      await tester.enterText(_field(S.roomPassword), 'wrong');
+      await tester.tap(find.text(S.join));
       await _pumpUntil(
         tester,
-        () => find.text('Incorrect room password').evaluate().isNotEmpty,
+        () => find.text(S.incorrectRoomPassword).evaluate().isNotEmpty,
       );
       expect(find.byType(NetChatPage), findsNothing);
       expect(h.server.members, isEmpty);
-      expect(tester.widget<TextField>(fields.at(0)).controller!.text, 'Alice');
       expect(
-        tester.widget<TextField>(_field('Room password')).controller!.text,
+        tester.widget<TextField>(_field(S.enterUserName)).controller!.text,
+        'Alice',
+      );
+      expect(
+        tester.widget<TextField>(_field(S.roomPassword)).controller!.text,
         'wrong',
       );
-      await tester.enterText(_field('Room password'), 'secret');
-      await tester.tap(find.text('Join'));
-      await tester.tap(find.text('Join'));
+      await tester.enterText(_field(S.roomPassword), 'secret');
+      await tester.tap(find.text(S.join));
+      await tester.tap(find.text(S.join));
       await _pumpUntil(
         tester,
         () => find.byType(NetChatPage).evaluate().isNotEmpty,
@@ -100,7 +155,7 @@ void main() {
       expect(find.byType(NetChatPage), findsOneWidget);
       expect(find.byType(JoinRoomDialog), findsNothing);
       await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+      await tester.binding.handlePopRoute();
       await _pumpUntil(
         tester,
         () =>
@@ -139,15 +194,13 @@ void main() {
         tester,
         () => find.byType(JoinRoomDialog).evaluate().isNotEmpty,
       );
-      await tester.enterText(find.byType(TextField).at(0), 'Alice');
+      await tester.enterText(_field(S.enterUserName), 'Alice');
       await tester.enterText(_field('IP'), '127.0.0.1');
-      await tester.enterText(find.byType(TextField).at(2), '${server.port}');
-      await tester.enterText(_field('Encryption key'), 'test-key');
-      await tester.tap(find.text('Join'));
+      await tester.enterText(_field(S.port), '${server.port}');
+      await tester.tap(find.text(S.join));
       await _pumpUntil(tester, () => receivedHandshake);
       expect(find.byType(NetChatPage), findsNothing);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text(S.cancel));
       await _pumpUntil(
         tester,
         () => find.byType(JoinRoomDialog).evaluate().isEmpty,

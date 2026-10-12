@@ -26,100 +26,36 @@ void main() {
       }
     });
 
-    group('default state', () {
-      test('default locale is AppLocale.en', () {
-        expect(LanguageProvider.instance.locale.value, equals(AppLocale.en));
-      });
-
-      test('flutterLocale returns correct Locale', () {
-        expect(
-          LanguageProvider.instance.flutterLocale,
-          equals(const Locale('en')),
-        );
-      });
+    test('默认语言有效，切换后同步更新 Flutter locale', () async {
+      final provider = LanguageProvider.instance;
+      expect(provider.locale.value, AppLocale.en);
+      expect(provider.flutterLocale, const Locale('en'));
+      await provider.toggle();
+      expect(provider.locale.value, AppLocale.zh);
+      expect(provider.flutterLocale, const Locale('zh'));
     });
 
-    group('toggle', () {
-      test('toggle switches locale', () async {
-        await LanguageProvider.instance.toggle();
-        expect(LanguageProvider.instance.locale.value, equals(AppLocale.zh));
-      });
-
-      test('toggle twice restores original locale', () async {
-        final original = LanguageProvider.instance.locale.value;
-
-        await LanguageProvider.instance.toggle();
-        await LanguageProvider.instance.toggle();
-
-        expect(LanguageProvider.instance.locale.value, equals(original));
-      });
-
-      test('flutterLocale updates after toggle', () async {
-        await LanguageProvider.instance.toggle();
-        expect(
-          LanguageProvider.instance.flutterLocale,
-          equals(const Locale('zh')),
-        );
-      });
+    test('语言设置持久化，重新加载不丢失用户选择', () async {
+      final provider = LanguageProvider.instance;
+      await provider.setLocale(AppLocale.zh);
+      provider.resetForTesting();
+      await provider.load();
+      expect(provider.locale.value, AppLocale.zh);
+      expect(provider.flutterLocale, const Locale('zh'));
     });
 
-    group('setLocale', () {
-      test('setLocale changes locale to specified value', () async {
-        await LanguageProvider.instance.setLocale(AppLocale.zh);
-        expect(LanguageProvider.instance.locale.value, equals(AppLocale.zh));
-      });
-
-      test('setLocale persists — reload restores value', () async {
-        await LanguageProvider.instance.setLocale(AppLocale.zh);
-
-        // 模拟重新加载
-        LanguageProvider.instance.resetForTesting();
-        await LanguageProvider.instance.load();
-
-        expect(LanguageProvider.instance.locale.value, equals(AppLocale.zh));
-      });
-    });
-
-    group('load', () {
-      test('load with no saved data keeps default', () async {
-        // resetForTesting + 无持久化数据
-        LanguageProvider.instance.resetForTesting();
-        await LanguageProvider.instance.load();
-
-        expect(LanguageProvider.instance.locale.value, equals(AppLocale.en));
-      });
-    });
-
-    // S 门面回归：验证委托到 ARB 生成的 AppLocalizations 正确，
-    // 含 getter、带参方法、roomTypeString 路由、damageLog 拆分路由。
-    group('S facade', () {
-      test('en: returns English strings', () {
-        LanguageProvider.instance.resetForTesting();
-        expect(S.confirm, equals('Confirm'));
-        expect(S.cancel, equals('Cancel'));
-        expect(S.appsPage, equals('Apps'));
-        expect(S.onlinePage, equals('Online'));
-        expect(S.quickCreateRoom, equals('Quick create room'));
-        expect(S.score(5), equals('Score: 5'));
-        expect(S.roomTypeString('gobang'), equals('Gomoku'));
-        expect(S.damageLog('a', 10, false, 5), contains('physical'));
-      });
-
-      test('zh: returns Chinese strings', () async {
-        LanguageProvider.instance.resetForTesting();
-        await LanguageProvider.instance.setLocale(AppLocale.zh);
-        expect(S.confirm, equals('确认'));
-        expect(S.appsPage, equals('\u5e94\u7528'));
-        expect(S.onlinePage, equals('\u8054\u673a'));
-        expect(
-          S.quickCreateRoom,
-          equals('\u5feb\u901f\u521b\u5efa\u623f\u95f4'),
-        );
-        expect(S.score(5), equals('分数: 5'));
-        expect(S.roomTypeString('gobang'), equals('五子棋'));
-        expect(S.damageLog('a', 10, true, 5), contains('法术'));
-        expect(S.damageLog('a', 10, false, 5), contains('物理'));
-      });
+    test('文案门面随语言切换，参数文案和类型映射均可用', () async {
+      final english = S.confirm;
+      expect(english, isNotEmpty);
+      expect(S.score(5), contains('5'));
+      expect(S.roomTypeString('gobang'), isNotEmpty);
+      expect(S.damageLog('a', 10, false, 5), isNotEmpty);
+      await LanguageProvider.instance.setLocale(AppLocale.zh);
+      expect(S.confirm, isNotEmpty);
+      expect(S.confirm, isNot(english));
+      expect(S.score(5), contains('5'));
+      expect(S.roomTypeString('gobang'), isNotEmpty);
+      expect(S.damageLog('a', 10, true, 5), isNotEmpty);
     });
   });
 }

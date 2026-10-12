@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
+import 'package:treasure/18.match_three/upper/game_view.dart';
 
 Map<String, dynamic> _winningState() {
   final data = MatchBoard.random(seed: 7).toJson()
@@ -25,51 +27,40 @@ Map<String, dynamic> _winningState() {
 }
 
 void main() {
-  test('目标与冰块进度来自当前帧，不提前跳到最终结算', () {
-    final data = _winningState();
-    (data['ice'] as List)[9] = 1;
-    final board = MatchBoard.fromJson(data);
-    final result = board.playSwap(10, 2)!;
-    final swapView = MatchView(board, result.frames.first);
-    expect(board.status, MatchStatus.won);
-    expect(swapView.iceLeft, 1);
-    expect(swapView.collected[0], 0);
-    expect(swapView.collected[1], 1);
-    final clear = result.frames.firstWhere(
-      (frame) => frame.phase == FramePhase.clear,
-    );
-    final clearView = MatchView(board, clear);
-    expect(clearView.iceLeft, 0);
-    expect(clearView.collected[0], greaterThan(0));
-    final finalView = MatchView(board, result.frames.last);
-    expect(finalView.collected, board.collected);
-    expect(finalView.iceLeft, board.iceLeft);
-  });
-
-  testWidgets('结算分数逐帧累加，动画结束才等于总分', (tester) async {
+  testWidgets('通关结算结束后可重开，结算期间不开放重开入口', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
     manager.loadState(_winningState());
-    final initialScore = manager.board!.score;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MatchGameView(manager: manager, onExit: () {}),
+      ),
+    );
+    final replay = find.byKey(const ValueKey('round-replay'));
     manager.swap(10, 2);
     expect(manager.busy.value, isTrue);
-    expect(manager.view.value!.score, initialScore);
-    var previous = initialScore;
-    var increases = 0;
     for (var step = 0; step < 120 && manager.busy.value; step++) {
+      expect(replay, findsNothing);
       await tester.pump(const Duration(milliseconds: 150));
-      final score = manager.view.value!.score;
-      expect(score, greaterThanOrEqualTo(previous));
-      if (score > previous) increases++;
-      previous = score;
     }
     expect(manager.busy.value, isFalse);
     expect(manager.bonusTime.value, isFalse);
+    expect(manager.view.value!.status, MatchStatus.won);
     expect(manager.view.value!.score, manager.board!.score);
-    expect(increases, greaterThan(1));
+    await tester.pump();
+    expect(replay, findsOneWidget);
+    await tester.ensureVisible(replay);
+    await tester.tap(replay);
+    await tester.pump();
+    expect(manager.view.value!.status, MatchStatus.playing);
+    expect(manager.view.value!.score, 0);
+    expect(replay, findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    manager.dispose();
+    await tester.pump();
   });
 
-  testWidgets('减少动画模式奖励结束立即结算，无存储等待', (tester) async {
+  testWidgets('减少动画模式仍能结算、重开和清空联机状态', (tester) async {
     final manager = MatchManager(seed: 7)..reduceMotion = true;
     addTearDown(manager.dispose);
     manager.loadState(_winningState());

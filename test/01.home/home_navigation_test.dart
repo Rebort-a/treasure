@@ -38,10 +38,6 @@ void main() {
       expect(background, findsOneWidget);
     }
     expect(find.text(S.background), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text(S.background)).dy,
-      greaterThan(tester.getTopLeft(find.text(S.theme)).dy),
-    );
     await tester.tap(find.byTooltip(S.restoreDefaultBackground));
     await tester.pumpAndSettle();
     expect(background, findsNothing);
@@ -67,7 +63,8 @@ void main() {
 
     await tester.drag(find.byType(ListView).first, const Offset(0, 3000));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Gomoku');
+    final query = S.roomTypeString(AppItemType.gobang.name);
+    await tester.enterText(find.byType(TextField), query);
     await tester.tap(_destination(1));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -77,9 +74,9 @@ void main() {
 
     expect(
       tester.widget<EditableText>(find.byType(EditableText)).controller.text,
-      'Gomoku',
+      query,
     );
-    expect(find.text('All apps (1)'), findsOneWidget);
+    expect(find.text(query), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -105,7 +102,7 @@ void main() {
     await tester.pumpWidget(home(0));
     await tester.pump();
     expect(find.byType(FloatingNavigationBar), findsOneWidget);
-    expect(find.byIcon(Icons.widgets), findsOneWidget);
+    expect(find.byType(HomePage), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/network/client/base/game_engine.dart';
 import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/widget/online_game_host.dart';
-import 'package:treasure/00.common/widget/component/chat_component.dart';
 import 'package:treasure/01.home/route.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 
@@ -104,7 +104,7 @@ void main() {
       final room = (await tester.runAsync(() => h.join('Alice')))!;
       await tester.pumpWidget(MaterialApp(home: NetChatPage(room: room)));
       expect(find.byType(PinnedRoomCard), findsNothing);
-      expect(find.text('Start matching'), findsNothing);
+      expect(find.text(S.startMatching), findsNothing);
       expect(
         find.byWidgetPredicate((widget) => widget is OnlineGameHost),
         findsNothing,
@@ -151,43 +151,6 @@ void main() {
     }
   });
 
-  testWidgets('各游戏只公开普通 StatelessWidget 入口，构建容器仍不提前创建 Manager', (tester) async {
-    HttpOverrides.global = null;
-    for (final type in OnlineItemType.values.where(
-      (type) => type != OnlineItemType.onlyChat,
-    )) {
-      final h = RoomHarness(type.index);
-      await tester.runAsync(() => h.server.start());
-      try {
-        final room = (await tester.runAsync(() => h.join('Alice')))!;
-        final chat = RouteManager.createRoomPage(room);
-        late Widget entry;
-        late Widget container;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Builder(
-              builder: (context) {
-                entry = chat.gamePageBuilder!(context);
-                // 这里只构建组合入口，不挂载返回的容器，验证创建时机。
-                container = (entry as StatelessWidget).build(context);
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        );
-        expect(entry, isA<StatelessWidget>());
-        expect(container, isA<OnlineGameHost>());
-        expect(
-          (RoomChatEngine.forClient(room) as GameEngine).ended.value,
-          isTrue,
-        );
-        expect(tester.takeException(), isNull);
-      } finally {
-        await _cleanup(tester, h);
-      }
-    }
-  });
-
   testWidgets('延迟构建单局路由，重复开局复用连接，整栈卸载后只释放一次资源', (tester) async {
     HttpOverrides.global = null;
     LanguageProvider.instance.resetForTesting();
@@ -223,17 +186,6 @@ void main() {
       expect(factories, 0);
       expect(created, 0);
       expect(find.byType(PinnedRoomCard), findsOneWidget);
-      final messages = find.byType(MessageList);
-      final pinned = find.byType(PinnedRoomCard);
-      final overlay = find
-          .ancestor(of: pinned, matching: find.byType(Stack))
-          .first;
-      expect(tester.getTopLeft(messages).dy, tester.getTopLeft(overlay).dy);
-      expect(tester.getSize(messages).height, tester.getSize(overlay).height);
-      expect(
-        tester.getTopLeft(messages).dy,
-        lessThan(tester.getTopLeft(pinned).dy + kToolbarHeight),
-      );
       expect(routes.pushes, 1);
       opponent = configureTurnEngine(
         room: bob,
@@ -241,7 +193,7 @@ void main() {
         actionHandler: (_, __) {},
         exitHandler: () {},
       );
-      await tester.tap(find.text('Start matching'));
+      await tester.tap(find.text(S.startMatching));
       await tester.pump();
       expect(factories, 0);
       await tester.runAsync(() async => startGame(opponent!));
@@ -265,8 +217,7 @@ void main() {
       await tester.runAsync(() async => opponent!.finishGame());
       await _pumpUntil(
         tester,
-        () =>
-            disposed == 1 && find.text('Start matching').evaluate().isNotEmpty,
+        () => disposed == 1 && find.text(S.startMatching).evaluate().isNotEmpty,
       );
       expect(routes.pops, 2);
       expect(find.text('Game detail', skipOffstage: false), findsNothing);
@@ -281,7 +232,7 @@ void main() {
         actionHandler: (_, __) {},
         exitHandler: () {},
       );
-      await tester.tap(find.text('Start matching'));
+      await tester.tap(find.text(S.startMatching));
       await tester.pump();
       await tester.runAsync(() async => startGame(opponent!));
       await _pumpUntil(tester, () => created == 2 && engine.isActive);

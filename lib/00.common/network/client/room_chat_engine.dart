@@ -427,8 +427,8 @@ class RoomChatEngine {
     final order = _searchOrder.toList();
     final firstIndex = order.indexOf(first);
     final secondIndex = order.indexOf(second);
-    // 只有缺少搜索记录时才以 ID 兜底，正常匹配严格按本次搜索先后处理。
-    if (firstIndex < 0 || secondIndex < 0) return first < second;
+    // 搜索记录不完整时不猜测先后，更不能用 ID 抢占邀请方。
+    if (firstIndex < 0 || secondIndex < 0) return false;
     return firstIndex < secondIndex;
   }
 

@@ -271,8 +271,7 @@ class _NetChatPageState extends State<NetChatPage> {
                   userName: widget.room.userName,
                   messageList: _engine.messageList,
                   theme: _theme,
-                  topPadding:
-                      MediaQuery.paddingOf(context).top + kToolbarHeight + 4,
+                  topPadding: MediaQuery.paddingOf(context).top + 4,
                 ),
                 if (showStatus || hasGame)
                   Positioned(
@@ -328,7 +327,7 @@ class _NetChatPageState extends State<NetChatPage> {
         final pending = match == RoomMatchPhase.sending;
         return Card(
           key: const ValueKey('room-game-card'),
-          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          margin: const EdgeInsets.fromLTRB(12, 2, 12, 4),
           // 只让底板半透明，保留文字和按钮的对比度，并关闭材质染色与阴影。
           color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
           elevation: 0,
@@ -422,9 +421,8 @@ class PinnedRoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(
-      top: MediaQuery.paddingOf(context).top + kToolbarHeight,
-    ),
+    // Scaffold 的延伸模式已把 AppBar 高度计入顶部 padding，不能再次累加。
+    padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
     child: child,
   );
 }

@@ -5,36 +5,48 @@ enum RoomState { start, stop }
 
 enum RoomGameMode { none, turn, real }
 
-class RoomInfo {
-  final String name;
-  final int type;
+/// 连接前的目标参数，只保存地址、端口和握手密码，不保存通信密钥。
+class RoomEndpoint {
   final String address;
   final int port;
-  final String encryptionKey;
-  final bool hasPassword;
 
   /// 仅用于连接握手，不参与房间信息的序列化或广播。
   final String? password;
+
+  RoomEndpoint({required this.address, required this.port, this.password});
+
+  RoomEndpoint withPassword(String? value) =>
+      RoomEndpoint(address: address, port: port, password: value);
+}
+
+/// 已创建或发现的房间信息，始终携带非空密钥，不能用未知密钥生成广播。
+class RoomInfo extends RoomEndpoint {
+  final String name;
+  final int type;
+  final String encryptionKey;
+  final bool hasPassword;
   final int count;
 
   RoomInfo({
     required this.name,
     required this.type,
-    required this.address,
-    required this.port,
-    required String encryptionKey,
+    required super.address,
+    required super.port,
+    required this.encryptionKey,
     this.hasPassword = false,
-    this.password,
+    super.password,
     this.count = 0,
-  }) : encryptionKey = _requireEncryptionKey(encryptionKey);
-
-  static String _requireEncryptionKey(String key) {
-    if (key.isEmpty) {
-      throw ArgumentError.value(key, 'encryptionKey', 'must not be empty');
+  }) {
+    if (encryptionKey.isEmpty) {
+      throw ArgumentError.value(
+        encryptionKey,
+        'encryptionKey',
+        'must not be empty',
+      );
     }
-    return key;
   }
 
+  @override
   RoomInfo withPassword(String? value) => RoomInfo(
     name: name,
     type: type,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
+import 'package:treasure/00.common/l10n/strings.dart';
+import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/style/theme.dart';
 import 'package:treasure/01.home/floating_navigation_bar.dart';
 import 'package:treasure/01.home/home_manager.dart';
@@ -8,22 +10,23 @@ import 'package:treasure/01.home/home_page.dart';
 import 'package:treasure/main.dart';
 
 void main() {
-  for (final title in [
-    'Animal Chess',
-    'Gomoku',
-    'Go',
-    'Sudoku',
-    'Guess',
-    '3tiles',
-    'Memory Match',
-    'Schulte',
+  for (final type in [
+    AppItemType.animalChess,
+    AppItemType.gobang,
+    AppItemType.weiqi,
+    AppItemType.sudoku,
+    AppItemType.guess,
+    AppItemType.threeTiles,
+    AppItemType.memoryCard,
+    AppItemType.schulte,
   ]) {
     for (final systemBack in [false, true]) {
-      testWidgets('从 $title ${systemBack ? '系统返回' : '点击返回'}后保留首页，可再次进入', (
+      testWidgets('从 $type ${systemBack ? '系统返回' : '点击返回'}后保留首页，可再次进入', (
         tester,
       ) async {
         LanguageProvider.instance.resetForTesting();
         ThemeProvider.instance.resetForTesting();
+        final title = S.roomTypeString(type.name);
         final manager = HomeManager(startDiscovery: false);
         await tester.pumpWidget(MyApp(home: HomePage(manager: manager)));
         await tester.pumpAndSettle();
@@ -45,14 +48,6 @@ void main() {
           expect(
             ModalRoute.of(tester.element(find.byType(HomePage)))!.isCurrent,
             isTrue,
-          );
-          // 导航栏也展示同名标签，限定查找顶栏标题以验证返回后的当前页面。
-          expect(
-            find.descendant(
-              of: find.byType(AppBar),
-              matching: find.text('Apps'),
-            ),
-            findsOneWidget,
           );
           expect(tester.takeException(), isNull);
         }

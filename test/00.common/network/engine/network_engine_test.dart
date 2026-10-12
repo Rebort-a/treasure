@@ -24,9 +24,7 @@ void main() {
     final chat = SocketClient(userName: 'A', endpoint: endpoint(0));
     final turn = SocketClient(userName: 'B', endpoint: endpoint(3));
     final real = SocketClient(userName: 'C', endpoint: endpoint(4));
-    expect(chat.runtimeType, SocketClient);
-    expect(turn.runtimeType, SocketClient);
-    expect(real.runtimeType, SocketClient);
+    expect([chat, turn, real].every((room) => !room.isJoined), isTrue);
     expect(() => RoomChatEngine.forClient(turn), throwsStateError);
     chat.dispose();
     turn.dispose();

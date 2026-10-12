@@ -72,12 +72,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get roomPassword => '房间密码';
 
   @override
-  String get roomEncryptionKey => '加密密钥';
-
-  @override
-  String get roomEncryptionKeyRequired => '请向房间创建者获取密钥';
-
-  @override
   String get passwordOptional => '留空则为公开房间';
 
   @override
@@ -1240,7 +1234,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchScore => '分数';
 
   @override
-  String get matchYourTurn => '你的回合';
+  String get matchYourTurn => '你 的回合';
 
   @override
   String matchPlayerTurn(String name) {
