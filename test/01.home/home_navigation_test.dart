@@ -1,22 +1,65 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/style/theme.dart';
-import 'package:treasure/01.home/floating_navigation_bar.dart';
-import 'package:treasure/01.home/home_manager.dart';
-import 'package:treasure/01.home/home_page.dart';
-import 'package:treasure/01.home/background_settings.dart';
-import 'package:treasure/01.home/route.dart';
+import 'package:treasure/01.home/upper/widgets/floating_navigation_bar.dart';
+import 'package:treasure/01.home/upper/home_manager.dart';
+import 'package:treasure/01.home/upper/home_page.dart';
+import 'package:treasure/01.home/middle/background_settings.dart';
+import 'package:treasure/01.home/upper/route.dart';
 import 'package:treasure/main.dart';
 
 Finder _destination(int index) =>
     find.byKey(ValueKey('navigation-destination-$index'));
 
+Future<void> _swipeTab(
+  WidgetTester tester, {
+  required bool next,
+  PointerDeviceKind kind = PointerDeviceKind.touch,
+}) async {
+  final pages = find.byKey(const ValueKey('home-pages'));
+  final distance = tester.getSize(pages).width * 0.8;
+  await tester.drag(pages, Offset(next ? -distance : distance, 0), kind: kind);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   tearDown(() => BackgroundSettings.instance.resetForTesting());
+
+  for (final kind in [PointerDeviceKind.touch, PointerDeviceKind.mouse]) {
+    testWidgets('左右滑动与导航点击同步切换标签，首尾滑动不越界：$kind', (tester) async {
+      LanguageProvider.instance.resetForTesting();
+      await tester.pumpWidget(
+        MyApp(home: HomePage(manager: HomeManager(startDiscovery: false))),
+      );
+      await tester.pumpAndSettle();
+      int selected() => tester
+          .widget<FloatingNavigationBar>(find.byType(FloatingNavigationBar))
+          .selectedIndex;
+
+      expect(selected(), 0);
+      await _swipeTab(tester, next: false, kind: kind);
+      expect(selected(), 0);
+      await _swipeTab(tester, next: true, kind: kind);
+      expect(selected(), 1);
+      await _swipeTab(tester, next: true, kind: kind);
+      expect(selected(), 2);
+      await _swipeTab(tester, next: true, kind: kind);
+      expect(selected(), 2);
+      await tester.tap(_destination(0));
+      await tester.pumpAndSettle();
+      expect(selected(), 0);
+      await _swipeTab(tester, next: true, kind: kind);
+      expect(selected(), 1);
+      await _swipeTab(tester, next: false, kind: kind);
+      expect(selected(), 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('背景覆盖首页三个标签，设置可恢复默认背景', (tester) async {
     LanguageProvider.instance.resetForTesting();
@@ -65,12 +108,12 @@ void main() {
     await tester.pumpAndSettle();
     final query = S.roomTypeString(AppItemType.gobang.name);
     await tester.enterText(find.byType(TextField), query);
-    await tester.tap(_destination(1));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await _swipeTab(tester, next: true);
+    await _swipeTab(tester, next: false);
+    await tester.tap(_destination(2));
+    await tester.pumpAndSettle();
     await tester.tap(_destination(0));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
 
     expect(
       tester.widget<EditableText>(find.byType(EditableText)).controller.text,

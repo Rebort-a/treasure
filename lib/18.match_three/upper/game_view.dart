@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import '../../00.common/l10n/strings.dart';
 import '../../00.common/network/client/net_multi_turn_engine.dart';
 import '../../00.common/network/widget/round_replay_board.dart';
-import '../../00.common/widget/component/chat_component.dart';
 import '../../00.common/widget/component/game_replay_board.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
 import 'animal_piece.dart';
 import 'match_board_widget.dart';
 import 'match_celebration.dart';
+import 'team_chat_sheet.dart';
 
 /// 本地与联机共用游戏界面，页面不负责创建/销毁 Manager 或连接。
 class MatchGameView extends StatelessWidget {
@@ -502,36 +502,7 @@ class MatchGameView extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
-        ),
-        child: SizedBox(
-          height: MediaQuery.sizeOf(sheetContext).height * 0.6,
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(S.matchTeamChat),
-                trailing: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(sheetContext),
-                ),
-              ),
-              Expanded(
-                child: MessageList(
-                  identity: engine.identity,
-                  userName: engine.userName,
-                  messageList: engine.gameMessageList,
-                ),
-              ),
-              SafeArea(
-                top: false,
-                child: MessageInput(onSendText: engine.sendGameText),
-              ),
-            ],
-          ),
-        ),
-      ),
+      builder: (_) => MatchTeamChatSheet(engine: engine),
     );
   }
 }

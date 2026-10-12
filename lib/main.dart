@@ -6,8 +6,8 @@ import '00.common/style/theme.dart';
 import '00.common/tool/app_info.dart';
 import '00.common/service/storage_service.dart';
 
-import '01.home/home_page.dart';
-import '01.home/background_settings.dart';
+import '01.home/upper/home_page.dart';
+import '01.home/middle/background_settings.dart';
 
 void main() async {
   // 初始化 Flutter 引擎与插件绑定。

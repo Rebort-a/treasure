@@ -9,7 +9,7 @@ import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/network/widget/online_game_host.dart';
-import 'package:treasure/01.home/route.dart';
+import 'package:treasure/01.home/upper/route.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 
 import '../00.common/network/support/match_game_driver.dart';

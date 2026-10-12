@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../00.common/service/storage_service.dart';
+import '../../00.common/service/storage_service.dart';
 
 /// 共用的本地玩家资料；名称为空时，在加入房间时询问名称。
 class PlayerSettings {

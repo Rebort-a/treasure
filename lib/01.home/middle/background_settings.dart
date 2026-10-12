@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 
-import '../00.common/service/storage_service.dart';
+import '../../00.common/service/storage_service.dart';
 
 /// 仅供首页使用的背景设置，保存图片内容，避免原文件移动后背景丢失。
 class BackgroundSettings {

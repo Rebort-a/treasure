@@ -246,7 +246,7 @@ class _NetChatPageState extends State<NetChatPage> {
 
   Widget _buildBody() => ValueListenableBuilder<RoomStatus>(
     valueListenable: widget.room.status,
-    builder: (_, status, __) {
+    builder: (bodyContext, status, _) {
       final showStatus =
           status.state != RoomConnectionState.joined &&
           status.state != RoomConnectionState.closed;
@@ -271,7 +271,8 @@ class _NetChatPageState extends State<NetChatPage> {
                   userName: widget.room.userName,
                   messageList: _engine.messageList,
                   theme: _theme,
-                  topPadding: MediaQuery.paddingOf(context).top + 4,
+                  // 从 body 内读取延伸模式下的顶部避让，包含毛玻璃 AppBar。
+                  topPadding: MediaQuery.paddingOf(bodyContext).top + 4,
                 ),
                 if (showStatus || hasGame)
                   Positioned(

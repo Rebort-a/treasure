@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/service/storage_service.dart';
-import 'package:treasure/01.home/player_settings.dart';
+import 'package:treasure/01.home/middle/player_settings.dart';
 
 void main() {
   test('default name persists without overwriting language or theme', () async {

@@ -7,7 +7,7 @@ import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/network/client/net_multi_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
-import 'package:treasure/01.home/route.dart';
+import 'package:treasure/01.home/upper/route.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 import 'package:treasure/18.match_three/middle/net_manager.dart';
 import 'package:treasure/18.match_three/upper/net_page.dart';
@@ -28,6 +28,87 @@ Future<void> _until(WidgetTester tester, bool Function() condition) async {
 }
 
 void main() {
+  testWidgets('队内聊天在小窗口和键盘遮挡下保留草稿、可发送并返回游戏', (tester) async {
+    HttpOverrides.global = null;
+    LanguageProvider.instance.resetForTesting();
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    final h = RoomHarness(OnlineItemType.matchThree.index);
+    final games = <NetMatchManager>[];
+    try {
+      await tester.runAsync(() async {
+        await h.server.start();
+        for (final name in ['Alice', 'Bob']) {
+          games.add(
+            NetMatchManager(room: await h.join(name))..reduceMotion = true,
+          );
+        }
+        for (final game in games) {
+          startGame(game.turnEngine);
+        }
+        await waitFor(
+          () => games.every((g) => g.turnEngine.synchronized.value),
+        );
+      });
+      final local = games.first;
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          ),
+          home: MatchGameView(
+            manager: local,
+            engine: local.turnEngine,
+            onExit: () {},
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip(S.matchTeamChat));
+      await tester.pumpAndSettle();
+      final input = find.byType(TextField);
+      const draft = 'Keep this draft when the keyboard opens';
+      await tester.enterText(input, draft);
+
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 360);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text(draft), findsOneWidget);
+
+      await tester.ensureVisible(input);
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await _until(
+        tester,
+        () => games.last.turnEngine.gameMessageList.value.any(
+          (message) => message.content == draft,
+        ),
+      );
+      expect(tester.takeException(), isNull);
+
+      tester.view.resetViewInsets();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(S.close));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byType(MatchGameView), findsOneWidget);
+      expect(h.rooms.first.isJoined, isTrue);
+      expect(local.board!.moveNumber, 0);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      for (final game in games) {
+        game.dispose();
+      }
+      await tester.runAsync(h.close);
+    }
+  });
+
   testWidgets('聊天室匹配进入简单游戏页，第三人加入，系统返回只退出本人并保留聊天连接', (tester) async {
     HttpOverrides.global = null;
     LanguageProvider.instance.resetForTesting();

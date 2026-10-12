@@ -4,11 +4,11 @@ import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/style/theme.dart';
-import 'package:treasure/01.home/player_settings.dart';
-import 'package:treasure/01.home/home_manager.dart';
-import 'package:treasure/01.home/floating_navigation_bar.dart';
-import 'package:treasure/01.home/home_page.dart';
-import 'package:treasure/01.home/route.dart';
+import 'package:treasure/01.home/middle/player_settings.dart';
+import 'package:treasure/01.home/upper/home_manager.dart';
+import 'package:treasure/01.home/upper/widgets/floating_navigation_bar.dart';
+import 'package:treasure/01.home/upper/home_page.dart';
+import 'package:treasure/01.home/upper/route.dart';
 import 'package:treasure/03.animal_chess/local_page.dart';
 import 'package:treasure/main.dart';
 

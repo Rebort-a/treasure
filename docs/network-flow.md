@@ -15,11 +15,12 @@
 - `00.common/network/client/net_real_engine.dart`：实时引擎沿用多人基类，由具体游戏实现实时动作/同步回调。
 - `00.common/network/client/net_multi_turn_engine.dart`：N 人合作回合引擎，轮转操作者、校验动作修订、发布共同快照并等待全员 ready；独立保存对局聊天。消消乐使用该引擎，房间形态仍为回合制。
 - `00.common/widget/component/chat_component.dart`：输入框与滚动控制器由聊天组件自行创建、监听和释放。
-- `01.home/dialog.dart`：主页创建房间弹窗，以及入房表单、等待、错误展示和取消。
+- `01.home/upper/widgets/room_dialog.dart`：主页创建房间弹窗，以及入房表单、等待、错误展示和取消。
+- `01.home/middle/room_manager.dart`：房间发现与列表维护、本地房间创建和停止、服务端成员监听及资源释放，不依赖首页界面。
 - `02.lan_chat/net_page.dart`：所有房间统一进入的聊天室，展示聊天和重连状态；可选注入游戏页面工厂，提供匹配卡片和成功后的跳转。
 - `02.lan_chat/net_manager.dart` / `attachment_menu.dart`：聊天室导航与附件交互；附件插件集中在 `attachment_menu.dart` 导入，不再放在公共模块。
 - `00.common/network/widget/online_game_host.dart`：通用单局生命周期容器，通过回调创建和释放 Manager、构建游戏 UI，处理返回／投降及结束后的退场；不包含聊天室，也不拥有房间连接。
-- `01.home/route.dart`：装配聊天室和具体游戏的入口。聊天室与游戏彼此不导入，公共模块也不反向引用应用模块。
+- `01.home/upper/route.dart`：装配聊天室和具体游戏的入口。聊天室与游戏彼此不导入，公共模块也不反向引用应用模块。
 
 旧的 RoomSession 与独立 reconnect_policy 已移除。连接不因发现信息预先选择子类；认证成功后，按服务端确认的类型创建 B/C/D。成员表由连接维护，房间与对局聊天记录由相应引擎分别维护。
 

@@ -131,28 +131,31 @@ class _MessageListState extends State<MessageList> {
 
   Widget _emptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: widget.theme.iconColor.withAlpha(15),
-              shape: BoxShape.circle,
+      // 小窗口或键盘遮挡时，空状态也应能在有限空间内滚动。
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: widget.theme.iconColor.withAlpha(15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.chat_rounded,
+                size: 40,
+                color: widget.theme.iconColor.withAlpha(80),
+              ),
             ),
-            child: Icon(
-              Icons.chat_rounded,
-              size: 40,
-              color: widget.theme.iconColor.withAlpha(80),
+            const SizedBox(height: 16),
+            Text(
+              S.typeMessage,
+              style: widget.theme.systemTextStyle.copyWith(fontSize: 14),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            S.typeMessage,
-            style: widget.theme.systemTextStyle.copyWith(fontSize: 14),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

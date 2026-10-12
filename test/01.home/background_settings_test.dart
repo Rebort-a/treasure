@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/service/storage_service.dart';
-import 'package:treasure/01.home/background_settings.dart';
+import 'package:treasure/01.home/middle/background_settings.dart';
 
 final imageBytes = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAA'

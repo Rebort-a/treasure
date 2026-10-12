@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/l10n/strings.dart';
+import '../../../00.common/l10n/strings.dart';
 
 /// 创建房间前选择固定房间类型的底部弹出列表。
 class RoomTypePicker {
