@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.2] - 2026-10-12
+Improve room joining and multiplayer match-three gameplay, simplify room cards, and focus regression tests on critical behavior.
+
+### Added
+- add home backgrounds and refine translucent surfaces
+
+### Fixed
+- improve room joining and multiplayer match-three behavior
+
+### Other
+- test: remove README app catalog assertion
+
 ## [1.3.1] - 2026-10-09
 Improve match-three score and opening animations, automatically trigger all bonus special pieces, use compact replay panels, and apply Zoom transitions to maze encounters.
 
