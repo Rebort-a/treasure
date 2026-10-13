@@ -99,7 +99,7 @@ void main() {
     }
   });
 
-  testWidgets('联机最后一步和队友提前结束均不能让重开按钮抢在动画前出现', (tester) async {
+  testWidgets('联机最后一步和队友提前结束均不能让重开或撒花抢在结算前出现', (tester) async {
     HttpOverrides.global = null;
     final h = RoomHarness(OnlineItemType.matchThree.index);
     final games = <NetMatchManager>[];
@@ -146,6 +146,9 @@ void main() {
       expect(actor.board!.status, MatchStatus.won);
       expect(actor.roundSettled, isFalse);
       expect(actor.turnEngine.roundReplay!.finished.value, isFalse);
+      final celebration = find.byKey(const ValueKey('match-celebration'));
+      await tester.pump();
+      expect(celebration, findsNothing);
       actor.loadState(actor.saveState());
       expect(actor.busy.value, isTrue);
       expect(actor.personalScore, 50 + normalScore);
@@ -160,6 +163,7 @@ void main() {
       final replay = find.byKey(const ValueKey('round-replay'));
       for (var i = 0; i < 120 && actor.busy.value; i++) {
         expect(replay, findsNothing);
+        expect(celebration, findsNothing);
         await tester.pump(const Duration(milliseconds: 100));
         if (actor.bonusTime.value) {
           expect(find.text(S.matchYourRank(2)), findsOneWidget);
@@ -174,6 +178,7 @@ void main() {
       expect(actor.personalScore, 50 + normalScore);
       await tester.pump();
       expect(replay, findsOneWidget);
+      expect(celebration, findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       await tester.pumpWidget(const SizedBox());

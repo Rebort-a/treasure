@@ -82,8 +82,8 @@ class _MatchCelebrationState extends State<MatchCelebration>
       return;
     }
     if (_reduceMotion) _hide();
-    // 胜利状态在奖励结算中已经成立，必须等最终提示真正出现。
-    if (_celebrated || manager.busy.value || manager.bonusTime.value) return;
+    // 胜利状态可能先于网络回环和奖励动画成立，统一等待完整结算结束。
+    if (_celebrated || !manager.roundSettled) return;
     _celebrated = true;
     if (_reduceMotion) return;
     _rich = manager.view.value!.score > MatchCelebration.richScoreThreshold;

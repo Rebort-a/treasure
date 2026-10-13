@@ -213,14 +213,47 @@ void main() {
       expect(jsonEncode(first.board!.toJson()), before);
       expect(games.every((g) => g.hint.value == 7), isTrue);
 
+      // 当前操作者的选中、改选和取消同步给全员，但不产生棋盘动作。
+      first.selectCell(0);
+      await waitFor(() => games.every((g) => g.selected.value == 0));
+      first.selectCell(7);
+      await waitFor(() => games.every((g) => g.selected.value == 7));
+      first.selectCell(7);
+      await waitFor(() => games.every((g) => g.selected.value == null));
+      expect(jsonEncode(first.board!.toJson()), before);
+      expect(second.turnEngine.submitSelection({'cell': 5}), isFalse);
+      second.turnEngine.sendGameMessage(
+        MessageType.sync,
+        jsonEncode({
+          'phase': 'selection',
+          'revision': second.turnEngine.revision.value,
+          'data': {'cell': 5},
+        }),
+      );
+      for (final cell in [-1, MatchBoard.cells, 'bad']) {
+        first.turnEngine.sendGameMessage(
+          MessageType.sync,
+          jsonEncode({
+            'phase': 'selection',
+            'revision': first.turnEngine.revision.value,
+            'data': {'cell': cell},
+          }),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(games.every((g) => g.selected.value == null), isTrue);
+
       final swap = first.board!.legalMoves.first;
-      first.swap(swap.$1, swap.$2);
+      first.selectCell(swap.$1);
+      await waitFor(() => games.every((g) => g.selected.value == swap.$1));
+      first.selectCell(swap.$2);
       await _synced(games, moves: 1);
       expect(
         games.every(
           (g) =>
               g.turnEngine.currentPlayer.value == middle.identity &&
-              g.hint.value == null,
+              g.hint.value == null &&
+              g.selected.value == null,
         ),
         isTrue,
       );
@@ -235,6 +268,16 @@ void main() {
       );
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(games.every((g) => g.hint.value == null), isTrue);
+      second.turnEngine.sendGameMessage(
+        MessageType.sync,
+        jsonEncode({
+          'phase': 'selection',
+          'revision': second.turnEngine.revision.value - 1,
+          'data': {'cell': 9},
+        }),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(games.every((g) => g.selected.value == null), isTrue);
 
       // 当前行动者退出，按入局顺序交给后继，不触发发布者竞选。
       second.turnEngine.leavePage();

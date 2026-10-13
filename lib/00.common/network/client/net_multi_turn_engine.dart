@@ -21,6 +21,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
   void Function(Map<String, dynamic>)? _loadState;
   bool Function(Map<String, dynamic>)? _applyAction;
   void Function(Map<String, dynamic>)? _receiveHint;
+  void Function(Map<String, dynamic>)? _receiveSelection;
   final Set<int> _readyPlayers = {};
   List<int> _lastTurnOrder = [];
   int _goRevision = -1;
@@ -54,6 +55,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
     required void Function(Map<String, dynamic>) loadState,
     required bool Function(Map<String, dynamic>) applyAction,
     void Function(Map<String, dynamic>)? receiveHint,
+    void Function(Map<String, dynamic>)? receiveSelection,
     VoidCallback? resetRound,
   }) {
     // 先检查/取得本局配置权，防止重复创建 Manager 时破坏仍在运行的一局。
@@ -68,6 +70,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
     _loadState = loadState;
     _applyAction = applyAction;
     _receiveHint = receiveHint;
+    _receiveSelection = receiveSelection;
     currentPlayer.value = null;
     revision.value = 0;
     pendingAction.value = false;
@@ -123,6 +126,20 @@ class NetMultiTurnEngine extends NetMultiEngine {
     sendGameMessage(
       MessageType.sync,
       jsonEncode({'phase': 'hint', 'revision': revision.value, 'data': hint}),
+    );
+    return true;
+  }
+
+  /// 当前操作者的选中状态只同步展示，不推进棋盘或修订号。
+  bool submitSelection(Map<String, dynamic> selection) {
+    if (!canAct) return false;
+    sendGameMessage(
+      MessageType.sync,
+      jsonEncode({
+        'phase': 'selection',
+        'revision': revision.value,
+        'data': selection,
+      }),
     );
     return true;
   }
@@ -219,6 +236,19 @@ class NetMultiTurnEngine extends NetMultiEngine {
     final number = data['revision'];
     if (number is! int) return;
     switch (data['phase']) {
+      case 'selection':
+        if (number != revision.value ||
+            message.id != currentPlayer.value ||
+            message.id == identity ||
+            !synchronized.value ||
+            (roundReplay?.finished.value ?? false) ||
+            (roundReplay?.preparing.value ?? false)) {
+          return;
+        }
+        final selection = data['data'];
+        if (selection is Map<String, dynamic>) {
+          _receiveSelection?.call(selection);
+        }
       case 'hint':
         if (number != revision.value ||
             message.id == currentPlayer.value ||
@@ -299,6 +329,7 @@ class NetMultiTurnEngine extends NetMultiEngine {
     _loadState = null;
     _applyAction = null;
     _receiveHint = null;
+    _receiveSelection = null;
     _readyPlayers.clear();
     synchronized.value = false;
     pendingAction.value = false;

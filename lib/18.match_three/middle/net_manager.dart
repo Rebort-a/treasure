@@ -22,6 +22,7 @@ class NetMatchManager extends MatchManager {
       applyAction: applyNetworkAction,
       resetRound: resetNetworkRound,
       receiveHint: _receiveHint,
+      receiveSelection: _receiveSelection,
     );
     turnEngine.currentPlayer.addListener(_turnChanged);
     turnEngine.synchronized.addListener(refreshView);
@@ -30,6 +31,7 @@ class NetMatchManager extends MatchManager {
     busy.addListener(_checkRoundFinished);
     bonusTime.addListener(_checkRoundFinished);
     bonusTime.addListener(_showPersonalResults);
+    selected.addListener(_publishSelection);
   }
 
   int get personalScore => playerScores.value[turnEngine.identity] ?? 0;
@@ -137,6 +139,25 @@ class NetMatchManager extends MatchManager {
     }
   }
 
+  void _publishSelection() {
+    if (!_released && canInteract) {
+      turnEngine.submitSelection({'cell': selected.value});
+    }
+  }
+
+  void _receiveSelection(Map<String, dynamic> data) {
+    if (_released ||
+        board?.status != MatchStatus.playing ||
+        !data.containsKey('cell')) {
+      return;
+    }
+    final index = data['cell'];
+    if (index == null ||
+        (index is int && index >= 0 && index < MatchBoard.cells)) {
+      selected.value = index as int?;
+    }
+  }
+
   @override
   void selectCell(int index) {
     if (_released || index < 0 || index >= MatchBoard.cells) return;
@@ -192,6 +213,7 @@ class NetMatchManager extends MatchManager {
     busy.removeListener(_checkRoundFinished);
     bonusTime.removeListener(_checkRoundFinished);
     bonusTime.removeListener(_showPersonalResults);
+    selected.removeListener(_publishSelection);
     turnEngine.releaseGame();
     hint.dispose();
     playerScores.dispose();
