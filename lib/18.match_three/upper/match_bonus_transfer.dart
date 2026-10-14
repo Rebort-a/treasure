@@ -3,28 +3,31 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../base/match_board.dart';
+import '../middle/match_manager.dart';
 import 'animal_piece.dart';
 
 /// 奖励步数转特效的连线仅绘制在棋盘内，不跨越页面布局或参与命中测试。
 class MatchBonusTransfer extends StatelessWidget {
   final BoardFrame frame;
   final bool animated;
+  final VoidCallback? onCompleted;
 
   const MatchBonusTransfer({
     super.key,
     required this.frame,
     required this.animated,
+    this.onCompleted,
   });
 
   @override
   Widget build(BuildContext context) {
     if (!animated ||
-        frame.phase != FramePhase.bonus ||
-        frame.convertedPieceIds.isEmpty) {
+        frame.phase != FramePhase.bonusTransfer ||
+        frame.transferringPieceIds.isEmpty) {
       return const SizedBox.shrink();
     }
     final index = frame.pieces.indexWhere(
-      (piece) => piece != null && frame.convertedPieceIds.contains(piece.id),
+      (piece) => piece != null && frame.transferringPieceIds.contains(piece.id),
     );
     if (index < 0) return const SizedBox.shrink();
     final piece = frame.pieces[index]!;
@@ -33,8 +36,9 @@ class MatchBonusTransfer extends StatelessWidget {
         child: TweenAnimationBuilder<double>(
           key: ValueKey(piece.id),
           tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 420),
+          duration: MatchManager.bonusTransferDuration,
           curve: Curves.easeInOutCubic,
+          onEnd: onCompleted,
           builder: (_, progress, _) => CustomPaint(
             painter: _BonusTransferPainter(index, piece.kind, progress),
           ),
@@ -61,24 +65,26 @@ class _BonusTransferPainter extends CustomPainter {
       (index ~/ MatchBoard.side + 0.5) * cell,
     );
     final head = Offset.lerp(origin, target, progress)!;
-    final fade = (1 - progress) * 0.8;
+    // 整条目标连线在飞行期间保持可见，亮线逐步延长，终点不随进度提前淡出。
     final paint = Paint()
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFFFD65B).withValues(alpha: fade)
+      ..color = const Color(0xFFFFD65B).withValues(alpha: 0.35)
+      ..strokeWidth = math.max(1, cell * 0.035);
+    canvas.drawLine(origin, target, paint);
+    paint
+      ..color = const Color(0xFFFFD65B).withValues(alpha: 0.9)
       ..strokeWidth = math.max(2, cell * 0.07);
     canvas.drawLine(origin, head, paint);
     paint
-      ..color = Colors.white.withValues(alpha: 1 - progress)
+      ..color = Colors.white.withValues(alpha: 0.9)
       ..strokeWidth = math.max(1, cell * 0.025);
     canvas.drawLine(origin, head, paint);
-    paint.color = AnimalPiecePainter.palette[kind].withValues(
-      alpha: 1 - progress,
-    );
+    paint.color = AnimalPiecePainter.palette[kind];
     canvas.drawCircle(head, cell * 0.1, paint);
     paint
       ..style = PaintingStyle.stroke
       ..strokeWidth = cell * 0.04
-      ..color = const Color(0xFFFFD65B).withValues(alpha: fade);
+      ..color = const Color(0xFFFFD65B).withValues(alpha: 0.8);
     canvas.drawCircle(target, cell * (0.12 + progress * 0.35), paint);
   }
 

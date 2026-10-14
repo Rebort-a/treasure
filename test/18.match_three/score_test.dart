@@ -77,12 +77,50 @@ void main() {
     expect(manager.view.value, isNull);
   });
 
-  testWidgets('奖励结算中重开取消旧局通知', (tester) async {
+  testWidgets('奖励飞行到达后才转换，重开取消飞行中的旧局通知', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
     manager.loadState(_winningState());
     manager.swap(10, 2);
-    await tester.pump(const Duration(milliseconds: 200));
+    Future<void> reachTransfer() async {
+      for (var i = 0; i < 120; i++) {
+        if (manager.view.value!.frame.phase == FramePhase.bonusTransfer) {
+          return;
+        }
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      fail('未进入奖励步数飞行阶段');
+    }
+
+    await reachTransfer();
+    final transfer = manager.view.value!.frame;
+    final id = transfer.transferringPieceIds.single;
+    expect(
+      transfer.pieces.singleWhere((piece) => piece?.id == id)!.effect,
+      PieceEffect.none,
+    );
+    expect(manager.canInteract, isFalse);
+    await tester.pump();
+    expect(manager.view.value!.frame, same(transfer));
+    manager.finishBonusTransfer(transfer);
+    await tester.pump();
+    final converted = manager.view.value!.frame;
+    expect(converted.phase, FramePhase.bonus);
+    expect(converted.convertedPieceIds, {id});
+    expect(converted.score, transfer.score);
+    expect(converted.movesLeft, transfer.movesLeft);
+    expect(
+      converted.pieces.singleWhere((piece) => piece?.id == id)!.effect,
+      anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
+    );
+    expect(manager.busy.value, isTrue);
+    manager.loadState(_winningState());
+    manager.swap(10, 2);
+    await reachTransfer();
+    final newTransfer = manager.view.value!.frame;
+    manager.finishBonusTransfer(transfer);
+    await tester.pump();
+    expect(manager.view.value!.frame, same(newTransfer));
     manager.restart(seed: 9);
     await tester.pump(const Duration(seconds: 30));
     expect(manager.view.value!.seed, 9);

@@ -4,7 +4,7 @@ enum PieceEffect { none, row, column, bomb, rainbow }
 
 enum MatchStatus { playing, won, lost }
 
-enum FramePhase { swap, bonus, clear, fall, settled, transform }
+enum FramePhase { swap, bonus, clear, fall, settled, transform, bonusTransfer }
 
 enum ComboPraise { good, great, excellent, amazing, unbelievable }
 
@@ -30,6 +30,10 @@ class BoardFrame {
 
   /// 本帧转换为特效的棋子身份，仅用于展示，不参与结算或随机数生成。
   final Set<int> convertedPieceIds;
+  final Set<int> transferringPieceIds;
+
+  /// 彩虹转换轮询允许下一次引爆与本帧坠落动画重叠。
+  final bool staggeredFall;
   final int movesLeft;
 
   /// 分数快照，结算期间每触发一次消除就前进一格，而不是一次跳到总分。
@@ -38,18 +42,21 @@ class BoardFrame {
 
   BoardFrame(
     MatchBoard board,
-    this.phase, [
+    this.phase, {
     Set<int> clearing = const {},
     Set<int> spawnedPieceIds = const {},
     int? movesLeft,
     int? score,
     Set<int> convertedPieceIds = const {},
-  ]) : pieces = List.unmodifiable(board.pieces),
+    Set<int> transferringPieceIds = const {},
+    this.staggeredFall = false,
+  }) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
        collected = List.unmodifiable(board.collected),
        clearing = Set.unmodifiable(clearing),
        spawnedPieceIds = Set.unmodifiable(spawnedPieceIds),
        convertedPieceIds = Set.unmodifiable(convertedPieceIds),
+       transferringPieceIds = Set.unmodifiable(transferringPieceIds),
        movesLeft = movesLeft ?? board.movesLeft,
        score = score ?? board.score;
 
@@ -57,7 +64,7 @@ class BoardFrame {
     MatchBoard board, {
     required Set<int> pieceIds,
     FramePhase phase = FramePhase.transform,
-  }) : this(board, phase, const {}, const {}, null, null, pieceIds);
+  }) : this(board, phase, convertedPieceIds: pieceIds);
 
   /// 开局只清空展示帧，不修改内核棋盘或消耗随机数。
   BoardFrame.empty(MatchBoard board)
@@ -67,6 +74,8 @@ class BoardFrame {
       clearing = const {},
       spawnedPieceIds = const {},
       convertedPieceIds = const {},
+      transferringPieceIds = const {},
+      staggeredFall = false,
       movesLeft = board.movesLeft,
       score = board.score,
       phase = FramePhase.settled;
@@ -249,6 +258,18 @@ class MatchBoard {
   }
 
   void _freshBoard() {
+    // 洗牌的极端兜底可以重排颜色，但不能悄悄丢弃已有特效及其身份。
+    final retained = {
+      for (var i = 0; i < cells; i++)
+        if (pieces[i] case final Piece piece
+            when piece.effect != PieceEffect.none)
+          i: piece,
+    };
+    Piece fresh(int index, int kind) {
+      final old = retained[index];
+      return old == null ? _piece(kind) : Piece(old.id, kind, old.effect);
+    }
+
     for (var attempt = 0; attempt < 200; attempt++) {
       for (var i = 0; i < cells; i++) {
         final available = [
@@ -261,18 +282,18 @@ class MatchBoard {
                     pieces[i - side * 2]?.kind == kind))
               kind,
         ];
-        pieces[i] = _piece(available[_next(available.length)]);
+        pieces[i] = fresh(i, available[_next(available.length)]);
       }
       if (legalMoves.isNotEmpty) return;
     }
     // 极端随机序列的有界兜底：该图案无三连，交换 1 与 9 必定形成三连。
     for (var i = 0; i < cells; i++) {
-      pieces[i] = _piece((i ~/ side * 2 + i % side) % kinds);
+      pieces[i] = fresh(i, (i ~/ side * 2 + i % side) % kinds);
     }
-    pieces[0] = _piece(0);
-    pieces[1] = _piece(1);
-    pieces[2] = _piece(0);
-    pieces[9] = _piece(0);
+    pieces[0] = fresh(0, 0);
+    pieces[1] = fresh(1, 1);
+    pieces[2] = fresh(2, 0);
+    pieces[9] = fresh(9, 0);
   }
 
   /// 洗牌保持已有棋子的身份/特效以及冰层、目标、分数和剩余步数。
@@ -397,6 +418,7 @@ class MatchBoard {
     required Set<int> protected,
     required int multiplier,
     Set<int> consumedRainbows = const {},
+    Set<int>? staggeredPieceIds,
   }) {
     final clear = _expandEffects(
       initial,
@@ -423,13 +445,25 @@ class MatchBoard {
     for (final index in crackedIce) {
       if (ice[index] > 0) ice[index]--;
     }
-    frames.add(BoardFrame(this, FramePhase.clear, clear));
+    frames.add(BoardFrame(this, FramePhase.clear, clearing: clear));
     for (final index in clear) {
       pieces[index] = null;
     }
-    frames.add(BoardFrame(this, FramePhase.fall));
+    // 彩虹轮询直接展示补齐后的坠落目标，避免空棋盘帧打断尚未结束的运动。
+    if (staggeredPieceIds == null) {
+      frames.add(BoardFrame(this, FramePhase.fall));
+    }
     final spawnedPieceIds = _collapse();
-    frames.add(BoardFrame(this, FramePhase.fall, const {}, spawnedPieceIds));
+    frames.add(
+      BoardFrame(
+        this,
+        FramePhase.fall,
+        spawnedPieceIds: spawnedPieceIds,
+        staggeredFall:
+            staggeredPieceIds != null &&
+            _nextSpecial(staggeredPieceIds, const {}) != null,
+      ),
+    );
     return (cells: clear, specialEffectsTriggered: specialEffectsTriggered);
   }
 
@@ -465,6 +499,47 @@ class MatchBoard {
     return null;
   }
 
+  /// 彩虹组合只轮询本次转换的动物和交换搭档，不把补块自然生成的特效加入队列。
+  /// 每次仍完整展开波及特效和已有自然匹配；队列耗尽后恢复普通连锁结算。
+  ({int waves, int totalCleared, int specialEffectsTriggered})
+  _triggerRainbowConversions({
+    required List<BoardFrame> frames,
+    required Set<int> initial,
+    required Set<int> consumedRainbows,
+    required Set<int> pieceIds,
+  }) {
+    var waves = 0;
+    var totalCleared = 0;
+    var specialEffectsTriggered = 0;
+    var forced = initial;
+    while (forced.isNotEmpty) {
+      final runs = waves == 0 ? <List<int>>[] : matchRuns();
+      final created = _createEffects(runs, -1, -1);
+      for (final entry in created.entries) {
+        final piece = pieces[entry.key]!;
+        pieces[entry.key] = Piece(piece.id, piece.kind, entry.value);
+      }
+      final wave = _clearWave(
+        frames: frames,
+        initial: {...forced, for (final run in runs) ...run},
+        protected: created.keys.toSet(),
+        multiplier: waves + 1,
+        consumedRainbows: waves == 0 ? consumedRainbows : const {},
+        staggeredPieceIds: pieceIds,
+      );
+      waves++;
+      totalCleared += wave.cells.length;
+      specialEffectsTriggered += wave.specialEffectsTriggered;
+      final next = _nextSpecial(pieceIds, const {});
+      forced = next == null ? const {} : {next};
+    }
+    return (
+      waves: waves,
+      totalCleared: totalCleared,
+      specialEffectsTriggered: specialEffectsTriggered,
+    );
+  }
+
   /// 自然连锁与自动触发共用逐波结算；每次只主动选择一只特效。
   /// 波及其他特效时仍在同波连锁，完成坠落后再重新扫描，不能沿用旧格子位置。
   ({int waves, int totalCleared, int specialEffectsTriggered}) _settleCascades({
@@ -474,7 +549,6 @@ class MatchBoard {
     required int multiplier,
     Set<int> initial = const {},
     Set<int> consumedRainbows = const {},
-    Set<int>? automaticPieceIds,
     Set<int> protectedPieceIds = const {},
     bool automaticAll = false,
   }) {
@@ -482,15 +556,13 @@ class MatchBoard {
     var totalCleared = 0;
     var specialEffectsTriggered = 0;
     final forced = {...initial};
-    final automatic = automaticAll || automaticPieceIds != null;
+    final automatic = automaticAll;
     // 与普通连锁一致保留有界保护，防止异常随机序列无限结算。
     // 自动逐只触发可能有更多波次，不能沿用批量触发时的较小上限。
     while (waves < (automatic ? cells * 4 : 64)) {
       final runs = matchRuns();
       if (runs.isEmpty && forced.isEmpty) {
-        final index = automatic
-            ? _nextSpecial(automaticPieceIds, protectedPieceIds)
-            : null;
+        final index = automatic ? _nextSpecial(null, protectedPieceIds) : null;
         if (index == null) break;
         forced.add(index);
       }
@@ -541,6 +613,7 @@ class MatchBoard {
     final frames = <BoardFrame>[BoardFrame(this, FramePhase.swap)];
     final forced = <int>{};
     final transformedEffects = <int, PieceEffect>{};
+    final rainbowActivationIds = <int>{};
     final pairedRainbowIds = <int>{};
     if (special) {
       final effectA = pieces[a]!.effect;
@@ -569,6 +642,7 @@ class MatchBoard {
             forced
               ..clear()
               ..add(rainbowIndex);
+            rainbowActivationIds.add(pieces[partnerIndex]!.id);
           }
           for (var index = 0; index < cells; index++) {
             final piece = pieces[index];
@@ -576,7 +650,7 @@ class MatchBoard {
             if (comboEffect == null) forced.add(index);
             if (comboEffect != null &&
                 index != rainbowIndex &&
-                piece!.effect != PieceEffect.rainbow) {
+                piece!.effect == PieceEffect.none) {
               transformedEffects[index] = comboEffect == PieceEffect.bomb
                   ? PieceEffect.bomb
                   : _next(2) == 0
@@ -629,16 +703,30 @@ class MatchBoard {
       frames.add(BoardFrame.conversion(this, pieceIds: convertedIds));
     }
     final initialMatchCount = matchRuns().expand((run) => run).toSet().length;
+    final rainbowResolution = rainbowActivationIds.isEmpty
+        ? (waves: 0, totalCleared: 0, specialEffectsTriggered: 0)
+        : _triggerRainbowConversions(
+            frames: frames,
+            initial: forced,
+            consumedRainbows: {a, b},
+            pieceIds: {...rainbowActivationIds, ...convertedIds},
+          );
     var resolution = _settleCascades(
       frames: frames,
       a: a,
       b: b,
-      multiplier: 1,
-      initial: forced,
+      multiplier: rainbowResolution.waves + 1,
+      initial: rainbowActivationIds.isEmpty ? forced : const {},
       consumedRainbows: special ? {a, b} : {},
-      automaticPieceIds: convertedIds.isEmpty ? null : convertedIds,
       automaticAll: pairedRainbowIds.isNotEmpty,
       protectedPieceIds: pairedRainbowIds,
+    );
+    resolution = (
+      waves: rainbowResolution.waves + resolution.waves,
+      totalCleared: rainbowResolution.totalCleared + resolution.totalCleared,
+      specialEffectsTriggered:
+          rainbowResolution.specialEffectsTriggered +
+          resolution.specialEffectsTriggered,
     );
     if (pairedRainbowIds.isNotEmpty) {
       // 此时所有其他特效、坠落和自然连锁均已处理，最后再清空整个稳定棋盘。
@@ -671,6 +759,16 @@ class MatchBoard {
       while (movesLeft > 0) {
         final index = _next(cells);
         final piece = pieces[index]!;
+        // 步数先进入飞行帧，目标动物保持原状；连线到达后才展示转换结果。
+        movesLeft--;
+        moveNumber++;
+        frames.add(
+          BoardFrame(
+            this,
+            FramePhase.bonusTransfer,
+            transferringPieceIds: {piece.id},
+          ),
+        );
         pieces[index] = Piece(
           piece.id,
           piece.kind,
@@ -678,8 +776,6 @@ class MatchBoard {
             3,
           )],
         );
-        movesLeft--;
-        moveNumber++;
         frames.add(
           BoardFrame.conversion(
             this,

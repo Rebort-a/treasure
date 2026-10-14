@@ -268,6 +268,8 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                           child: MatchBonusTransfer(
                             frame: frame,
                             animated: _animate,
+                            onCompleted: () =>
+                                widget.manager.finishBonusTransfer(frame),
                           ),
                         ),
                         if (widget.manager case final NetMatchManager manager)

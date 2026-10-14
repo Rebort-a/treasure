@@ -23,6 +23,27 @@ MatchBoard _pattern(
   return MatchBoard.fromJson(data);
 }
 
+void _expectSpecialsPreservedOrTriggered(List<BoardFrame> frames) {
+  for (var i = 0; i < frames.length - 1; i++) {
+    final before = frames[i];
+    final after = {
+      for (final piece in frames[i + 1].pieces.whereType<Piece>())
+        piece.id: piece,
+    };
+    for (var index = 0; index < before.pieces.length; index++) {
+      final piece = before.pieces[index];
+      if (piece == null || piece.effect == PieceEffect.none) continue;
+      final next = after[piece.id];
+      if (next == null) {
+        expect(before.phase, FramePhase.clear);
+        expect(before.clearing, contains(index));
+      } else {
+        expect(next.effect, piece.effect);
+      }
+    }
+  }
+}
+
 void main() {
   test('随机生成没有预消除，至少有一步可走，目标和棋盘随种子变化', () {
     final boards = <String>{};
@@ -78,6 +99,7 @@ void main() {
         expect(board.pieces.every((piece) => piece != null), isTrue);
         expect(board.pieces.map((piece) => piece!.id).toSet().length, 64);
         expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+        _expectSpecialsPreservedOrTriggered(result.frames);
       }
     }
   });
@@ -152,6 +174,120 @@ void main() {
     );
     expect(pair.canSwap(0, 1), isTrue);
     expect(pair.playSwap(0, 1)!.scoreGained, greaterThan(0));
+  });
+
+  test('彩虹吸收同色特效时仍触发行列、炸弹和彩虹，并继续展开波及的特效', () {
+    for (final effect in [
+      PieceEffect.row,
+      PieceEffect.column,
+      PieceEffect.bomb,
+      PieceEffect.rainbow,
+    ]) {
+      final board = _pattern({}, effects: {0: PieceEffect.rainbow, 31: effect});
+      final result = board.playSwap(0, 1)!;
+      final clear = result.frames.firstWhere(
+        (frame) => frame.phase == FramePhase.clear,
+      );
+      final affected = switch (effect) {
+        PieceEffect.row => {for (var col = 0; col < 8; col++) 24 + col},
+        PieceEffect.column => {for (var row = 0; row < 8; row++) row * 8 + 7},
+        PieceEffect.bomb => {22, 23, 30, 31, 38, 39},
+        _ => {
+          for (var index = 0; index < MatchBoard.cells; index++)
+            if (clear.pieces[index]?.kind == clear.pieces[31]!.kind) index,
+        },
+      };
+      expect(clear.clearing, containsAll(affected));
+      expect(result.specialEffectsTriggered, greaterThanOrEqualTo(2));
+    }
+    final chained = _pattern(
+      {},
+      effects: {
+        0: PieceEffect.rainbow,
+        31: PieceEffect.row,
+        30: PieceEffect.rainbow,
+      },
+    ).playSwap(0, 1)!;
+    final clear = chained.frames.firstWhere(
+      (frame) => frame.phase == FramePhase.clear,
+    );
+    expect(
+      clear.clearing,
+      containsAll({
+        for (var index = 0; index < MatchBoard.cells; index++)
+          if (clear.pieces[index]?.kind == clear.pieces[30]!.kind) index,
+      }),
+    );
+    expect(chained.specialEffectsTriggered, greaterThanOrEqualTo(3));
+  });
+
+  test('彩虹组合只转换同色普通动物，保留已有特效，炸弹和混合直线规则确定', () {
+    final lines = <PieceEffect>{};
+    var retainedNaturalSpecial = false;
+    for (final partner in [
+      PieceEffect.bomb,
+      PieceEffect.row,
+      PieceEffect.column,
+    ]) {
+      for (var seed = 1; seed <= 6; seed++) {
+        final board = _pattern(
+          {},
+          seed: seed,
+          effects: {
+            0: PieceEffect.rainbow,
+            1: partner,
+            7: PieceEffect.row,
+            31: PieceEffect.bomb,
+          },
+        );
+        final original = board.pieces.whereType<Piece>().toList();
+        final kind = board.pieces[1]!.kind;
+        final expected = {
+          for (final piece in original)
+            if (piece.kind == kind && piece.effect == PieceEffect.none)
+              piece.id,
+        };
+        final mirror = MatchBoard.fromJson(
+          jsonDecode(jsonEncode(board.toJson())),
+        );
+        final result = board.playSwap(0, 1)!;
+        mirror.playSwap(0, 1);
+        _expectSpecialsPreservedOrTriggered(result.frames);
+        expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
+        final converted = result.frames.singleWhere(
+          (frame) => frame.phase == FramePhase.transform,
+        );
+        expect(converted.convertedPieceIds, expected);
+        for (final piece in converted.pieces.whereType<Piece>()) {
+          if (expected.contains(piece.id)) {
+            if (partner == PieceEffect.bomb) {
+              expect(piece.effect, PieceEffect.bomb);
+            } else {
+              expect(piece.effect, anyOf(PieceEffect.row, PieceEffect.column));
+              lines.add(piece.effect);
+            }
+          } else {
+            expect(
+              piece.effect,
+              original.singleWhere((old) => old.id == piece.id).effect,
+            );
+          }
+        }
+        final initialSpecialIds = {
+          for (final piece in original)
+            if (piece.effect != PieceEffect.none) piece.id,
+        };
+        retainedNaturalSpecial |= board.pieces.whereType<Piece>().any(
+          (piece) =>
+              piece.effect != PieceEffect.none &&
+              !expected.contains(piece.id) &&
+              !initialSpecialIds.contains(piece.id),
+        );
+      }
+    }
+    expect(lines, {PieceEffect.row, PieceEffect.column});
+    // 自然连锁生成的特效不属于彩虹转换队列，可以留在稳定棋盘上。
+    expect(retainedNaturalSpecial, isTrue);
   });
 
   test('炸弹与直线特效交换时以炸弹为中心触发三条直线', () {
@@ -345,6 +481,18 @@ void main() {
           anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
         );
         generatedEffects.add(converted.effect);
+        final previous = result.frames[result.frames.indexOf(frame) - 1];
+        expect(previous.phase, FramePhase.bonusTransfer);
+        expect(previous.transferringPieceIds, frame.convertedPieceIds);
+        expect(
+          previous.pieces
+              .whereType<Piece>()
+              .singleWhere((piece) => piece.id == converted.id)
+              .effect,
+          PieceEffect.none,
+        );
+        expect(previous.movesLeft, frame.movesLeft);
+        expect(previous.score, frame.score);
       }
     }
     expect(generatedEffects, {
@@ -354,7 +502,7 @@ void main() {
     });
   });
 
-  test('彩虹炸弹组合先转换，再逐只触发，坠落后仍按棋子身份处理剩余目标', () {
+  test('彩虹炸弹组合先转换再交错触发，按棋子身份追踪目标且最后恢复稳定', () {
     final board = _pattern(
       {},
       effects: {0: PieceEffect.rainbow, 1: PieceEffect.bomb},
@@ -387,6 +535,15 @@ void main() {
         for (final index in frame.clearing) frame.pieces[index]!.id,
     };
     expect(triggeredIds, containsAll(converted.convertedPieceIds));
+    expect(result.frames.any((frame) => frame.staggeredFall), isTrue);
+    expect(
+      result.frames
+          .where((frame) => frame.phase == FramePhase.fall)
+          .last
+          .staggeredFall,
+      isFalse,
+    );
+    expect(board.matchRuns(), isEmpty);
     final clearPositions = [
       for (var index = 0; index < result.frames.length; index++)
         if (result.frames[index].phase == FramePhase.clear) index,

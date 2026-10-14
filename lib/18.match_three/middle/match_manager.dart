@@ -29,6 +29,8 @@ class MatchView {
 class MatchManager {
   /// 转换演出结束后保留一段静态展示，再开始自动触发。
   static const _conversionPause = Duration(milliseconds: 350);
+  static const bonusTransferDuration = Duration(milliseconds: 600);
+  static const _bonusConversionPause = Duration(milliseconds: 750);
 
   final view = ValueNotifier<MatchView?>(null);
   final selected = ValueNotifier<int?>(null);
@@ -44,6 +46,8 @@ class MatchManager {
   int _invalidSwapEpoch = 0;
   bool _disposed = false;
   final Map<Timer, Completer<void>> _pendingDelays = {};
+  Completer<void>? _bonusTransfer;
+  BoardFrame? _bonusTransferFrame;
   bool reduceMotion = false;
   int _roundNumber = 0;
 
@@ -241,8 +245,10 @@ class MatchManager {
           BoardFrame(
             board,
             FramePhase.fall,
-            const {},
-            board.pieces.whereType<Piece>().map((piece) => piece.id).toSet(),
+            spawnedPieceIds: board.pieces
+                .whereType<Piece>()
+                .map((piece) => piece.id)
+                .toSet(),
           ),
         );
         await _delay(const Duration(milliseconds: 220));
@@ -296,11 +302,41 @@ class MatchManager {
   }
 
   void _cancelDelays() {
+    final transfer = _bonusTransfer;
+    _bonusTransfer = null;
+    _bonusTransferFrame = null;
+    if (transfer != null && !transfer.isCompleted) transfer.complete();
     final pending = _pendingDelays.entries.toList();
     _pendingDelays.clear();
     for (final entry in pending) {
       entry.key.cancel();
       if (!entry.value.isCompleted) entry.value.complete();
+    }
+  }
+
+  /// 飞行层真正抵达终点后才推进转换，旧帧回调不能结束新一轮飞行。
+  void finishBonusTransfer(BoardFrame frame) {
+    final transfer = _bonusTransfer;
+    if (!_disposed &&
+        identical(frame, _bonusTransferFrame) &&
+        transfer != null &&
+        !transfer.isCompleted) {
+      transfer.complete();
+    }
+  }
+
+  Future<void> _waitBonusTransfer(BoardFrame frame) async {
+    final transfer = Completer<void>();
+    _bonusTransfer = transfer;
+    _bonusTransferFrame = frame;
+    // 未挂载界面的成员也必须正常结束结算，不能永久等待界面回调。
+    await Future.any([
+      transfer.future,
+      _delay(bonusTransferDuration + const Duration(milliseconds: 250)),
+    ]);
+    if (identical(_bonusTransfer, transfer)) {
+      _bonusTransfer = null;
+      _bonusTransferFrame = null;
     }
   }
 
@@ -350,7 +386,12 @@ class MatchManager {
           if (frame.phase == FramePhase.bonus) bonusTime.value = true;
           _show(frame);
           // 减少动画时跳过运动效果，但仍保留转换结果的静态展示与取消能力。
-          await _delay(_conversionPause);
+          await _delay(
+            frame.convertedPieceIds.isNotEmpty &&
+                    frame.phase == FramePhase.bonus
+                ? _bonusConversionPause
+                : _conversionPause,
+          );
         }
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
@@ -380,19 +421,30 @@ class MatchManager {
           cascade++;
           comboMultiplier.value = cascade;
         }
+        final transfer = frame.phase == FramePhase.bonusTransfer
+            ? _waitBonusTransfer(frame)
+            : null;
         _show(frame);
+        if (transfer != null) {
+          await transfer;
+          continue;
+        }
         if (frame.phase != FramePhase.settled) {
           final duration = Duration(
             milliseconds: switch (frame.phase) {
               FramePhase.clear => 180,
               FramePhase.bonus => 420,
+              FramePhase.bonusTransfer => bonusTransferDuration.inMilliseconds,
               FramePhase.transform => 120,
+              FramePhase.fall when frame.staggeredFall => 120,
               _ => 220,
             },
           );
           await _delay(
             frame.convertedPieceIds.isEmpty
                 ? duration
+                : frame.phase == FramePhase.bonus
+                ? _bonusConversionPause
                 : duration + _conversionPause,
           );
         }

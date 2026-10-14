@@ -460,12 +460,15 @@ void main() {
       expect(games.last.personalScore, 0);
       engine.sendGameText('队伍聊天');
       rooms.last.sendNetworkMessage(MessageType.text, '房间聊天');
+      // 两个频道独立异步投递，收到队伍消息不代表房间消息也已经到达。
       await waitFor(
-        () => games.every(
-          (g) => g.turnEngine.gameMessageList.value.any(
-            (m) => m.content == '队伍聊天',
-          ),
-        ),
+        () =>
+            engine.messageList.value.any((m) => m.content == '房间聊天') &&
+            games.every(
+              (g) => g.turnEngine.gameMessageList.value.any(
+                (m) => m.content == '队伍聊天',
+              ),
+            ),
       );
       expect(
         rooms.last.chat.messageList.value.any((m) => m.content == '队伍聊天'),
