@@ -4,7 +4,7 @@ enum PieceEffect { none, row, column, bomb, rainbow }
 
 enum MatchStatus { playing, won, lost }
 
-enum FramePhase { swap, bonus, clear, fall, settled, transform, bonusTransfer }
+enum FramePhase { swap, bonus, clear, fall, settled, transform, transfer }
 
 enum ComboPraise { good, great, excellent, amazing, unbelievable }
 
@@ -30,13 +30,16 @@ class BoardFrame {
 
   /// 本帧转换为特效的棋子身份，仅用于展示，不参与结算或随机数生成。
   final Set<int> convertedPieceIds;
+
+  /// 连线到达前保持原状的转换目标；来源为空时从步数面板方向进入棋盘。
   final Set<int> transferringPieceIds;
+  final int? transferSourcePieceId;
 
   /// 彩虹转换轮询允许下一次引爆与本帧坠落动画重叠。
   final bool staggeredFall;
   final int movesLeft;
 
-  /// 分数快照，结算期间每触发一次消除就前进一格，而不是一次跳到总分。
+  /// 分数快照，随消除、特效生成和目标进度更新，而不是一次跳到总分。
   final int score;
   final FramePhase phase;
 
@@ -49,6 +52,7 @@ class BoardFrame {
     int? score,
     Set<int> convertedPieceIds = const {},
     Set<int> transferringPieceIds = const {},
+    this.transferSourcePieceId,
     this.staggeredFall = false,
   }) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
@@ -66,6 +70,17 @@ class BoardFrame {
     FramePhase phase = FramePhase.transform,
   }) : this(board, phase, convertedPieceIds: pieceIds);
 
+  BoardFrame.transfer(
+    MatchBoard board, {
+    required Set<int> pieceIds,
+    int? sourcePieceId,
+  }) : this(
+         board,
+         FramePhase.transfer,
+         transferringPieceIds: pieceIds,
+         transferSourcePieceId: sourcePieceId,
+       );
+
   /// 开局只清空展示帧，不修改内核棋盘或消耗随机数。
   BoardFrame.empty(MatchBoard board)
     : pieces = List.unmodifiable(List<Piece?>.filled(MatchBoard.cells, null)),
@@ -75,6 +90,7 @@ class BoardFrame {
       spawnedPieceIds = const {},
       convertedPieceIds = const {},
       transferringPieceIds = const {},
+      transferSourcePieceId = null,
       staggeredFall = false,
       movesLeft = board.movesLeft,
       score = board.score,
@@ -109,6 +125,12 @@ class MatchBoard {
   static const side = 8;
   static const cells = side * side;
   static const kinds = 6;
+
+  /// 基础消除分参与波次倍率，生成特效、收集目标和破冰的奖励固定不放大。
+  static const baseAnimalScore = 10;
+  static const specialCreationBonus = 40;
+  static const targetAnimalBonus = 10;
+  static const iceLayerBonus = 20;
   static const _modulus = 2147483647;
 
   final int seed;
@@ -356,6 +378,14 @@ class MatchBoard {
     return effects;
   }
 
+  /// 只有普通动物首次生成特效时奖励，已有特效不覆盖，也不重复计分。
+  void _createSpecial(int index, PieceEffect effect) {
+    final piece = pieces[index]!;
+    if (piece.effect != PieceEffect.none || effect == PieceEffect.none) return;
+    pieces[index] = Piece(piece.id, piece.kind, effect);
+    score += specialCreationBonus;
+  }
+
   Set<int> _expandEffects(
     Set<int> initial,
     Set<int> protected, {
@@ -431,6 +461,10 @@ class MatchBoard {
       final piece = pieces[index];
       if (piece == null) continue;
       if (piece.effect != PieceEffect.none) specialEffectsTriggered++;
+      // 目标奖励只覆盖尚未收集的配额，超额消除仍获得正常基础分。
+      if (collected[piece.kind] < (targets[piece.kind] ?? 0)) {
+        score += targetAnimalBonus;
+      }
       collected[piece.kind]++;
       if (ice[index] > 0) crackedIce.add(index);
       final row = index ~/ side;
@@ -439,11 +473,13 @@ class MatchBoard {
       if (row < side - 1) crackedIce.add(index + side);
       if (col > 0) crackedIce.add(index - 1);
       if (col < side - 1) crackedIce.add(index + 1);
-      score += 10 * multiplier;
-      if (piece.effect != PieceEffect.none) score += 40;
+      score += baseAnimalScore * multiplier;
     }
     for (final index in crackedIce) {
-      if (ice[index] > 0) ice[index]--;
+      if (ice[index] > 0) {
+        ice[index]--;
+        score += iceLayerBonus;
+      }
     }
     frames.add(BoardFrame(this, FramePhase.clear, clearing: clear));
     for (final index in clear) {
@@ -516,8 +552,7 @@ class MatchBoard {
       final runs = waves == 0 ? <List<int>>[] : matchRuns();
       final created = _createEffects(runs, -1, -1);
       for (final entry in created.entries) {
-        final piece = pieces[entry.key]!;
-        pieces[entry.key] = Piece(piece.id, piece.kind, entry.value);
+        _createSpecial(entry.key, entry.value);
       }
       final wave = _clearWave(
         frames: frames,
@@ -570,8 +605,7 @@ class MatchBoard {
           ? _createEffects(runs, a, b)
           : <int, PieceEffect>{};
       for (final entry in created.entries) {
-        final old = pieces[entry.key]!;
-        pieces[entry.key] = Piece(old.id, old.kind, entry.value);
+        _createSpecial(entry.key, entry.value);
       }
       final wave = _clearWave(
         frames: frames,
@@ -613,6 +647,7 @@ class MatchBoard {
     final frames = <BoardFrame>[BoardFrame(this, FramePhase.swap)];
     final forced = <int>{};
     final transformedEffects = <int, PieceEffect>{};
+    int? conversionSourcePieceId;
     final rainbowActivationIds = <int>{};
     final pairedRainbowIds = <int>{};
     if (special) {
@@ -643,6 +678,7 @@ class MatchBoard {
               ..clear()
               ..add(rainbowIndex);
             rainbowActivationIds.add(pieces[partnerIndex]!.id);
+            conversionSourcePieceId = pieces[rainbowIndex]!.id;
           }
           for (var index = 0; index < cells; index++) {
             final piece = pieces[index];
@@ -692,14 +728,20 @@ class MatchBoard {
         forced.addAll({a, b});
       }
     }
-    for (final entry in transformedEffects.entries) {
-      final piece = pieces[entry.key]!;
-      pieces[entry.key] = Piece(piece.id, piece.kind, entry.value);
-    }
     final convertedIds = {
       for (final index in transformedEffects.keys) pieces[index]!.id,
     };
     if (convertedIds.isNotEmpty) {
+      frames.add(
+        BoardFrame.transfer(
+          this,
+          pieceIds: convertedIds,
+          sourcePieceId: conversionSourcePieceId,
+        ),
+      );
+      for (final entry in transformedEffects.entries) {
+        _createSpecial(entry.key, entry.value);
+      }
       frames.add(BoardFrame.conversion(this, pieceIds: convertedIds));
     }
     final initialMatchCount = matchRuns().expand((run) => run).toSet().length;
@@ -762,16 +804,9 @@ class MatchBoard {
         // 步数先进入飞行帧，目标动物保持原状；连线到达后才展示转换结果。
         movesLeft--;
         moveNumber++;
-        frames.add(
-          BoardFrame(
-            this,
-            FramePhase.bonusTransfer,
-            transferringPieceIds: {piece.id},
-          ),
-        );
-        pieces[index] = Piece(
-          piece.id,
-          piece.kind,
+        frames.add(BoardFrame.transfer(this, pieceIds: {piece.id}));
+        _createSpecial(
+          index,
           const [PieceEffect.row, PieceEffect.column, PieceEffect.bomb][_next(
             3,
           )],

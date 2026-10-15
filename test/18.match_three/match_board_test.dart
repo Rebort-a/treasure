@@ -44,6 +44,42 @@ void _expectSpecialsPreservedOrTriggered(List<BoardFrame> frames) {
   }
 }
 
+void _expectScoreBreakdown(MatchBoard board, SwapResult result) {
+  var previous = result.frames.first;
+  var wave = 0;
+  int credited(int count, int target) => count < target ? count : target;
+  for (final frame in result.frames.skip(1)) {
+    final before = {
+      for (final piece in previous.pieces.whereType<Piece>()) piece.id: piece,
+    };
+    final created = frame.pieces
+        .whereType<Piece>()
+        .where(
+          (piece) =>
+              piece.effect != PieceEffect.none &&
+              before[piece.id]?.effect == PieceEffect.none,
+        )
+        .length;
+    var expected = created * 40;
+    if (frame.phase == FramePhase.clear) {
+      wave++;
+      expected += frame.clearing.length * 10 * wave;
+    }
+    for (final entry in board.targets.entries) {
+      expected +=
+          (credited(frame.collected[entry.key], entry.value) -
+              credited(previous.collected[entry.key], entry.value)) *
+          10;
+    }
+    expected +=
+        (previous.ice.fold<int>(0, (sum, layers) => sum + layers) -
+            frame.ice.fold<int>(0, (sum, layers) => sum + layers)) *
+        20;
+    expect(frame.score - previous.score, expected);
+    previous = frame;
+  }
+}
+
 void main() {
   test('随机生成没有预消除，至少有一步可走，目标和棋盘随种子变化', () {
     final boards = <String>{};
@@ -100,6 +136,7 @@ void main() {
         expect(board.pieces.map((piece) => piece!.id).toSet().length, 64);
         expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
         _expectSpecialsPreservedOrTriggered(result.frames);
+        _expectScoreBreakdown(board, result);
       }
     }
   });
@@ -253,11 +290,24 @@ void main() {
         final result = board.playSwap(0, 1)!;
         mirror.playSwap(0, 1);
         _expectSpecialsPreservedOrTriggered(result.frames);
+        _expectScoreBreakdown(board, result);
         expect(jsonEncode(board.toJson()), jsonEncode(mirror.toJson()));
         final converted = result.frames.singleWhere(
           (frame) => frame.phase == FramePhase.transform,
         );
         expect(converted.convertedPieceIds, expected);
+        final transfer = result.frames[result.frames.indexOf(converted) - 1];
+        expect(transfer.phase, FramePhase.transfer);
+        expect(transfer.transferSourcePieceId, original.first.id);
+        expect(transfer.transferringPieceIds, expected);
+        expect(converted.score - transfer.score, expected.length * 40);
+        expect(transfer.movesLeft, converted.movesLeft);
+        for (final piece in transfer.pieces.whereType<Piece>()) {
+          expect(
+            piece.effect,
+            original.singleWhere((old) => old.id == piece.id).effect,
+          );
+        }
         for (final piece in converted.pieces.whereType<Piece>()) {
           if (expected.contains(piece.id)) {
             if (partner == PieceEffect.bomb) {
@@ -482,7 +532,8 @@ void main() {
         );
         generatedEffects.add(converted.effect);
         final previous = result.frames[result.frames.indexOf(frame) - 1];
-        expect(previous.phase, FramePhase.bonusTransfer);
+        expect(previous.phase, FramePhase.transfer);
+        expect(previous.transferSourcePieceId, isNull);
         expect(previous.transferringPieceIds, frame.convertedPieceIds);
         expect(
           previous.pieces
@@ -492,7 +543,7 @@ void main() {
           PieceEffect.none,
         );
         expect(previous.movesLeft, frame.movesLeft);
-        expect(previous.score, frame.score);
+        expect(frame.score - previous.score, 40);
       }
     }
     expect(generatedEffects, {
@@ -690,7 +741,98 @@ void main() {
     );
   });
 
-  test('结算期间分数逐帧累加，且只由消除动物产生', () {
+  test('触发任意特效不再额外加分，只结算实际消除和目标收益', () {
+    for (final effect in [
+      PieceEffect.row,
+      PieceEffect.column,
+      PieceEffect.bomb,
+      PieceEffect.rainbow,
+    ]) {
+      final data = _pattern({}, effects: {0: effect, 1: effect}).toJson()
+        ..['targets'] = {'4': 1000, '5': 1000}
+        ..['collected'] = List.filled(MatchBoard.kinds, 1000)
+        ..['ice'] = [
+          for (var i = 0; i < MatchBoard.cells; i++) i == 63 ? 2 : 0,
+        ];
+      final board = MatchBoard.fromJson(data);
+      final result = board.playSwap(0, 1)!;
+      final clear = result.frames.firstWhere(
+        (frame) => frame.phase == FramePhase.clear,
+      );
+      final iceRemoved = 2 - clear.ice[63];
+      expect(clear.score, clear.clearing.length * 10 + iceRemoved * 20);
+      _expectScoreBreakdown(board, result);
+    }
+  });
+
+  test('四连、五连及交叉匹配在生成特效时立即奖励，不等待触发', () {
+    for (final scenario in [
+      (overrides: {0: 0, 1: 0, 2: 1, 3: 0, 10: 0}, swap: (10, 2), expected: 70),
+      (
+        overrides: {0: 0, 1: 0, 2: 1, 3: 0, 4: 0, 10: 0},
+        swap: (10, 2),
+        expected: 80,
+      ),
+      (
+        overrides: {1: 0, 9: 0, 16: 0, 17: 1, 18: 0, 25: 0},
+        swap: (25, 17),
+        expected: 80,
+      ),
+    ]) {
+      final data = _pattern(scenario.overrides).toJson()
+        ..['targets'] = {'4': 1000, '5': 1000};
+      final board = MatchBoard.fromJson(data);
+      final result = board.playSwap(scenario.swap.$1, scenario.swap.$2)!;
+      final clear = result.frames.firstWhere(
+        (frame) => frame.phase == FramePhase.clear,
+      );
+      expect(clear.score, scenario.expected);
+      _expectScoreBreakdown(board, result);
+    }
+  });
+
+  test('目标动物仅按尚未完成的收集配额额外奖励，超额不重复奖励', () {
+    for (final collected in [0, 1, 2]) {
+      final data = _pattern({0: 0, 1: 1, 2: 0, 9: 0}).toJson()
+        ..['targets'] = {'0': 2, '5': 1000}
+        ..['collected'] = [
+          for (var kind = 0; kind < MatchBoard.kinds; kind++)
+            kind == 0 ? collected : 0,
+        ];
+      final board = MatchBoard.fromJson(data);
+      final result = board.playSwap(9, 1)!;
+      final clear = result.frames.firstWhere(
+        (frame) => frame.phase == FramePhase.clear,
+      );
+      expect(clear.collected[0] - collected, 3);
+      expect(clear.score, 30 + (2 - collected) * 10);
+      _expectScoreBreakdown(board, result);
+    }
+  });
+
+  test('冰块本体和相邻消除同波波及多次仍只扣一层并奖励一次', () {
+    final data =
+        _pattern(
+            {},
+            effects: {0: PieceEffect.rainbow, 7: PieceEffect.bomb},
+          ).toJson()
+          ..['targets'] = {'0': 1000, '1': 1000}
+          ..['collected'] = List.filled(MatchBoard.kinds, 1000)
+          ..['ice'] = [
+            for (var i = 0; i < MatchBoard.cells; i++) i == 15 ? 2 : 0,
+          ];
+    final board = MatchBoard.fromJson(data);
+    final result = board.playSwap(0, 1)!;
+    final clear = result.frames.firstWhere(
+      (frame) => frame.phase == FramePhase.clear,
+    );
+    expect(clear.clearing, containsAll([7, 14, 15]));
+    expect(clear.ice[15], 1);
+    expect(clear.score, clear.clearing.length * 10 + 20);
+    _expectScoreBreakdown(board, result);
+  });
+
+  test('结算分数按消除、特效生成和目标进度逐帧累加', () {
     final setup = _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0});
     final data = setup.toJson()
       ..['targets'] = {'0': 1, '1': 1}
@@ -702,6 +844,7 @@ void main() {
     final board = MatchBoard.fromJson(data);
 
     final result = board.playSwap(10, 2)!;
+    _expectScoreBreakdown(board, result);
 
     // 首帧是玩家交换，分数仍是结算前的分数。
     expect(result.frames.first.score, 0);
@@ -711,8 +854,10 @@ void main() {
       expect(frame.score, greaterThanOrEqualTo(previous));
       if (frame.score != previous) {
         increases++;
-        // 分数只在消除帧增加，特效生成帧不直接加分。
-        expect(frame.phase, FramePhase.clear);
+        expect(
+          frame.phase == FramePhase.clear || frame.convertedPieceIds.isNotEmpty,
+          isTrue,
+        );
       }
       previous = frame.score;
     }

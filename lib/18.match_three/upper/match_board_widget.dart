@@ -7,7 +7,7 @@ import '../middle/match_manager.dart';
 import '../middle/net_manager.dart';
 import 'animal_piece.dart';
 import 'match_clear_effects.dart';
-import 'match_bonus_transfer.dart';
+import 'match_conversion_transfer.dart';
 
 class MatchBoardWidget extends StatefulWidget {
   final MatchManager manager;
@@ -265,11 +265,11 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                         ),
                         Positioned.fill(child: MatchClearEffects(frame: frame)),
                         Positioned.fill(
-                          child: MatchBonusTransfer(
+                          child: MatchConversionTransfer(
                             frame: frame,
                             animated: _animate,
                             onCompleted: () =>
-                                widget.manager.finishBonusTransfer(frame),
+                                widget.manager.finishConversionTransfer(frame),
                           ),
                         ),
                         if (widget.manager case final NetMatchManager manager)

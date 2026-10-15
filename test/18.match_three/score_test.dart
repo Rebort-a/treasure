@@ -26,6 +26,23 @@ Map<String, dynamic> _winningState() {
   return data;
 }
 
+Map<String, dynamic> _rainbowState() => _winningState()
+  ..['targets'] = {'0': 1000, '1': 1000}
+  ..['pieces'] = [
+    for (var index = 0; index < MatchBoard.cells; index++)
+      [
+        index + 1,
+        (index ~/ MatchBoard.side * 2 + index % MatchBoard.side) %
+            MatchBoard.kinds,
+        (index == 0
+                ? PieceEffect.rainbow
+                : index == 1
+                ? PieceEffect.bomb
+                : PieceEffect.none)
+            .index,
+      ],
+  ];
+
 void main() {
   testWidgets('通关结算结束后可重开，结算期间不开放重开入口', (tester) async {
     final manager = MatchManager(seed: 7);
@@ -77,78 +94,77 @@ void main() {
     expect(manager.view.value, isNull);
   });
 
-  testWidgets('奖励飞行到达后才转换，重开取消飞行中的旧局通知', (tester) async {
-    final manager = MatchManager(seed: 7);
-    addTearDown(manager.dispose);
-    manager.loadState(_winningState());
-    manager.swap(10, 2);
-    Future<void> reachTransfer() async {
-      for (var i = 0; i < 120; i++) {
-        if (manager.view.value!.frame.phase == FramePhase.bonusTransfer) {
-          return;
+  for (final scenario in [
+    (name: '奖励', state: _winningState, swap: (10, 2), isBonus: true),
+    (name: '彩虹', state: _rainbowState, swap: (0, 1), isBonus: false),
+  ]) {
+    testWidgets('${scenario.name}连线到达后才转换，重开取消旧连线通知', (tester) async {
+      final manager = MatchManager(seed: 7);
+      addTearDown(manager.dispose);
+      final data = scenario.state();
+      manager.loadState(data);
+      manager.swap(scenario.swap.$1, scenario.swap.$2);
+      Future<void> reachTransfer() async {
+        for (var i = 0; i < 120; i++) {
+          if (manager.view.value!.frame.phase == FramePhase.transfer) {
+            return;
+          }
+          await tester.pump(const Duration(milliseconds: 100));
         }
-        await tester.pump(const Duration(milliseconds: 100));
+        fail('未进入转换连线阶段');
       }
-      fail('未进入奖励步数飞行阶段');
-    }
 
-    await reachTransfer();
-    final transfer = manager.view.value!.frame;
-    final id = transfer.transferringPieceIds.single;
-    expect(
-      transfer.pieces.singleWhere((piece) => piece?.id == id)!.effect,
-      PieceEffect.none,
-    );
-    expect(manager.canInteract, isFalse);
-    await tester.pump();
-    expect(manager.view.value!.frame, same(transfer));
-    manager.finishBonusTransfer(transfer);
-    await tester.pump();
-    final converted = manager.view.value!.frame;
-    expect(converted.phase, FramePhase.bonus);
-    expect(converted.convertedPieceIds, {id});
-    expect(converted.score, transfer.score);
-    expect(converted.movesLeft, transfer.movesLeft);
-    expect(
-      converted.pieces.singleWhere((piece) => piece?.id == id)!.effect,
-      anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
-    );
-    expect(manager.busy.value, isTrue);
-    manager.loadState(_winningState());
-    manager.swap(10, 2);
-    await reachTransfer();
-    final newTransfer = manager.view.value!.frame;
-    manager.finishBonusTransfer(transfer);
-    await tester.pump();
-    expect(manager.view.value!.frame, same(newTransfer));
-    manager.restart(seed: 9);
-    await tester.pump(const Duration(seconds: 30));
-    expect(manager.view.value!.seed, 9);
-    expect(manager.view.value!.score, 0);
-    expect(manager.busy.value, isFalse);
-    expect(manager.bonusTime.value, isFalse);
-    expect(tester.takeException(), isNull);
-  });
+      await reachTransfer();
+      final transfer = manager.view.value!.frame;
+      final targets = transfer.transferringPieceIds;
+      expect(targets, isNotEmpty);
+      expect(transfer.transferSourcePieceId, scenario.isBonus ? isNull : 1);
+      for (final piece in transfer.pieces.whereType<Piece>()) {
+        if (targets.contains(piece.id)) expect(piece.effect, PieceEffect.none);
+      }
+      expect(manager.canInteract, isFalse);
+      await tester.pump();
+      expect(manager.view.value!.frame, same(transfer));
+      manager.finishConversionTransfer(transfer);
+      await tester.pump();
+      final converted = manager.view.value!.frame;
+      expect(
+        converted.phase,
+        scenario.isBonus ? FramePhase.bonus : FramePhase.transform,
+      );
+      expect(converted.convertedPieceIds, targets);
+      expect(converted.score - transfer.score, targets.length * 40);
+      expect(converted.movesLeft, transfer.movesLeft);
+      for (final piece in converted.pieces.whereType<Piece>()) {
+        if (targets.contains(piece.id)) {
+          expect(
+            piece.effect,
+            anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
+          );
+        }
+      }
+      expect(manager.busy.value, isTrue);
+      manager.loadState(data);
+      manager.swap(scenario.swap.$1, scenario.swap.$2);
+      await reachTransfer();
+      final newTransfer = manager.view.value!.frame;
+      manager.finishConversionTransfer(transfer);
+      await tester.pump();
+      expect(manager.view.value!.frame, same(newTransfer));
+      manager.restart(seed: 9);
+      await tester.pump(const Duration(seconds: 30));
+      expect(manager.view.value!.seed, 9);
+      expect(manager.view.value!.score, 0);
+      expect(manager.busy.value, isFalse);
+      expect(manager.bonusTime.value, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('减少动画时彩虹转换仍保留展示状态，重开取消待触发的旧局', (tester) async {
     final manager = MatchManager(seed: 7)..reduceMotion = true;
     addTearDown(manager.dispose);
-    final data = _winningState()
-      ..['targets'] = {'0': 1000, '1': 1000}
-      ..['pieces'] = [
-        for (var index = 0; index < MatchBoard.cells; index++)
-          [
-            index + 1,
-            (index ~/ MatchBoard.side * 2 + index % MatchBoard.side) %
-                MatchBoard.kinds,
-            (index == 0
-                    ? PieceEffect.rainbow
-                    : index == 1
-                    ? PieceEffect.bomb
-                    : PieceEffect.none)
-                .index,
-          ],
-      ];
+    final data = _rainbowState();
     manager.loadState(data);
     manager.swap(0, 1);
     expect(manager.busy.value, isTrue);
