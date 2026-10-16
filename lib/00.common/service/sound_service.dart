@@ -81,11 +81,13 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
     final epoch = _epoch;
     final requestedAt = DateTime.now();
     return _enqueue(() async {
+      // 最新语音已通过代次淘汰旧请求，不能再被短音效的排队时限吞掉。
       if (_disposed ||
           epoch != _epoch ||
           _voices.isEmpty ||
-          DateTime.now().difference(requestedAt) >
-              const Duration(milliseconds: 200)) {
+          (!latestOnly &&
+              DateTime.now().difference(requestedAt) >
+                  const Duration(milliseconds: 200))) {
         return;
       }
       final player = _voices[_nextVoice++ % _voices.length];
@@ -141,17 +143,24 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
   }
 }
 
+enum SoundChannel { effects, voice }
+
 /// 管理展示事件、静音和前后台状态，不参与棋盘与网络结算。
 class SoundController<T> {
   final Listenable events;
   final T? Function() _currentSound;
   final T? resetSound;
   final int Function(T)? minimumInterval;
+
+  /// 仅指定的提示允许等待首次加载，其他声音仍不积压。
+  final bool Function(T)? deferUntilReady;
   final String project;
   final bool persistSettings;
+  final SoundChannel channel;
   final SoundPlayer<T> _player;
   late final AudioPreferences? _preferences;
   late final bool _ownsPreferences;
+  AudioPreferences? get audioPreferences => _preferences;
   late final ValueNotifier<bool> enabled;
   final Map<T, DateTime> _lastPlayed = {};
   late final Future<void> _readyFuture;
@@ -161,6 +170,7 @@ class SoundController<T> {
   bool _active = true;
   bool _disposed = false;
   bool _loggedError = false;
+  T? _pendingSound;
 
   SoundController({
     required this.events,
@@ -168,8 +178,10 @@ class SoundController<T> {
     required SoundPlayer<T> player,
     required this.project,
     this.persistSettings = true,
+    this.channel = SoundChannel.effects,
     this.resetSound,
     this.minimumInterval,
+    this.deferUntilReady,
     JsonStore? store,
     AudioPreferences? preferences,
   }) : _currentSound = currentSound,
@@ -181,9 +193,21 @@ class SoundController<T> {
                   ? AudioPreferences.instance
                   : AudioPreferences(store: store))
         : null;
-    enabled = _preferences?.soundEnabled ?? ValueNotifier(true);
+    enabled = switch (_preferences) {
+      final preferences? =>
+        channel == SoundChannel.voice
+            ? preferences.voiceEnabled
+            : preferences.soundEnabled,
+      null => ValueNotifier(true),
+    };
     enabled.addListener(_onEnabled);
     events.addListener(_onSound);
+    final initial = _currentSound();
+    if (initial != null &&
+        enabled.value &&
+        deferUntilReady?.call(initial) == true) {
+      _pendingSound = initial;
+    }
     _readyFuture = _initialize();
   }
 
@@ -203,12 +227,19 @@ class SoundController<T> {
     if (_disposed) return;
     await _guard(() async {
       await _player.preload();
-      if (!_disposed) _ready = true;
+      if (!_disposed) {
+        _ready = true;
+        final pending = _pendingSound;
+        _pendingSound = null;
+        if (pending != null && pending == _currentSound()) _onSound();
+      }
     });
   }
 
   void _onEnabled() {
-    if (!_disposed && _ready && !enabled.value) _silence();
+    if (_disposed || enabled.value) return;
+    _pendingSound = null;
+    if (_ready) _silence();
   }
 
   void _onSound() {
@@ -218,7 +249,11 @@ class SoundController<T> {
       _silence();
       return;
     }
-    if (!_ready || !_active || !enabled.value) return;
+    if (!_active || !enabled.value) return;
+    if (!_ready) {
+      _pendingSound = deferUntilReady?.call(sound) == true ? sound : null;
+      return;
+    }
     final now = DateTime.now();
     final previous = _lastPlayed[sound];
     final interval = minimumInterval?.call(sound) ?? 90;
@@ -231,6 +266,7 @@ class SoundController<T> {
   }
 
   void _silence() {
+    _pendingSound = null;
     _lastPlayed.clear();
     unawaited(_guard(_player.stop));
   }
@@ -248,7 +284,11 @@ class SoundController<T> {
   void setEnabled(bool value) {
     if (_disposed) return;
     if (_preferences case final preferences?) {
-      preferences.setSoundEnabled(value);
+      if (channel == SoundChannel.voice) {
+        preferences.setVoiceEnabled(value);
+      } else {
+        preferences.setSoundEnabled(value);
+      }
     } else {
       enabled.value = value;
     }
@@ -258,6 +298,7 @@ class SoundController<T> {
 
   Future<void> _dispose() async {
     _disposed = true;
+    _pendingSound = null;
     events.removeListener(_onSound);
     enabled.removeListener(_onEnabled);
     if (_preferences == null) enabled.dispose();

@@ -57,7 +57,11 @@ class _Store implements JsonStore {
   Future<Map<String, dynamic>> read(
     String name, {
     String project = '00.common',
-  }) async => reading == null ? settings : await reading!.future;
+  }) async => name != 'audio'
+      ? {}
+      : reading == null
+      ? settings
+      : await reading!.future;
 
   @override
   Future<void> write(
@@ -65,6 +69,7 @@ class _Store implements JsonStore {
     Map<String, dynamic> data, {
     String project = '00.common',
   }) async {
+    if (name != 'audio') return;
     settings = Map.of(data);
     writes.add(settings);
   }
@@ -275,6 +280,122 @@ void main() {
     manager.dispose();
   });
 
+  for (final reduceMotion in [false, true]) {
+    testWidgets('首次入场等待冷加载，重开只播一次，刷新静音与后台不补播：$reduceMotion', (tester) async {
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = reduceMotion
+        ..restart(seed: 7);
+      final player = _Player()..loading = Completer<void>();
+      final audio = MatchAudioController(
+        manager: manager,
+        player: player,
+        praisePlayer: _Voice(),
+        bonusPlayer: _Player(),
+        store: _Store(),
+      );
+      await _settle(tester, [manager]);
+      expect(player.played, isEmpty);
+      player.loading!.complete();
+      await audio.ready;
+      expect(player.played, [MatchSound.appear]);
+
+      manager.restart(seed: 8);
+      await _settle(tester, [manager]);
+      expect(player.played, [MatchSound.appear, MatchSound.appear]);
+      manager.refreshView();
+      manager.loadState(manager.board!.toJson());
+      expect(player.played, hasLength(2));
+
+      audio.setEnabled(false);
+      manager.restart(seed: 9);
+      await _settle(tester, [manager]);
+      audio.setEnabled(true);
+      expect(player.played, hasLength(2));
+      audio.setActive(false);
+      manager.restart(seed: 10);
+      await _settle(tester, [manager]);
+      audio.setActive(true);
+      expect(player.played, hasLength(2));
+      await audio.dispose();
+      manager.dispose();
+    });
+
+    testWidgets('双彩虹全清补齐时播放整盘入场音，本地与联机重演一致：$reduceMotion', (tester) async {
+      final data = _boardData(effect: PieceEffect.rainbow);
+      (data['pieces'] as List)[1][2] = PieceEffect.rainbow.index;
+      final local = _manager(data)..reduceMotion = reduceMotion;
+      final member = _manager(data)..reduceMotion = reduceMotion;
+      final localSounds = <MatchSound>[];
+      final memberSounds = <MatchSound>[];
+      local.sound.addListener(() => localSounds.add(local.sound.value!.sound));
+      member.sound.addListener(
+        () => memberSounds.add(member.sound.value!.sound),
+      );
+      local.swap(0, 1);
+      member.loadState(local.board!.toJson());
+      await _settle(tester, [local, member]);
+      expect(
+        localSounds.where((cue) => cue == MatchSound.appear),
+        hasLength(1),
+      );
+      expect(memberSounds, localSounds);
+      expect(
+        local.board!.pieces.whereType<Piece>(),
+        hasLength(MatchBoard.cells),
+      );
+      local.refreshView();
+      member.loadState(local.board!.toJson());
+      expect(
+        memberSounds.where((cue) => cue == MatchSound.appear),
+        hasLength(1),
+      );
+      local.dispose();
+      member.dispose();
+    });
+  }
+
+  testWidgets('冷加载期间的入场音在静音、后台、同步重置、退出或新事件后取消', (tester) async {
+    for (final reason in [
+      'mute',
+      'background',
+      'reset',
+      'dispose',
+      'newSound',
+    ]) {
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = true
+        ..restart(seed: 7);
+      final player = _Player()..loading = Completer<void>();
+      final audio = MatchAudioController(
+        manager: manager,
+        player: player,
+        praisePlayer: _Voice(),
+        bonusPlayer: _Player(),
+        store: _Store(),
+      );
+      await tester.pump();
+      switch (reason) {
+        case 'mute':
+          audio.setEnabled(false);
+          audio.setEnabled(true);
+        case 'background':
+          audio.setActive(false);
+          audio.setActive(true);
+        case 'reset':
+          manager.resetNetworkRound();
+        case 'dispose':
+          await audio.dispose();
+        case 'newSound':
+          _emit(manager, MatchSound.select);
+      }
+      player.loading!.complete();
+      await audio.ready;
+      expect(player.played, isEmpty, reason: reason);
+      await audio.dispose();
+      manager.dispose();
+    }
+  });
+
   testWidgets('选择、无效交换及展示帧产生音效，刷新和快照不重复播放', (tester) async {
     final manager = _manager(_boardData());
     final sounds = <MatchSound>[];
@@ -373,7 +494,8 @@ void main() {
     winning.swap(10, 2);
     winning.reduceMotion = true;
     winning.restart(seed: 42);
-    expect(sounds.last, MatchSound.reset);
+    expect(sounds, contains(MatchSound.reset));
+    expect(sounds.last, MatchSound.appear);
     await tester.pump(const Duration(seconds: 10));
     expect(sounds, isNot(contains(MatchSound.won)));
     winning.dispose();

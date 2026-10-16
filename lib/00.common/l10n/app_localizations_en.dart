@@ -76,7 +76,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get passwordOptional => 'Leave blank for a public room';
 
   @override
-  String get passwordIfNeeded => 'Enter if the room is password-protected';
+  String get passwordIfNeeded => 'Leave blank if the room has no password';
 
   @override
   String get incorrectRoomPassword => 'Incorrect room password';
@@ -90,7 +90,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connection or authentication timed out. Please try again.';
 
   @override
-  String get defaultPlayerName => 'Default player name';
+  String get defaultPlayerName => 'Name';
+
+  @override
+  String get defaultPlayerNameSummary =>
+      'Set the default nickname for online play';
 
   @override
   String get defaultPlayerNameHint => 'Leave blank to enter a name each time';
@@ -577,6 +581,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get general => 'General';
+
+  @override
+  String get appearance => 'Appearance';
 
   @override
   String get about => 'About';
@@ -1238,16 +1245,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchNewRound => 'New round';
 
   @override
-  String get backgroundMusic => 'Background music';
+  String get backgroundMusic => 'Music';
 
   @override
-  String get musicVolume => 'Music volume';
+  String get gameAudio => 'Sound and vibration';
 
   @override
-  String get gameAudio => 'Game audio';
+  String get gameSoundEffects => 'Sound effects';
 
   @override
-  String get gameSoundEffects => 'Sound effects and voice';
+  String get voiceAnnouncements => 'Announcements';
+
+  @override
+  String get vibration => 'Vibration';
 
   @override
   String get matchSynchronizing => 'Synchronizing the shared board…';

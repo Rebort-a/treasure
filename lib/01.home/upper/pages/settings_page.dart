@@ -36,12 +36,12 @@ class HomeSettingsPage extends StatelessWidget {
       _settingsSection(
         context,
         title: S.general,
-        children: [
-          _defaultNameTile(context),
-          _languageTile(context),
-          _themeTile(context),
-          _backgroundTile(context),
-        ],
+        children: [_defaultNameTile(context), _languageTile(context)],
+      ),
+      _settingsSection(
+        context,
+        title: S.appearance,
+        children: [_themeTile(context), _backgroundTile(context)],
       ),
       _settingsSection(
         context,
@@ -57,25 +57,45 @@ class HomeSettingsPage extends StatelessWidget {
             ),
           ),
           ValueListenableBuilder<bool>(
-            valueListenable: _audio.musicEnabled,
+            valueListenable: _audio.voiceEnabled,
             builder: (_, enabled, _) => SwitchListTile(
-              secondary: const Icon(Icons.music_note_rounded),
-              title: Text(S.backgroundMusic),
+              secondary: const Icon(Icons.record_voice_over_rounded),
+              title: Text(S.voiceAnnouncements),
               value: enabled,
-              onChanged: _audio.setMusicEnabled,
+              onChanged: _audio.setVoiceEnabled,
             ),
           ),
-          ValueListenableBuilder<double>(
-            valueListenable: _audio.musicVolume,
-            builder: (_, volume, _) => ListTile(
-              leading: const Icon(Icons.tune_rounded),
-              title: Text(S.musicVolume),
-              subtitle: Slider(
-                value: volume,
-                label: '${(volume * 100).round()}%',
-                onChanged: _audio.setMusicVolume,
-              ),
-              trailing: Text('${(volume * 100).round()}%'),
+          ValueListenableBuilder<bool>(
+            valueListenable: _audio.musicEnabled,
+            builder: (_, enabled, _) => Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.music_note_rounded),
+                  title: Text(S.backgroundMusic),
+                  value: enabled,
+                  onChanged: _audio.setMusicEnabled,
+                ),
+                ValueListenableBuilder<double>(
+                  valueListenable: _audio.musicVolume,
+                  builder: (_, volume, _) => ListTile(
+                    title: Slider(
+                      value: volume,
+                      label: '${(volume * 100).round()}%',
+                      onChanged: enabled ? _audio.setMusicVolume : null,
+                    ),
+                    trailing: Text('${(volume * 100).round()}%'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _audio.vibrationEnabled,
+            builder: (_, enabled, _) => SwitchListTile(
+              secondary: const Icon(Icons.vibration_rounded),
+              title: Text(S.vibration),
+              value: enabled,
+              onChanged: _audio.setVibrationEnabled,
             ),
           ),
         ],
@@ -94,17 +114,13 @@ class HomeSettingsPage extends StatelessWidget {
     ],
   );
 
-  Widget _defaultNameTile(BuildContext context) =>
-      ValueListenableBuilder<String>(
-        valueListenable: PlayerSettings.instance.defaultName,
-        builder: (_, name, __) => ListTile(
-          leading: const Icon(Icons.person_outline),
-          title: Text(S.defaultPlayerName),
-          subtitle: Text(name.isEmpty ? S.enterUserName : name),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => unawaited(_editDefaultName(context)),
-        ),
-      );
+  Widget _defaultNameTile(BuildContext context) => ListTile(
+    leading: const Icon(Icons.person_outline),
+    title: Text(S.defaultPlayerName),
+    subtitle: Text(S.defaultPlayerNameSummary),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: () => unawaited(_editDefaultName(context)),
+  );
 
   Future<void> _editDefaultName(BuildContext context) async {
     await PlayerSettings.instance.load();

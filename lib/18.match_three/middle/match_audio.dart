@@ -37,6 +37,7 @@ class MatchAudioController extends SoundController<MatchSound> {
          player: player ?? MatchAssetSoundPlayer(),
          project: '18.match_three',
          resetSound: MatchSound.reset,
+         deferUntilReady: (sound) => sound == MatchSound.appear,
          minimumInterval: (sound) => sound == MatchSound.select ? 45 : 90,
        ) {
     _praiseAudio = SoundController<ComboPraise>(
@@ -53,13 +54,10 @@ class MatchAudioController extends SoundController<MatchSound> {
             latestOnly: true,
           ),
       project: '18.match_three',
-      persistSettings: false,
-      // 普通消除降低播报频率，高档赞美仍能及时打断低档赞美。
-      minimumInterval: (praise) => switch (praise) {
-        ComboPraise.good => 5000,
-        ComboPraise.great => 1800,
-        _ => 600,
-      },
+      preferences: audioPreferences,
+      channel: SoundChannel.voice,
+      // 展示层已保证每次结算只发一次事件，不再按档位吞掉连续操作的播报。
+      minimumInterval: (_) => 0,
     );
     _bonusAudio = SoundController<MatchSound>(
       // 奖励阶段包含多个转换帧，只在进入阶段时播报一次。
@@ -76,9 +74,10 @@ class MatchAudioController extends SoundController<MatchSound> {
             latestOnly: true,
           ),
       project: '18.match_three',
-      persistSettings: false,
+      preferences: audioPreferences,
+      channel: SoundChannel.voice,
+      minimumInterval: (_) => 0,
     );
-    enabled.addListener(_syncVoices);
     manager.bonusTime.addListener(_syncVoices);
     manager.sound.addListener(_onGameSound);
     _syncVoices();
@@ -90,7 +89,7 @@ class MatchAudioController extends SoundController<MatchSound> {
   }
 
   void _syncVoices() {
-    final active = _pageActive && enabled.value;
+    final active = _pageActive;
     // 奖励播报优先，避免上一手的赞美与 Bonus Time 同时说话。
     _praiseAudio.setActive(active && !manager.bonusTime.value);
     _bonusAudio.setActive(active);
@@ -114,7 +113,6 @@ class MatchAudioController extends SoundController<MatchSound> {
   Future<void> dispose() => _disposingAll ??= _disposeAll();
 
   Future<void> _disposeAll() async {
-    enabled.removeListener(_syncVoices);
     manager.bonusTime.removeListener(_syncVoices);
     manager.sound.removeListener(_onGameSound);
     await Future.wait([

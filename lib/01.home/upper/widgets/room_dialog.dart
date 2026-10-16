@@ -200,7 +200,10 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
                   controller: _password,
                   enabled: !busy,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: S.roomPassword),
+                  decoration: InputDecoration(
+                    labelText: S.roomPassword,
+                    helperText: S.passwordIfNeeded,
+                  ),
                   onSubmitted: (_) => _join(),
                 ),
               if (busy) ...[

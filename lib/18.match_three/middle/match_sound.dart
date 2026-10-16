@@ -13,6 +13,7 @@ enum MatchSound {
   rainbow,
   ice,
   fall,
+  appear,
   transform,
   bonus,
   won,

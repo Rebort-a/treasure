@@ -75,6 +75,15 @@ void main(List<String> arguments) {
       _note(3300, start: .04, duration: .09, noise: .4, gain: .15),
     ],
     'fall': [_note(620, end: 280, duration: .08, gain: .16)],
+    'appear': [
+      for (var i = 0; i < 4; i++)
+        _note(
+          [523.25, 659.25, 783.99, 1046.5][i],
+          start: i * .045,
+          duration: .14,
+          gain: .25,
+        ),
+    ],
     'transform': [
       _note(660, end: 1320, duration: .20, gain: .3),
       _note(1568, start: .12, duration: .18, gain: .22),

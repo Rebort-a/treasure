@@ -19,9 +19,10 @@ class S {
   static String get matchTeamChat => _l.matchTeamChat;
   static String get matchNewRound => _l.matchNewRound;
   static String get backgroundMusic => _l.backgroundMusic;
-  static String get musicVolume => _l.musicVolume;
   static String get gameAudio => _l.gameAudio;
   static String get gameSoundEffects => _l.gameSoundEffects;
+  static String get voiceAnnouncements => _l.voiceAnnouncements;
+  static String get vibration => _l.vibration;
   static String get matchSynchronizing => _l.matchSynchronizing;
   static String get matchMoves => _l.matchMoves;
   static String get matchScore => _l.matchScore;
@@ -76,6 +77,7 @@ class S {
   static String get roomJoinFailed => _l.roomJoinFailed;
   static String get roomJoinTimedOut => _l.roomJoinTimedOut;
   static String get defaultPlayerName => _l.defaultPlayerName;
+  static String get defaultPlayerNameSummary => _l.defaultPlayerNameSummary;
   static String get defaultPlayerNameHint => _l.defaultPlayerNameHint;
   static String get searchApps => _l.searchApps;
   static String get recentApps => _l.recentApps;
@@ -255,6 +257,7 @@ class S {
   static String get continueGame => _l.continueGame;
   static String get settings => _l.settings;
   static String get general => _l.general;
+  static String get appearance => _l.appearance;
   static String get about => _l.about;
   static String get version => _l.version;
   static String get restartGame => _l.restartGame;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -39,11 +40,18 @@ class _Effects implements MatchSoundPlayer {
 }
 
 class _Store implements JsonStore {
+  Completer<void>? loading;
+  Map<String, dynamic> voiceSettings = {};
+
   @override
   Future<Map<String, dynamic>> read(
     String name, {
     String project = '00.common',
-  }) async => {};
+  }) async {
+    await loading?.future;
+    return name == 'voice' ? voiceSettings : {};
+  }
+
   @override
   Future<void> write(
     String name,
@@ -135,7 +143,7 @@ void main() {
     }
   });
 
-  test('普通播报冷却，高档播报及时响应，消除声不影响语音', () async {
+  test('连续赞美每次都播报，消除声不抢占语音，静音后台和重开仍可取消', () async {
     final manager = MatchManager(generate: false);
     final voice = _Voice();
     final effects = _Effects();
@@ -152,18 +160,22 @@ void main() {
     _praise(manager, ComboPraise.unbelievable);
     final stops = voice.stops;
     manager.sound.value = const MatchSoundEvent(MatchSound.bomb);
-    expect(voice.played, [ComboPraise.good, ComboPraise.unbelievable]);
+    expect(voice.played, [
+      ComboPraise.good,
+      ComboPraise.good,
+      ComboPraise.unbelievable,
+    ]);
     expect(effects.played, [MatchSound.bomb]);
     expect(voice.stops, stops);
-    audio.setEnabled(false);
+    audio.audioPreferences!.setVoiceEnabled(false);
     _praise(manager, ComboPraise.amazing);
     expect(voice.stops, greaterThan(stops));
-    expect(voice.played, hasLength(2));
-    audio.setEnabled(true);
+    expect(voice.played, hasLength(3));
+    audio.audioPreferences!.setVoiceEnabled(true);
     audio.setActive(false);
     _praise(manager, ComboPraise.excellent);
     audio.setActive(true);
-    expect(voice.played, hasLength(2));
+    expect(voice.played, hasLength(3));
     _praise(manager, ComboPraise.excellent);
     expect(voice.played.last, ComboPraise.excellent);
     manager.sound.value = const MatchSoundEvent(MatchSound.reset);
@@ -203,9 +215,9 @@ void main() {
     }
     expect(bonus.played, hasLength(1));
     expect(bonus.stops, stops);
-    audio.setEnabled(false);
+    audio.audioPreferences!.setVoiceEnabled(false);
     expect(bonus.stops, greaterThan(stops));
-    audio.setEnabled(true);
+    audio.audioPreferences!.setVoiceEnabled(true);
     expect(bonus.played, hasLength(1));
     audio.setActive(false);
     manager.bonusTime.value = false;
@@ -228,8 +240,46 @@ void main() {
     manager.dispose();
   });
 
+  test('语音等待偏好读取，恢复关闭状态及重新开启均不补播旧赞美和奖励语音', () async {
+    final manager = MatchManager(generate: false);
+    final voice = _Voice();
+    final bonus = _Effects();
+    final store = _Store()
+      ..loading = Completer<void>()
+      ..voiceSettings = {'enabled': false};
+    final audio = MatchAudioController(
+      manager: manager,
+      player: _Effects(),
+      praisePlayer: voice,
+      bonusPlayer: bonus,
+      store: store,
+    );
+    await Future<void>.delayed(Duration.zero);
+    _praise(manager, ComboPraise.good);
+    manager.bonusTime.value = true;
+    expect(voice.played, isEmpty);
+    expect(bonus.played, isEmpty);
+    store.loading!.complete();
+    await audio.ready;
+    expect(voice.played, isEmpty);
+    expect(bonus.played, isEmpty);
+    manager.bonusTime.value = false;
+    _praise(manager, ComboPraise.great);
+    expect(voice.played, isEmpty);
+    audio.audioPreferences!.setVoiceEnabled(true);
+    expect(voice.played, isEmpty);
+    expect(bonus.played, isEmpty);
+    _praise(manager, ComboPraise.good);
+    expect(voice.played, [ComboPraise.good]);
+    manager.bonusTime.value = true;
+    expect(bonus.played, [MatchSound.bonus]);
+    expect(audio.enabled.value, isTrue);
+    await audio.dispose();
+    manager.dispose();
+  });
+
   for (final reduceMotion in [false, true]) {
-    testWidgets('真实消除只随赞美展示播报一次，刷新与重复快照不补播：$reduceMotion', (tester) async {
+    testWidgets('连续两次真实 Good 都播报，刷新与重复快照不补播：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = true
         ..loadState(_board())
@@ -243,17 +293,19 @@ void main() {
         store: _Store(),
       );
       await audio.ready;
-      manager.swap(10, 2);
-      for (var i = 0; i < 400 && manager.busy.value; i++) {
-        await tester.pump(const Duration(milliseconds: 250));
+      for (final move in [(1, 2), (3, 11)]) {
+        manager.swap(move.$1, move.$2);
+        for (var i = 0; i < 400 && manager.busy.value; i++) {
+          await tester.pump(const Duration(milliseconds: 250));
+        }
+        expect(manager.busy.value, isFalse);
+        expect(manager.comboPraise.value, ComboPraise.good.label);
       }
-      expect(manager.busy.value, isFalse);
-      expect(voice.played, hasLength(1));
-      expect(manager.comboPraise.value, voice.played.single.label);
+      expect(voice.played, [ComboPraise.good, ComboPraise.good]);
       final state = manager.board!.toJson();
       manager.refreshView();
       manager.loadState(state);
-      expect(voice.played, hasLength(1));
+      expect(voice.played, hasLength(2));
       manager.reduceMotion = true;
       manager.restart(seed: 42);
       expect(voice.stops, greaterThan(0));

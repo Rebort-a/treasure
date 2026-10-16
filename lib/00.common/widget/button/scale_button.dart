@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../service/audio_preferences.dart';
+
 class ScaleButton extends StatefulWidget {
   final Size size;
   final VoidCallback onPressed;
   final Widget? icon;
   final Color color;
   final bool enableLongPress;
+  final AudioPreferences? audioPreferences;
 
   const ScaleButton({
     super.key,
@@ -17,6 +20,7 @@ class ScaleButton extends StatefulWidget {
     this.icon,
     this.color = Colors.blue,
     this.enableLongPress = true,
+    this.audioPreferences,
   });
 
   @override
@@ -53,7 +57,11 @@ class _ScaleButtonState extends State<ScaleButton>
   void _startTimer() {
     _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       widget.onPressed();
-      HapticFeedback.mediumImpact();
+      if ((widget.audioPreferences ?? AudioPreferences.instance)
+          .vibrationEnabled
+          .value) {
+        unawaited(HapticFeedback.mediumImpact());
+      }
     });
   }
 
@@ -69,7 +77,6 @@ class _ScaleButtonState extends State<ScaleButton>
 
   void _onTapUp(TapUpDetails details) {
     _controller.reverse();
-    // HapticFeedback.lightImpact();
   }
 
   void _onTapCancel() {

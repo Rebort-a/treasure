@@ -227,7 +227,7 @@ abstract class AppLocalizations {
   /// No description provided for @passwordIfNeeded.
   ///
   /// In en, this message translates to:
-  /// **'Enter if the room is password-protected'**
+  /// **'Leave blank if the room has no password'**
   String get passwordIfNeeded;
 
   /// No description provided for @incorrectRoomPassword.
@@ -251,8 +251,14 @@ abstract class AppLocalizations {
   /// No description provided for @defaultPlayerName.
   ///
   /// In en, this message translates to:
-  /// **'Default player name'**
+  /// **'Name'**
   String get defaultPlayerName;
+
+  /// No description provided for @defaultPlayerNameSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Set the default nickname for online play'**
+  String get defaultPlayerNameSummary;
 
   /// No description provided for @defaultPlayerNameHint.
   ///
@@ -1153,6 +1159,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'General'**
   String get general;
+
+  /// No description provided for @appearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get appearance;
 
   /// No description provided for @about.
   ///
@@ -2351,26 +2363,32 @@ abstract class AppLocalizations {
   /// No description provided for @backgroundMusic.
   ///
   /// In en, this message translates to:
-  /// **'Background music'**
+  /// **'Music'**
   String get backgroundMusic;
-
-  /// No description provided for @musicVolume.
-  ///
-  /// In en, this message translates to:
-  /// **'Music volume'**
-  String get musicVolume;
 
   /// No description provided for @gameAudio.
   ///
   /// In en, this message translates to:
-  /// **'Game audio'**
+  /// **'Sound and vibration'**
   String get gameAudio;
 
   /// No description provided for @gameSoundEffects.
   ///
   /// In en, this message translates to:
-  /// **'Sound effects and voice'**
+  /// **'Sound effects'**
   String get gameSoundEffects;
+
+  /// No description provided for @voiceAnnouncements.
+  ///
+  /// In en, this message translates to:
+  /// **'Announcements'**
+  String get voiceAnnouncements;
+
+  /// No description provided for @vibration.
+  ///
+  /// In en, this message translates to:
+  /// **'Vibration'**
+  String get vibration;
 
   /// No description provided for @matchSynchronizing.
   ///

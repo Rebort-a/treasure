@@ -61,7 +61,7 @@ class _Store implements JsonStore {
 }
 
 void main() {
-  testWidgets('设置页统一控制不同游戏的音效、英文语音和音乐，退出游戏后设置仍保留', (tester) async {
+  testWidgets('设置页独立控制跨游戏音效、语音、音乐及震动，退出后仍保留', (tester) async {
     final store = _Store();
     final preferences = AudioPreferences(store: store);
     final events = _Events();
@@ -125,13 +125,49 @@ void main() {
     match.praiseVoice.value = const ComboPraiseEvent(ComboPraise.unbelievable);
     expect(sound.played, hasLength(1));
     expect(matchPlayer.played, hasLength(1));
-    expect(voice.played, hasLength(1));
+    expect(voice.played, hasLength(2));
+    match.sound.value = const MatchSoundEvent(MatchSound.reset);
     match.bonusTime.value = false;
     match.bonusTime.value = true;
-    expect(bonus.played, hasLength(1));
+    expect(bonus.played, hasLength(2));
     expect(sound.stops, greaterThan(0));
+    expect(musicPlayers.every((player) => player.playing), isTrue);
+
+    final voiceSwitch = find.widgetWithText(
+      SwitchListTile,
+      S.voiceAnnouncements,
+    );
+    await tester.ensureVisible(voiceSwitch);
+    await tester.tap(voiceSwitch);
+    await tester.pump();
+    match.bonusTime.value = false;
+    match.praiseVoice.value = const ComboPraiseEvent(ComboPraise.good);
+    match.bonusTime.value = true;
+    expect(voice.played, hasLength(2));
+    expect(bonus.played, hasLength(2));
     expect(voice.stops, greaterThan(0));
     expect(bonus.stops, greaterThan(0));
+
+    await tester.ensureVisible(soundSwitch);
+    await tester.tap(soundSwitch);
+    await tester.pump();
+    events.emitSound(GameSound.hit);
+    match.sound.value = const MatchSoundEvent(MatchSound.line);
+    expect(sound.played, [GameSound.shoot, GameSound.hit]);
+    expect(matchPlayer.played, [MatchSound.swap, MatchSound.line]);
+    match.bonusTime.value = false;
+    match.praiseVoice.value = const ComboPraiseEvent(ComboPraise.great);
+    expect(voice.played, hasLength(2));
+    await tester.tap(soundSwitch);
+    await tester.pump();
+    await tester.ensureVisible(voiceSwitch);
+    await tester.tap(voiceSwitch);
+    await tester.pump();
+    expect(voice.played, hasLength(2));
+    expect(bonus.played, hasLength(2));
+    await tester.tap(voiceSwitch);
+    await tester.pump();
+
     expect(musicPlayers.every((player) => player.playing), isTrue);
     await tester.ensureVisible(find.byType(Slider));
     await tester.drag(find.byType(Slider), const Offset(100, 0));
@@ -139,11 +175,19 @@ void main() {
     final volume = preferences.musicVolume.value;
     expect(volume, isNot(.32));
     expect(musicPlayers.every((player) => player.volume == volume), isTrue);
+    expect(preferences.soundEnabled.value, isFalse);
+    expect(preferences.voiceEnabled.value, isFalse);
     final musicSwitch = find.widgetWithText(SwitchListTile, S.backgroundMusic);
     await tester.ensureVisible(musicSwitch);
     await tester.tap(musicSwitch);
     await tester.pump();
     expect(musicPlayers.every((player) => !player.playing), isTrue);
+    expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+    final vibrationSwitch = find.widgetWithText(SwitchListTile, S.vibration);
+    await tester.ensureVisible(vibrationSwitch);
+    await tester.tap(vibrationSwitch);
+    await tester.pump();
+    expect(preferences.vibrationEnabled.value, isFalse);
     await tester.pumpWidget(const SizedBox());
     await Future.wait([
       effects.dispose(),
@@ -163,7 +207,9 @@ void main() {
     expect(nextPlayer.played, isEmpty);
     await next.dispose();
     expect(store.data['00.common/audio'], {'enabled': false});
+    expect(store.data['00.common/voice'], {'enabled': false});
     expect(store.data['00.common/music'], {'enabled': false, 'volume': volume});
+    expect(store.data['00.common/vibration'], {'enabled': false});
     events.disposeAudioEvents();
     match.dispose();
     state.dispose();

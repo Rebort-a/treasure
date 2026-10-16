@@ -202,7 +202,7 @@ void main() {
     }
   });
 
-  test('语音只有一个声道，新的赞美取消正在异步准备的旧赞美', () async {
+  test('语音只有一个声道，慢加载后仍播放最新赞美而不恢复旧赞美', () async {
     final native = _NativeAudio()
       ..sourceStarted = Completer<void>()
       ..sourceGate = Completer<void>()
@@ -217,11 +217,25 @@ void main() {
       final first = player.play(ComboPraise.good);
       await native.sourceStarted!.future;
       final next = player.play(ComboPraise.unbelievable);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       native.sourceGate!.complete();
       await Future.wait([first, next]);
       expect(native.created, hasLength(1));
       expect(native.resumes, hasLength(1));
       expect(native.peakActive, 1);
+      native
+        ..sourceStarted = Completer<void>()
+        ..sourceGate = Completer<void>();
+      final preparing = player.play(ComboPraise.good);
+      await native.sourceStarted!.future;
+      final queued = player.play(ComboPraise.good);
+      final stopping = player.stop();
+      native.sourceGate!.complete();
+      await Future.wait([preparing, queued, stopping]);
+      expect(native.resumes, hasLength(1));
+      expect(native.active, isEmpty);
+      await player.play(ComboPraise.good);
+      expect(native.resumes, hasLength(2));
       await player.dispose();
       expect(native.disposed, native.created);
     } finally {

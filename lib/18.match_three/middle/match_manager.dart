@@ -244,6 +244,7 @@ class MatchManager {
     if (reduceMotion) {
       busy.value = false;
       _show(BoardFrame(board, FramePhase.settled));
+      _emitSound(MatchSound.appear);
       return;
     }
     busy.value = true;
@@ -253,7 +254,7 @@ class MatchManager {
       await _delay(const Duration(milliseconds: 100));
       if (_disposed || epoch != _animationEpoch) return;
       if (!reduceMotion) {
-        _show(
+        _presentFrame(
           BoardFrame(
             board,
             FramePhase.fall,
@@ -265,6 +266,8 @@ class MatchManager {
         );
         await _delay(const Duration(milliseconds: 220));
         if (_disposed || epoch != _animationEpoch) return;
+      } else {
+        _emitSound(MatchSound.appear);
       }
       _show(BoardFrame(board, FramePhase.settled));
       busy.value = false;
@@ -282,6 +285,10 @@ class MatchManager {
       praiseVoice.value = null;
     }
   }
+
+  bool _isFullBoardSpawn(BoardFrame frame) =>
+      frame.phase == FramePhase.fall &&
+      frame.spawnedPieceIds.length == MatchBoard.cells;
 
   /// 只在推进展示帧时发声，刷新视图和重复快照不会重播音效。
   void _presentFrame(BoardFrame frame, {int cascade = 1}) {
@@ -320,7 +327,11 @@ class MatchManager {
           _emitSound(MatchSound.ice);
         }
       case FramePhase.fall:
-        if (frame.spawnedPieceIds.isNotEmpty) _emitSound(MatchSound.fall);
+        if (frame.spawnedPieceIds.isNotEmpty) {
+          _emitSound(
+            _isFullBoardSpawn(frame) ? MatchSound.appear : MatchSound.fall,
+          );
+        }
       case FramePhase.transform:
         if (frame.convertedPieceIds.isNotEmpty) {
           _emitSound(MatchSound.transform);
@@ -440,6 +451,7 @@ class MatchManager {
     final hasConversion = result.frames.any(
       (frame) => frame.convertedPieceIds.isNotEmpty,
     );
+    final hasFullBoardSpawn = result.frames.any(_isFullBoardSpawn);
     comboPraise.value = null;
     bonusTime.value = false;
     if (reduceMotion && !hasBonusTime && !hasConversion) {
@@ -449,6 +461,7 @@ class MatchManager {
       _emitSound(MatchSound.swap);
       _emitSound(MatchSound.clear1);
       _show(result.frames.last);
+      if (hasFullBoardSpawn) _emitSound(MatchSound.appear);
       busy.value = false;
       _announceResult();
       if (_board?.status == MatchStatus.playing) {
@@ -474,6 +487,7 @@ class MatchManager {
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
         if (_disposed || epoch != _animationEpoch) return;
+        if (hasFullBoardSpawn) _emitSound(MatchSound.appear);
         bonusTime.value = false;
         busy.value = false;
         _announceResult();

@@ -75,7 +75,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get passwordOptional => '留空则为公开房间';
 
   @override
-  String get passwordIfNeeded => '房间设有密码时填写';
+  String get passwordIfNeeded => '无密码房间请留空';
 
   @override
   String get incorrectRoomPassword => '房间密码错误';
@@ -87,7 +87,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get roomJoinTimedOut => '连接或认证超时，请重试';
 
   @override
-  String get defaultPlayerName => '默认玩家名称';
+  String get defaultPlayerName => '名称';
+
+  @override
+  String get defaultPlayerNameSummary => '设置联机默认昵称';
 
   @override
   String get defaultPlayerNameHint => '留空则每次加入时填写';
@@ -570,6 +573,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get general => '通用';
+
+  @override
+  String get appearance => '外观';
 
   @override
   String get about => '关于';
@@ -1228,16 +1234,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchNewRound => '新局';
 
   @override
-  String get backgroundMusic => '背景音乐';
+  String get backgroundMusic => '音乐';
 
   @override
-  String get musicVolume => '音乐音量';
+  String get gameAudio => '声音和震动';
 
   @override
-  String get gameAudio => '游戏声音';
+  String get gameSoundEffects => '音效';
 
   @override
-  String get gameSoundEffects => '音效与语音';
+  String get voiceAnnouncements => '播报';
+
+  @override
+  String get vibration => '震动';
 
   @override
   String get matchSynchronizing => '正在同步共同棋盘…';
