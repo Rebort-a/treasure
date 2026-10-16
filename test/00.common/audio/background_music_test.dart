@@ -117,7 +117,7 @@ void main() {
     expect(player.disposals, 1);
   });
 
-  test('迟到设置不覆盖用户操作，保存时保留未修改音量并按项目隔离', () async {
+  test('迟到设置不覆盖用户操作，保留未修改音量并让其他游戏恢复同一全局设置', () async {
     final store = _Store()..reading = Completer<Map<String, dynamic>>();
     final player = _Player();
     final audio = BackgroundMusicController(
@@ -132,11 +132,11 @@ void main() {
     expect(audio.enabled.value, isFalse);
     expect(audio.volume.value, .65);
     await audio.dispose();
-    expect(store.data['11.spaceship/music'], {'enabled': false, 'volume': .65});
-    expect(store.data.containsKey('17.tank/music'), isFalse);
+    expect(store.data['00.common/music'], {'enabled': false, 'volume': .65});
+    expect(store.data.containsKey('11.spaceship/music'), isFalse);
     store.reading = null;
     final restored = BackgroundMusicController(
-      project: '11.spaceship',
+      project: '17.tank',
       player: _Player(),
       store: store,
     );
@@ -147,7 +147,7 @@ void main() {
     restored.setVolume(double.nan);
     expect(restored.volume.value, 1);
     await restored.dispose();
-    expect(store.data['11.spaceship/music']!['volume'], 1);
+    expect(store.data['00.common/music']!['volume'], 1);
   });
 
   test('异步音量更新读取最终状态，静音时不能迟到恢复音乐', () async {

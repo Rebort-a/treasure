@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/game_sound.dart';
+import 'package:treasure/00.common/service/audio_preferences.dart';
+import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/service/sound_service.dart';
 import 'package:treasure/00.common/widget/component/game_audio_scope.dart';
 
@@ -24,15 +26,28 @@ class _Player implements SoundPlayer<GameSound> {
   Future<void> dispose() async => disposals++;
 }
 
-Widget _game(_Events source, _Player player) => GameAudioScope(
-  source: source,
-  player: player,
-  project: 'audio_test',
-  child: Scaffold(
-    appBar: AppBar(actions: const [GameSoundButton()]),
-    body: const SizedBox.expand(),
-  ),
-);
+class _Store implements JsonStore {
+  @override
+  Future<Map<String, dynamic>> read(
+    String name, {
+    String project = '00.common',
+  }) async => {};
+  @override
+  Future<void> write(
+    String name,
+    Map<String, dynamic> data, {
+    String project = '00.common',
+  }) async {}
+}
+
+Widget _game(_Events source, _Player player, AudioPreferences preferences) =>
+    GameAudioScope(
+      source: source,
+      player: player,
+      project: 'audio_test',
+      preferences: preferences,
+      child: const Scaffold(body: SizedBox.expand()),
+    );
 
 void main() {
   test('通用音效事件均有可播放的短 PCM 资源', () {
@@ -54,16 +69,19 @@ void main() {
   testWidgets('静音与前后台切换只影响音频，不积压事件，退出释放一次', (tester) async {
     final source = _Events();
     final player = _Player();
-    await tester.pumpWidget(MaterialApp(home: _game(source, player)));
+    final preferences = AudioPreferences(store: _Store());
+    await tester.pumpWidget(
+      MaterialApp(home: _game(source, player, preferences)),
+    );
     await tester.pump();
     source.emitSound(GameSound.move);
     expect(player.sounds, [GameSound.move]);
-    await tester.tap(find.byType(GameSoundButton));
+    preferences.setSoundEnabled(false);
     await tester.pump();
     source.emitSound(GameSound.win);
     expect(player.sounds, [GameSound.move]);
     expect(player.stops, greaterThan(0));
-    await tester.tap(find.byType(GameSoundButton));
+    preferences.setSoundEnabled(true);
     await tester.pump();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
@@ -79,14 +97,19 @@ void main() {
     expect(player.disposals, 1);
     expect(player.sounds, [GameSound.move, GameSound.pickup]);
     source.disposeAudioEvents();
+    await preferences.dispose();
   });
 
   testWidgets('透明弹窗保留结算音，不透明页面覆盖后静音，返回不补播', (tester) async {
     final source = _Events();
     final player = _Player();
     final navigator = GlobalKey<NavigatorState>();
+    final preferences = AudioPreferences(store: _Store());
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigator, home: _game(source, player)),
+      MaterialApp(
+        navigatorKey: navigator,
+        home: _game(source, player, preferences),
+      ),
     );
     await tester.pump();
     showDialog<void>(
@@ -111,6 +134,7 @@ void main() {
     expect(player.sounds.last, GameSound.capture);
     await tester.pumpWidget(const SizedBox());
     source.disposeAudioEvents();
+    await preferences.dispose();
   });
 
   testWidgets('切换 Manager 后旧事件源不再播放，旧播放器只释放一次', (tester) async {
@@ -118,10 +142,15 @@ void main() {
     final next = _Events();
     final oldPlayer = _Player();
     final player = _Player();
-    await tester.pumpWidget(MaterialApp(home: _game(first, oldPlayer)));
+    final preferences = AudioPreferences(store: _Store());
+    await tester.pumpWidget(
+      MaterialApp(home: _game(first, oldPlayer, preferences)),
+    );
     await tester.pump();
     first.emitSound(GameSound.tap);
-    await tester.pumpWidget(MaterialApp(home: _game(next, player)));
+    await tester.pumpWidget(
+      MaterialApp(home: _game(next, player, preferences)),
+    );
     await tester.pump();
     first.emitSound(GameSound.hit);
     next.emitSound(GameSound.success);
@@ -131,5 +160,6 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     first.disposeAudioEvents();
     next.disposeAudioEvents();
+    await preferences.dispose();
   });
 }

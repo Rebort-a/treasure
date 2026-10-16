@@ -171,17 +171,6 @@ class _TankGameScreenState extends State<TankGameScreen> {
               SizedBox.expand(
                 child: CustomPaint(painter: TankPainter(manager: manager)),
               ),
-              const Positioned(
-                top: 16,
-                right: 80,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GameMusicButton(color: Colors.white),
-                    GameSoundButton(color: Colors.white),
-                  ],
-                ),
-              ),
               Positioned(
                 top: 16,
                 left: 16,

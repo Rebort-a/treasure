@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
-import 'audio_settings_store.dart';
+import 'audio_preferences.dart';
 import 'json_store.dart';
 
 /// 音乐独占声道，不与射击、消除等短音效竞争播放器。
@@ -98,12 +98,12 @@ class AssetMusicPlayer implements MusicPlayer {
 class BackgroundMusicController {
   final String project;
   final MusicPlayer _player;
-  final JsonStore _store;
-  final enabled = ValueNotifier(true);
-  final volume = ValueNotifier(.32);
+  final AudioPreferences _preferences;
+  final bool _ownsPreferences;
+  ValueNotifier<bool> get enabled => _preferences.musicEnabled;
+  ValueNotifier<double> get volume => _preferences.musicVolume;
   late final Future<void> ready;
   Future<void> _commands = Future.value();
-  Future<void> _writes = Future.value();
   Future<void>? _disposing;
   bool _initialized = false;
   bool _active = true;
@@ -112,15 +112,21 @@ class BackgroundMusicController {
   bool _disposed = false;
   bool _loggedError = false;
   double? _appliedVolume;
-  int _enabledVersion = 0;
-  int _volumeVersion = 0;
 
   BackgroundMusicController({
     required this.project,
     required MusicPlayer player,
     JsonStore? store,
+    AudioPreferences? preferences,
   }) : _player = player,
-       _store = store ?? const AudioSettingsStore() {
+       _preferences =
+           preferences ??
+           (store == null
+               ? AudioPreferences.instance
+               : AudioPreferences(store: store)),
+       _ownsPreferences = preferences == null && store != null {
+    enabled.addListener(_sync);
+    volume.addListener(_sync);
     ready = _initialize();
   }
 
@@ -136,21 +142,7 @@ class BackgroundMusicController {
   }
 
   Future<void> _initialize() async {
-    final enabledVersion = _enabledVersion;
-    final volumeVersion = _volumeVersion;
-    await _guard(() async {
-      final data = await _store.read('music', project: project);
-      if (_disposed) return;
-      if (enabledVersion == _enabledVersion && data['enabled'] is bool) {
-        enabled.value = data['enabled'] as bool;
-      }
-      final savedVolume = data['volume'];
-      if (volumeVersion == _volumeVersion &&
-          savedVolume is num &&
-          savedVolume.isFinite) {
-        volume.value = savedVolume.toDouble().clamp(0, 1);
-      }
-    });
+    await _preferences.ready;
     if (_disposed) return;
     await _guard(() async {
       await _player.preload();
@@ -197,42 +189,29 @@ class BackgroundMusicController {
 
   void setEnabled(bool value) {
     if (_disposed) return;
-    _enabledVersion++;
-    enabled.value = value;
+    _preferences.setMusicEnabled(value);
     _sync();
-    _persist();
   }
 
   void setVolume(double value) {
     if (_disposed || !value.isFinite) return;
-    _volumeVersion++;
-    volume.value = value.clamp(0, 1);
+    _preferences.setMusicVolume(value);
     _sync();
-    _persist();
-  }
-
-  void _persist() {
-    _writes = _writes.then((_) async {
-      // 等设置读取完成，避免修改开关时覆盖尚未恢复的音量。
-      await ready;
-      await _guard(
-        () => _store.write('music', {
-          'enabled': enabled.value,
-          'volume': volume.value,
-        }, project: project),
-      );
-    });
   }
 
   Future<void> dispose() => _disposing ??= _dispose();
 
   Future<void> _dispose() async {
     _disposed = true;
+    enabled.removeListener(_sync);
+    volume.removeListener(_sync);
     await ready;
     await _commands;
     await _guard(_player.dispose);
-    await _writes;
-    enabled.dispose();
-    volume.dispose();
+    if (_ownsPreferences) {
+      await _preferences.dispose();
+    } else {
+      await _preferences.flush();
+    }
   }
 }

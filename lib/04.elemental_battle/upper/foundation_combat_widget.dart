@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../00.common/widget/component/game_audio_scope.dart';
-
 import '../../00.common/l10n/strings.dart';
 import 'foundation_combat_manager.dart';
 import '../middle/elemental.dart';
@@ -21,12 +19,7 @@ class FoundationalCombatWidget {
     ];
   }
 
-  Widget buildBlankRegion() {
-    return const Align(
-      alignment: Alignment.centerRight,
-      child: GameSoundButton(),
-    );
-  }
+  Widget buildBlankRegion() => const SizedBox(height: 24);
 
   Widget buildInfoRegion() {
     return Row(

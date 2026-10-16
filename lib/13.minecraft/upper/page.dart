@@ -88,11 +88,6 @@ class _MinecraftPageState extends State<MinecraftPage> {
 
             // 背包栏（竖屏靠上，横屏靠下）
             _buildHotbar(),
-            const Positioned(
-              top: 24,
-              right: 16,
-              child: GameSoundButton(color: Colors.white),
-            ),
           ],
         ),
       ),

@@ -72,7 +72,6 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
           title: Text(S.gobang),
           centerTitle: true,
           actions: [
-            const GameSoundButton(),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {

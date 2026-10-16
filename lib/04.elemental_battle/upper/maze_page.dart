@@ -27,7 +27,6 @@ class MazePage extends StatelessWidget {
   }
 
   AppBar _buildAppBar() => AppBar(
-    actions: const [GameSoundButton()],
     toolbarHeight: 32.0,
     title: ValueListenableBuilder<int>(
       valueListenable: _manager.floorNum,

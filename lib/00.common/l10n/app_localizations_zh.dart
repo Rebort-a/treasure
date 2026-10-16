@@ -22,7 +22,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cancel => '取消';
 
   @override
-  String get close => '房间已关闭';
+  String get close => '关闭';
 
   @override
   String get ok => '确定';
@@ -208,6 +208,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get disconnected => '连接断开';
+
+  @override
+  String get roomClosed => '房间已关闭';
 
   @override
   String get cannotReconnect => '无法重新连接到服务器';
@@ -1225,22 +1228,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchNewRound => '新局';
 
   @override
-  String get matchMuteSound => '关闭音效';
-
-  @override
-  String get matchEnableSound => '开启音效';
-
-  @override
-  String get muteGameSound => '关闭游戏音效';
-
-  @override
-  String get enableGameSound => '开启游戏音效';
-
-  @override
   String get backgroundMusic => '背景音乐';
 
   @override
   String get musicVolume => '音乐音量';
+
+  @override
+  String get gameAudio => '游戏声音';
+
+  @override
+  String get gameSoundEffects => '音效与语音';
 
   @override
   String get matchSynchronizing => '正在同步共同棋盘…';

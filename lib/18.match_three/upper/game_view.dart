@@ -83,7 +83,6 @@ class _MatchGameViewState extends State<MatchGameView>
     manager: widget.manager,
     onExit: widget.onExit,
     engine: widget.engine,
-    audio: _audio,
   );
 
   @override
@@ -98,13 +97,11 @@ class _MatchGameContent extends StatelessWidget {
   final MatchManager manager;
   final VoidCallback onExit;
   final NetMultiTurnEngine? engine;
-  final MatchAudioController audio;
 
   const _MatchGameContent({
     required this.manager,
     required this.onExit,
     required this.engine,
-    required this.audio,
   });
 
   @override
@@ -118,16 +115,6 @@ class _MatchGameContent extends StatelessWidget {
         ),
         title: Text(S.matchThree),
         actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: audio.enabled,
-            builder: (context, enabled, _) => IconButton(
-              tooltip: enabled ? S.matchMuteSound : S.matchEnableSound,
-              icon: Icon(
-                enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-              ),
-              onPressed: () => audio.setEnabled(!enabled),
-            ),
-          ),
           if (engine != null)
             IconButton(
               tooltip: S.matchTeamChat,

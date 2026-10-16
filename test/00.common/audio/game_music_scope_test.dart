@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/game/game_sound.dart';
+import 'package:treasure/00.common/service/audio_preferences.dart';
 import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/service/music_service.dart';
 import 'package:treasure/00.common/service/sound_service.dart';
@@ -52,11 +53,12 @@ class _Store implements JsonStore {
 }
 
 void main() {
-  testWidgets('运行状态、页面覆盖、前后台与音乐开关共同控制播放，退出释放资源', (tester) async {
+  testWidgets('运行状态、页面覆盖、前后台与全局音乐设置共同控制播放，退出释放资源', (tester) async {
     final source = _Events();
     final music = _Music();
     final running = ValueNotifier(false);
     final navigator = GlobalKey<NavigatorState>();
+    final preferences = AudioPreferences(store: _Store());
     await tester.pumpWidget(
       MaterialApp(
         navigatorKey: navigator,
@@ -65,15 +67,11 @@ void main() {
           project: 'music_scope_test',
           player: _Effects(),
           musicPlayer: music,
-          store: _Store(),
+          preferences: preferences,
           musicAsset: 'audio/music/tank.wav',
           musicState: running,
           isMusicPlaying: () => running.value,
-          child: Scaffold(
-            appBar: AppBar(
-              actions: const [GameMusicButton(), GameSoundButton()],
-            ),
-          ),
+          child: const Scaffold(),
         ),
       ),
     );
@@ -82,20 +80,15 @@ void main() {
     running.value = true;
     await tester.pump();
     expect(music.playing, isTrue);
-    await tester.tap(find.byType(GameSoundButton));
+    preferences.setSoundEnabled(false);
     await tester.pump();
     expect(music.playing, isTrue);
-    await tester.tap(find.byType(GameMusicButton));
-    await tester.pumpAndSettle();
-    expect(music.playing, isTrue);
-    await tester.tap(find.byType(Switch));
+    preferences.setMusicEnabled(false);
     await tester.pump();
     expect(music.playing, isFalse);
-    await tester.tap(find.byType(Switch));
+    preferences.setMusicEnabled(true);
     await tester.pump();
     expect(music.playing, isTrue);
-    navigator.currentState!.pop();
-    await tester.pumpAndSettle();
     navigator.currentState!.push(
       MaterialPageRoute<void>(builder: (_) => const Scaffold()),
     );
@@ -120,5 +113,6 @@ void main() {
     expect(music.playing, isFalse);
     running.dispose();
     source.disposeAudioEvents();
+    await preferences.dispose();
   });
 }

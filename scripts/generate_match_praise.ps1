@@ -1,12 +1,12 @@
 ﻿param(
-    [string]$VoiceName = 'Microsoft Zira Desktop'
+    [string]$VoiceName = 'Microsoft Zira Desktop',
+    [string]$OutputDirectory = ([IO.Path]::Combine($PSScriptRoot, '../temp/match_praise_tts'))
 )
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Speech
-$output = [IO.Path]::GetFullPath(
-    [IO.Path]::Combine($PSScriptRoot, '../assets/audio/match_praise')
-)
+$output = [IO.Path]::GetFullPath($OutputDirectory)
+# 系统语音仅用于开发对照，默认不覆盖已导入的表演配音。
 [IO.Directory]::CreateDirectory($output) | Out-Null
 $speaker = [System.Speech.Synthesis.SpeechSynthesizer]::new()
 try {

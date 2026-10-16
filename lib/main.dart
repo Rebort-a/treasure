@@ -5,6 +5,7 @@ import '00.common/l10n/l10n.dart';
 import '00.common/style/theme.dart';
 import '00.common/tool/app_info.dart';
 import '00.common/service/storage_service.dart';
+import '00.common/service/audio_preferences.dart';
 
 import '01.home/upper/home_page.dart';
 import '01.home/middle/background_settings.dart';
@@ -17,7 +18,7 @@ void main() async {
   await StorageService.instance.init();
   // 加载应用版本等基础信息。
   await AppInfo.load();
-  // 加载影响全局界面的语言和主题设置。
+  // 加载语言、主题、背景和全局音频偏好。
   await _loadConfiguration();
 
   runApp(const MyApp()); // 启动应用并显示根组件。
@@ -27,6 +28,7 @@ Future<void> _loadConfiguration() async {
   await LanguageProvider.instance.load();
   await ThemeProvider.instance.load();
   await BackgroundSettings.instance.load();
+  await AudioPreferences.instance.ready;
 }
 
 class MyApp extends StatelessWidget {

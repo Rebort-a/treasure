@@ -71,7 +71,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
         appBar: AppBar(
           title: Text(S.towerDefense),
           centerTitle: true,
-          actions: [const GameSoundButton(), _buildActions()],
+          actions: [_buildActions()],
         ),
         body: Column(
           children: [

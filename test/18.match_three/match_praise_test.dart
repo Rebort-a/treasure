@@ -25,14 +25,16 @@ class _Voice implements SoundPlayer<ComboPraise> {
 
 class _Effects implements MatchSoundPlayer {
   final played = <MatchSound>[];
+  int stops = 0;
+  int disposals = 0;
   @override
   Future<void> preload() async {}
   @override
   Future<void> play(MatchSound sound) async => played.add(sound);
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async => stops++;
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async => disposals++;
 }
 
 class _Store implements JsonStore {
@@ -52,7 +54,7 @@ class _Store implements JsonStore {
 void _praise(MatchManager manager, ComboPraise praise) =>
     manager.praiseVoice.value = ComboPraiseEvent(praise);
 
-Map<String, dynamic> _board() {
+Map<String, dynamic> _board({bool winning = false}) {
   final data = MatchBoard.random(seed: 7).toJson();
   const overrides = {0: 0, 1: 0, 2: 1, 3: 0, 10: 0};
   data['pieces'] = [
@@ -61,22 +63,22 @@ Map<String, dynamic> _board() {
   ];
   data['nextId'] = 65;
   data['ice'] = List.filled(64, 0);
-  data['targets'] = {'4': 1000, '5': 1000};
-  data['collected'] = List.filled(6, 0);
+  data['targets'] = winning ? {'0': 1, '1': 1} : {'4': 1000, '5': 1000};
+  data['collected'] = [0, winning ? 1 : 0, 0, 0, 0, 0];
+  if (winning) {
+    data['movesLeft'] = 3;
+    data['moveNumber'] = (data['initialMoves'] as int) - 3;
+  }
   return data;
 }
 
 void main() {
-  test('五档赞美均绑定独立、非静音的英文离线语音资源', () {
-    expect(ComboPraise.values.map((praise) => praise.label), [
-      'Good',
-      'Great',
-      'Excellent',
-      'Amazing',
-      'Unbelievable',
-    ]);
-    for (final praise in ComboPraise.values) {
-      final bytes = File('assets/${praise.asset}').readAsBytesSync();
+  test('赞美与奖励播报均绑定非静音的离线 WAV 资源', () {
+    for (final asset in [
+      for (final praise in ComboPraise.values) praise.asset,
+      'audio/match_praise/bonus.wav',
+    ]) {
+      final bytes = File('assets/$asset').readAsBytesSync();
       expect(String.fromCharCodes(bytes.take(4)), 'RIFF');
       expect(String.fromCharCodes(bytes.skip(8).take(4)), 'WAVE');
       expect(bytes.skip(44).any((byte) => byte != 0), isTrue);
@@ -91,6 +93,7 @@ void main() {
       manager: manager,
       player: effects,
       praisePlayer: voice,
+      bonusPlayer: _Effects(),
       store: _Store(),
     );
     await audio.ready;
@@ -125,6 +128,56 @@ void main() {
     manager.dispose();
   });
 
+  test('奖励语音优先且不随转换帧重播，静音后台重开和退出取消且不补播', () async {
+    final manager = MatchManager(generate: false);
+    final voice = _Voice();
+    final bonus = _Effects();
+    final audio = MatchAudioController(
+      manager: manager,
+      player: _Effects(),
+      praisePlayer: voice,
+      bonusPlayer: bonus,
+      store: _Store(),
+    );
+    await audio.ready;
+    _praise(manager, ComboPraise.amazing);
+    manager.bonusTime.value = true;
+    expect(bonus.played, [MatchSound.bonus]);
+    expect(voice.stops, greaterThan(0));
+    _praise(manager, ComboPraise.unbelievable);
+    expect(voice.played, [ComboPraise.amazing]);
+    final stops = bonus.stops;
+    for (var i = 0; i < 5; i++) {
+      manager.bonusTime.value = true;
+      manager.sound.value = const MatchSoundEvent(MatchSound.bonus);
+    }
+    expect(bonus.played, hasLength(1));
+    expect(bonus.stops, stops);
+    audio.setEnabled(false);
+    expect(bonus.stops, greaterThan(stops));
+    audio.setEnabled(true);
+    expect(bonus.played, hasLength(1));
+    audio.setActive(false);
+    manager.bonusTime.value = false;
+    manager.bonusTime.value = true;
+    audio.setActive(true);
+    expect(bonus.played, hasLength(1));
+    final backgroundStops = bonus.stops;
+    manager.sound.value = const MatchSoundEvent(MatchSound.reset);
+    manager.bonusTime.value = false;
+    expect(bonus.stops, greaterThan(backgroundStops));
+    manager.bonusTime.value = true;
+    expect(bonus.played, hasLength(2));
+    await audio.dispose();
+    await audio.dispose();
+    manager.bonusTime.value = false;
+    manager.bonusTime.value = true;
+    expect(bonus.played, hasLength(2));
+    expect(bonus.disposals, 1);
+    expect(voice.disposals, 1);
+    manager.dispose();
+  });
+
   for (final reduceMotion in [false, true]) {
     testWidgets('真实消除只随赞美展示播报一次，刷新与重复快照不补播：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
@@ -136,6 +189,7 @@ void main() {
         manager: manager,
         player: _Effects(),
         praisePlayer: voice,
+        bonusPlayer: _Effects(),
         store: _Store(),
       );
       await audio.ready;
@@ -153,6 +207,43 @@ void main() {
       manager.reduceMotion = true;
       manager.restart(seed: 42);
       expect(voice.stops, greaterThan(0));
+      await audio.dispose();
+      manager.dispose();
+    });
+
+    testWidgets('通关多个奖励帧只播一次 Bonus Time，刷新与快照不补播：$reduceMotion', (
+      tester,
+    ) async {
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = true
+        ..loadState(_board(winning: true))
+        ..reduceMotion = reduceMotion;
+      final voice = _Voice();
+      final bonus = _Effects();
+      var bonusFrames = 0;
+      manager.sound.addListener(() {
+        if (manager.sound.value?.sound == MatchSound.bonus) bonusFrames++;
+      });
+      final audio = MatchAudioController(
+        manager: manager,
+        player: _Effects(),
+        praisePlayer: voice,
+        bonusPlayer: bonus,
+        store: _Store(),
+      );
+      await audio.ready;
+      manager.swap(10, 2);
+      for (var i = 0; i < 400 && manager.busy.value; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(manager.busy.value, isFalse);
+      expect(manager.board!.status, MatchStatus.won);
+      expect(bonusFrames, greaterThan(1));
+      expect(bonus.played, [MatchSound.bonus]);
+      expect(voice.played, isEmpty);
+      manager.refreshView();
+      manager.loadState(manager.board!.toJson());
+      expect(bonus.played, hasLength(1));
       await audio.dispose();
       manager.dispose();
     });

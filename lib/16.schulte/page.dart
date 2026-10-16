@@ -76,7 +76,6 @@ class _SchultePageState extends State<SchultePage>
       ),
       centerTitle: true,
       actions: [
-        const GameSoundButton(),
         IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _manager.resetGame,

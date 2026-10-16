@@ -56,7 +56,6 @@ class _GomokuGame extends StatelessWidget {
         onPressed: _onExit,
       ),
       actions: [
-        const GameSoundButton(),
         IconButton(
           icon: const Icon(Icons.flag),
           tooltip: S.surrender,

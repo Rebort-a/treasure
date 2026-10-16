@@ -70,7 +70,6 @@ class SudokuPage extends StatelessWidget {
       ),
       centerTitle: true,
       actions: [
-        const GameSoundButton(),
         _buildAppBarAction(
           icon: isNightMode ? Icons.sunny : Icons.nights_stay,
           onPressed: () => _manager.setNightTheme(!isNightMode),

@@ -78,11 +78,6 @@ class GameScreen extends StatelessWidget {
               onPressed: manager.leavePage,
             ),
           ),
-          const Positioned(
-            top: 40,
-            right: 80,
-            child: GameSoundButton(color: Colors.white),
-          ),
           if (showStateButton)
             ValueListenableBuilder(
               valueListenable: manager.gameState,

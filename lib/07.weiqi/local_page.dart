@@ -68,7 +68,6 @@ class _GoLocalPageState extends State<GoLocalPage> {
           title: Text(S.weiqi),
           centerTitle: true,
           actions: [
-            const GameSoundButton(),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {

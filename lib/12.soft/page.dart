@@ -45,11 +45,6 @@ class SoftPage extends StatelessWidget {
               onKeyEvent: _manager.handleKeyEvent,
               child: const SizedBox.expand(),
             ),
-            const Positioned(
-              top: 24,
-              right: 16,
-              child: GameSoundButton(color: Colors.white),
-            ),
           ],
         );
       },

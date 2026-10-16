@@ -34,7 +34,6 @@ class ThreeTilesPage extends StatelessWidget {
       onPressed: _manager.leavePage,
     ),
     actions: [
-      const GameSoundButton(),
       IconButton(
         icon: const Icon(Icons.refresh),
         onPressed: _manager.restartGame,

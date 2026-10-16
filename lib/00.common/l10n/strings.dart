@@ -18,12 +18,10 @@ class S {
   static String get matchThree => _l.matchThree;
   static String get matchTeamChat => _l.matchTeamChat;
   static String get matchNewRound => _l.matchNewRound;
-  static String get matchMuteSound => _l.matchMuteSound;
-  static String get matchEnableSound => _l.matchEnableSound;
-  static String get muteGameSound => _l.muteGameSound;
-  static String get enableGameSound => _l.enableGameSound;
   static String get backgroundMusic => _l.backgroundMusic;
   static String get musicVolume => _l.musicVolume;
+  static String get gameAudio => _l.gameAudio;
+  static String get gameSoundEffects => _l.gameSoundEffects;
   static String get matchSynchronizing => _l.matchSynchronizing;
   static String get matchMoves => _l.matchMoves;
   static String get matchScore => _l.matchScore;
@@ -120,7 +118,7 @@ class S {
 
   // ==================== 通用网络 ====================
   static String get disconnected => _l.disconnected;
-  static String get roomClosed => _l.close;
+  static String get roomClosed => _l.roomClosed;
   static String get cannotReconnect => _l.cannotReconnect;
   static String reconnecting(int cur, int max) => _l.reconnecting(cur, max);
   static String get competitorsWithdraw => _l.competitorsWithdraw;

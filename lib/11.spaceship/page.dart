@@ -71,17 +71,6 @@ class SpaceShipPage extends StatelessWidget {
 
                 // 暂停/继续按钮
                 _buildControlButton(context),
-                const Positioned(
-                  top: 32,
-                  right: 70,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GameMusicButton(color: Colors.white),
-                      GameSoundButton(color: Colors.white),
-                    ],
-                  ),
-                ),
               ],
             );
           },

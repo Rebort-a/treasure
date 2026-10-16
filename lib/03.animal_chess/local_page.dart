@@ -39,7 +39,6 @@ class _LocalAnimalChessPageState extends State<LocalAnimalChessPage> {
     title: Text(S.animalChess),
     centerTitle: true,
     actions: [
-      const GameSoundButton(),
       PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert),
         onSelected: (value) {

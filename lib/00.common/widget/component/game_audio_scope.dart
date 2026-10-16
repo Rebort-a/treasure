@@ -3,8 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../game/game_sound.dart';
-import '../../l10n/strings.dart';
-import '../../service/json_store.dart';
+import '../../service/audio_preferences.dart';
 import '../../service/music_service.dart';
 import '../../service/sound_service.dart';
 
@@ -18,7 +17,7 @@ class GameAudioScope extends StatefulWidget {
   final Listenable? musicState;
   final bool Function()? isMusicPlaying;
   final MusicPlayer? musicPlayer;
-  final JsonStore? store;
+  final AudioPreferences? preferences;
 
   const GameAudioScope({
     super.key,
@@ -30,7 +29,7 @@ class GameAudioScope extends StatefulWidget {
     this.musicState,
     this.isMusicPlaying,
     this.musicPlayer,
-    this.store,
+    this.preferences,
   });
 
   @override
@@ -57,7 +56,7 @@ class _GameAudioScopeState extends State<GameAudioScope>
       currentSound: () => source.audioEvents.value?.sound,
       resetSound: GameSound.reset,
       project: widget.project,
-      store: widget.store,
+      preferences: widget.preferences,
       minimumInterval: (sound) => switch (sound) {
         GameSound.shoot => 110,
         GameSound.hit || GameSound.explosion => 140,
@@ -78,7 +77,7 @@ class _GameAudioScopeState extends State<GameAudioScope>
       _music = BackgroundMusicController(
         project: widget.project,
         player: widget.musicPlayer ?? AssetMusicPlayer(musicAsset),
-        store: widget.store,
+        preferences: widget.preferences,
       );
       widget.musicState?.addListener(_syncMusic);
       _syncMusic();
@@ -121,7 +120,7 @@ class _GameAudioScopeState extends State<GameAudioScope>
         oldWidget.player != widget.player ||
         oldWidget.musicAsset != widget.musicAsset ||
         oldWidget.musicPlayer != widget.musicPlayer ||
-        oldWidget.store != widget.store) {
+        oldWidget.preferences != widget.preferences) {
       oldWidget.musicState?.removeListener(_syncMusic);
       unawaited(_audio.dispose());
       unawaited(_music?.dispose());
@@ -137,8 +136,7 @@ class _GameAudioScopeState extends State<GameAudioScope>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      _AudioContext(audio: _audio, music: _music, child: widget.child);
+  Widget build(BuildContext context) => widget.child;
 
   @override
   void dispose() {
@@ -147,116 +145,5 @@ class _GameAudioScopeState extends State<GameAudioScope>
     unawaited(_audio.dispose());
     unawaited(_music?.dispose());
     super.dispose();
-  }
-}
-
-class _AudioContext extends InheritedWidget {
-  final SoundController<GameSound> audio;
-  final BackgroundMusicController? music;
-
-  const _AudioContext({
-    required this.audio,
-    required this.music,
-    required super.child,
-  });
-
-  @override
-  bool updateShouldNotify(_AudioContext oldWidget) =>
-      audio != oldWidget.audio || music != oldWidget.music;
-}
-
-/// 音乐与音效独立控制，点击音乐按钮可调整开关和音量。
-class GameMusicButton extends StatelessWidget {
-  final Color? color;
-
-  const GameMusicButton({super.key, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final music = context
-        .dependOnInheritedWidgetOfExactType<_AudioContext>()
-        ?.music;
-    if (music == null) return const SizedBox.shrink();
-    return ValueListenableBuilder<bool>(
-      valueListenable: music.enabled,
-      builder: (_, enabled, _) => IconButton(
-        tooltip: S.backgroundMusic,
-        icon: Icon(
-          enabled ? Icons.music_note_rounded : Icons.music_off_rounded,
-          color: color,
-        ),
-        onPressed: () => showModalBottomSheet<void>(
-          context: context,
-          builder: (_) => _MusicSettings(music: music),
-        ),
-      ),
-    );
-  }
-}
-
-class _MusicSettings extends StatelessWidget {
-  final BackgroundMusicController music;
-
-  const _MusicSettings({required this.music});
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ValueListenableBuilder<bool>(
-            valueListenable: music.enabled,
-            builder: (_, enabled, _) => SwitchListTile(
-              title: Text(S.backgroundMusic),
-              value: enabled,
-              onChanged: music.setEnabled,
-            ),
-          ),
-          ValueListenableBuilder<double>(
-            valueListenable: music.volume,
-            builder: (_, volume, _) => Row(
-              children: [
-                Text(S.musicVolume),
-                Expanded(
-                  child: Slider(
-                    value: volume,
-                    label: '${(volume * 100).round()}%',
-                    onChanged: music.setVolume,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-/// 放入现有工具栏，不新增遮挡棋盘或摇杆的悬浮控件。
-class GameSoundButton extends StatelessWidget {
-  final Color? color;
-
-  const GameSoundButton({super.key, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final audio = context
-        .dependOnInheritedWidgetOfExactType<_AudioContext>()
-        ?.audio;
-    if (audio == null) return const SizedBox.shrink();
-    return ValueListenableBuilder<bool>(
-      valueListenable: audio.enabled,
-      builder: (_, enabled, _) => IconButton(
-        tooltip: enabled ? S.muteGameSound : S.enableGameSound,
-        icon: Icon(
-          enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-          color: color,
-        ),
-        onPressed: () => audio.setEnabled(!enabled),
-      ),
-    );
   }
 }

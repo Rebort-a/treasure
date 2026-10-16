@@ -8,6 +8,6 @@ dart run scripts/generate_game_audio.dart
 
 格式：22,050 Hz、单声道、16 位 PCM。包括轻点、落子、翻面、吃子、成功、错误、射击、受击、拾取、跳跃、施法、爆炸、胜利和失败。
 
-播放底层位于 `00.common/service/sound_service.dart`，每个游戏页面独立管理静音、后台停止和资源释放；设置写入该游戏的 `audio` 存储。原生端沿用 JSON 文件，Web 音频设置使用浏览器 localStorage；浏览器存储不可用时不影响游戏。
+播放底层位于 `00.common/service/sound_service.dart`，每个游戏页面管理后台停止和资源释放；音效开关统一由首页设置页控制，所有游戏及三消赞美语音共享 `00.common/audio` 设置。全局音频偏好位于 `audio_preferences.dart`，退出或切换游戏不会重置偏好。原生端沿用 JSON 文件，Web 音频设置使用浏览器 localStorage；浏览器存储不可用时不影响游戏。
 
 只在已确认的游戏行为发生时发布音效事件，渲染、初始快照、重复消息和插值不发声。实时游戏的射击、受击及爆炸另有频率限制。

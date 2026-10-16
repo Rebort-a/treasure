@@ -67,7 +67,6 @@ class _CombatGame extends StatelessWidget {
           onPressed: _onExit,
         ),
         actions: [
-          const GameSoundButton(),
           IconButton(
             tooltip: S.surrender,
             icon: const Icon(Icons.flag),

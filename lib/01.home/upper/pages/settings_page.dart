@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../00.common/l10n/l10n.dart';
 import '../../../00.common/l10n/strings.dart';
+import '../../../00.common/service/audio_preferences.dart';
 import '../../../00.common/style/theme.dart';
 import '../../../00.common/tool/app_info.dart';
 import '../../../00.common/widget/component/chat_component.dart'
@@ -15,8 +16,15 @@ import '../../middle/home_state.dart';
 
 class HomeSettingsPage extends StatelessWidget {
   final HomeState state;
+  final AudioPreferences? audioPreferences;
 
-  const HomeSettingsPage({super.key, required this.state});
+  const HomeSettingsPage({
+    super.key,
+    required this.state,
+    this.audioPreferences,
+  });
+
+  AudioPreferences get _audio => audioPreferences ?? AudioPreferences.instance;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -33,6 +41,43 @@ class HomeSettingsPage extends StatelessWidget {
           _languageTile(context),
           _themeTile(context),
           _backgroundTile(context),
+        ],
+      ),
+      _settingsSection(
+        context,
+        title: S.gameAudio,
+        children: [
+          ValueListenableBuilder<bool>(
+            valueListenable: _audio.soundEnabled,
+            builder: (_, enabled, _) => SwitchListTile(
+              secondary: const Icon(Icons.volume_up_rounded),
+              title: Text(S.gameSoundEffects),
+              value: enabled,
+              onChanged: _audio.setSoundEnabled,
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _audio.musicEnabled,
+            builder: (_, enabled, _) => SwitchListTile(
+              secondary: const Icon(Icons.music_note_rounded),
+              title: Text(S.backgroundMusic),
+              value: enabled,
+              onChanged: _audio.setMusicEnabled,
+            ),
+          ),
+          ValueListenableBuilder<double>(
+            valueListenable: _audio.musicVolume,
+            builder: (_, volume, _) => ListTile(
+              leading: const Icon(Icons.tune_rounded),
+              title: Text(S.musicVolume),
+              subtitle: Slider(
+                value: volume,
+                label: '${(volume * 100).round()}%',
+                onChanged: _audio.setMusicVolume,
+              ),
+              trailing: Text('${(volume * 100).round()}%'),
+            ),
+          ),
         ],
       ),
       _settingsSection(

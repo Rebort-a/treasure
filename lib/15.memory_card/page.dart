@@ -38,7 +38,6 @@ class MemoryPage extends StatelessWidget {
       ),
       centerTitle: true,
       actions: [
-        const GameSoundButton(),
         IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _manager.resetGame,

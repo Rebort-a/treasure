@@ -601,7 +601,7 @@ class _MessageListState extends State<MessageList> {
       NoticeType.join => localizations.joinedRoom,
       NoticeType.left => localizations.leftRoom,
       NoticeType.search => localizations.matchingPlayers,
-      NoticeType.close => localizations.close,
+      NoticeType.close => localizations.roomClosed,
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),

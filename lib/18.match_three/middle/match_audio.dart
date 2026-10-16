@@ -20,6 +20,7 @@ class MatchAssetSoundPlayer extends AssetSoundPlayer<MatchSound>
 class MatchAudioController extends SoundController<MatchSound> {
   final MatchManager manager;
   late final SoundController<ComboPraise> _praiseAudio;
+  late final SoundController<MatchSound> _bonusAudio;
   bool _pageActive = true;
   Future<void>? _disposingAll;
 
@@ -27,7 +28,9 @@ class MatchAudioController extends SoundController<MatchSound> {
     required this.manager,
     MatchSoundPlayer? player,
     SoundPlayer<ComboPraise>? praisePlayer,
+    SoundPlayer<MatchSound>? bonusPlayer,
     super.store,
+    super.preferences,
   }) : super(
          events: manager.sound,
          currentSound: () => manager.sound.value?.sound,
@@ -58,35 +61,64 @@ class MatchAudioController extends SoundController<MatchSound> {
         _ => 600,
       },
     );
-    enabled.addListener(_syncPraise);
+    _bonusAudio = SoundController<MatchSound>(
+      // 奖励阶段包含多个转换帧，只在进入阶段时播报一次。
+      events: manager.bonusTime,
+      currentSound: () => manager.bonusTime.value ? MatchSound.bonus : null,
+      player:
+          bonusPlayer ??
+          AssetSoundPlayer<MatchSound>(
+            assets: const {MatchSound.bonus: 'audio/match_praise/bonus.wav'},
+            voiceCount: 1,
+            volume: .95,
+            latestOnly: true,
+          ),
+      project: '18.match_three',
+      persistSettings: false,
+    );
+    enabled.addListener(_syncVoices);
+    manager.bonusTime.addListener(_syncVoices);
     manager.sound.addListener(_onGameSound);
-    _syncPraise();
+    _syncVoices();
   }
 
   @override
   Future<void> get ready async {
-    await Future.wait([super.ready, _praiseAudio.ready]);
+    await Future.wait([super.ready, _praiseAudio.ready, _bonusAudio.ready]);
   }
 
-  void _syncPraise() => _praiseAudio.setActive(_pageActive && enabled.value);
+  void _syncVoices() {
+    final active = _pageActive && enabled.value;
+    // 奖励播报优先，避免上一手的赞美与 Bonus Time 同时说话。
+    _praiseAudio.setActive(active && !manager.bonusTime.value);
+    _bonusAudio.setActive(active);
+  }
 
   void _onGameSound() {
-    if (manager.sound.value?.sound == MatchSound.reset) _praiseAudio.stop();
+    if (manager.sound.value?.sound == MatchSound.reset) {
+      _praiseAudio.stop();
+      _bonusAudio.stop();
+    }
   }
 
   @override
   void setActive(bool active) {
     _pageActive = active;
     super.setActive(active);
-    _syncPraise();
+    _syncVoices();
   }
 
   @override
   Future<void> dispose() => _disposingAll ??= _disposeAll();
 
   Future<void> _disposeAll() async {
-    enabled.removeListener(_syncPraise);
+    enabled.removeListener(_syncVoices);
+    manager.bonusTime.removeListener(_syncVoices);
     manager.sound.removeListener(_onGameSound);
-    await Future.wait([_praiseAudio.dispose(), super.dispose()]);
+    await Future.wait([
+      _praiseAudio.dispose(),
+      _bonusAudio.dispose(),
+      super.dispose(),
+    ]);
   }
 }

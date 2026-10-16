@@ -125,7 +125,7 @@ abstract class AppLocalizations {
   /// No description provided for @close.
   ///
   /// In en, this message translates to:
-  /// **'Room closed'**
+  /// **'Close'**
   String get close;
 
   /// No description provided for @ok.
@@ -493,6 +493,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disconnected'**
   String get disconnected;
+
+  /// No description provided for @roomClosed.
+  ///
+  /// In en, this message translates to:
+  /// **'Room closed'**
+  String get roomClosed;
 
   /// No description provided for @cannotReconnect.
   ///
@@ -2342,30 +2348,6 @@ abstract class AppLocalizations {
   /// **'New round'**
   String get matchNewRound;
 
-  /// No description provided for @matchMuteSound.
-  ///
-  /// In en, this message translates to:
-  /// **'Mute sound effects'**
-  String get matchMuteSound;
-
-  /// No description provided for @matchEnableSound.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable sound effects'**
-  String get matchEnableSound;
-
-  /// No description provided for @muteGameSound.
-  ///
-  /// In en, this message translates to:
-  /// **'Mute game sound effects'**
-  String get muteGameSound;
-
-  /// No description provided for @enableGameSound.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable game sound effects'**
-  String get enableGameSound;
-
   /// No description provided for @backgroundMusic.
   ///
   /// In en, this message translates to:
@@ -2377,6 +2359,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Music volume'**
   String get musicVolume;
+
+  /// No description provided for @gameAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Game audio'**
+  String get gameAudio;
+
+  /// No description provided for @gameSoundEffects.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound effects and voice'**
+  String get gameSoundEffects;
 
   /// No description provided for @matchSynchronizing.
   ///

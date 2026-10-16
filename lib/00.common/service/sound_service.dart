@@ -5,7 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
 import 'json_store.dart';
-import 'audio_settings_store.dart';
+import 'audio_preferences.dart';
 
 /// 播放实现必须在 stop 后取消尚未开始的旧请求。
 abstract interface class SoundPlayer<T> {
@@ -150,18 +150,17 @@ class SoundController<T> {
   final String project;
   final bool persistSettings;
   final SoundPlayer<T> _player;
-  final JsonStore _store;
-  final enabled = ValueNotifier(true);
+  late final AudioPreferences? _preferences;
+  late final bool _ownsPreferences;
+  late final ValueNotifier<bool> enabled;
   final Map<T, DateTime> _lastPlayed = {};
   late final Future<void> _readyFuture;
   Future<void> get ready => _readyFuture;
-  Future<void> _writes = Future.value();
   Future<void>? _disposing;
   bool _ready = false;
   bool _active = true;
   bool _disposed = false;
   bool _loggedError = false;
-  int _settingsVersion = 0;
 
   SoundController({
     required this.events,
@@ -172,9 +171,18 @@ class SoundController<T> {
     this.resetSound,
     this.minimumInterval,
     JsonStore? store,
+    AudioPreferences? preferences,
   }) : _currentSound = currentSound,
-       _player = player,
-       _store = store ?? const AudioSettingsStore() {
+       _player = player {
+    _ownsPreferences = persistSettings && preferences == null && store != null;
+    _preferences = persistSettings
+        ? preferences ??
+              (store == null
+                  ? AudioPreferences.instance
+                  : AudioPreferences(store: store))
+        : null;
+    enabled = _preferences?.soundEnabled ?? ValueNotifier(true);
+    enabled.addListener(_onEnabled);
     events.addListener(_onSound);
     _readyFuture = _initialize();
   }
@@ -191,22 +199,16 @@ class SoundController<T> {
   }
 
   Future<void> _initialize() async {
-    final version = _settingsVersion;
-    await _guard(() async {
-      final settings = persistSettings
-          ? await _store.read('audio', project: project)
-          : <String, dynamic>{};
-      if (!_disposed &&
-          version == _settingsVersion &&
-          settings['enabled'] is bool) {
-        enabled.value = settings['enabled'] as bool;
-      }
-    });
+    await _preferences?.ready;
     if (_disposed) return;
     await _guard(() async {
       await _player.preload();
       if (!_disposed) _ready = true;
     });
+  }
+
+  void _onEnabled() {
+    if (!_disposed && _ready && !enabled.value) _silence();
   }
 
   void _onSound() {
@@ -245,16 +247,11 @@ class SoundController<T> {
 
   void setEnabled(bool value) {
     if (_disposed) return;
-    // 用户操作优先于仍在读取的旧设置。
-    _settingsVersion++;
-    enabled.value = value;
-    if (!value) _silence();
-    if (!persistSettings) return;
-    _writes = _writes.then(
-      (_) => _guard(
-        () => _store.write('audio', {'enabled': value}, project: project),
-      ),
-    );
+    if (_preferences case final preferences?) {
+      preferences.setSoundEnabled(value);
+    } else {
+      enabled.value = value;
+    }
   }
 
   Future<void> dispose() => _disposing ??= _dispose();
@@ -262,8 +259,13 @@ class SoundController<T> {
   Future<void> _dispose() async {
     _disposed = true;
     events.removeListener(_onSound);
-    enabled.dispose();
+    enabled.removeListener(_onEnabled);
+    if (_preferences == null) enabled.dispose();
     await _guard(_player.dispose);
-    await _writes;
+    if (_ownsPreferences) {
+      await _preferences?.dispose();
+    } else {
+      await _preferences?.flush();
+    }
   }
 }

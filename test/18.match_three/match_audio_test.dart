@@ -138,6 +138,7 @@ void main() {
       manager: manager,
       player: player,
       praisePlayer: _Voice(),
+      bonusPlayer: _Player(),
       store: store,
     );
     await audio.ready;
@@ -167,6 +168,7 @@ void main() {
       manager: manager,
       player: player,
       praisePlayer: _Voice(),
+      bonusPlayer: _Player(),
       store: _Store(),
     );
     await audio.ready;
@@ -197,6 +199,7 @@ void main() {
       manager: manager,
       player: player,
       praisePlayer: _Voice(),
+      bonusPlayer: _Player(),
       store: _Store(),
     );
     _emit(manager, MatchSound.swap);
@@ -217,6 +220,7 @@ void main() {
       manager: manager,
       player: player,
       praisePlayer: _Voice(),
+      bonusPlayer: _Player(),
       store: store,
     );
     audio.setEnabled(false);
@@ -237,6 +241,7 @@ void main() {
       manager: manager,
       player: player,
       praisePlayer: _Voice(),
+      bonusPlayer: _Player(),
       store: _Store(),
     );
     await audio.ready;
@@ -258,6 +263,7 @@ void main() {
       manager: manager,
       player: player,
       praisePlayer: _Voice(),
+      bonusPlayer: _Player(),
       store: _Store(),
     );
     await audio.ready;

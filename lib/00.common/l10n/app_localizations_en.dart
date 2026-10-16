@@ -23,7 +23,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
-  String get close => 'Room closed';
+  String get close => 'Close';
 
   @override
   String get ok => 'OK';
@@ -212,6 +212,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disconnected => 'Disconnected';
+
+  @override
+  String get roomClosed => 'Room closed';
 
   @override
   String get cannotReconnect => 'Cannot reconnect to server';
@@ -1235,22 +1238,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchNewRound => 'New round';
 
   @override
-  String get matchMuteSound => 'Mute sound effects';
-
-  @override
-  String get matchEnableSound => 'Enable sound effects';
-
-  @override
-  String get muteGameSound => 'Mute game sound effects';
-
-  @override
-  String get enableGameSound => 'Enable game sound effects';
-
-  @override
   String get backgroundMusic => 'Background music';
 
   @override
   String get musicVolume => 'Music volume';
+
+  @override
+  String get gameAudio => 'Game audio';
+
+  @override
+  String get gameSoundEffects => 'Sound effects and voice';
 
   @override
   String get matchSynchronizing => 'Synchronizing the shared board…';

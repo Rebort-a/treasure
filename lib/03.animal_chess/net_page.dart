@@ -72,7 +72,6 @@ class _AnimalChessGame extends StatelessWidget {
       title: Text(S.netAnimalChess),
       centerTitle: true,
       actions: [
-        const GameSoundButton(),
         if (step == GameStep.action)
           IconButton(
             tooltip: S.surrender,
