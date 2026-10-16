@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/image/sprite_sheet.dart';
 import '../00.common/l10n/strings.dart';
 import '../00.common/widget/button/cool_button.dart';
@@ -62,17 +64,21 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(S.towerDefense),
-        centerTitle: true,
-        actions: [_buildActions()],
-      ),
-      body: Column(
-        children: [
-          _buildHud(),
-          Expanded(child: RepaintBoundary(child: _buildGameArea())),
-        ],
+    return GameAudioScope(
+      source: _manager,
+      project: '14.tower_defense',
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(S.towerDefense),
+          centerTitle: true,
+          actions: [const GameSoundButton(), _buildActions()],
+        ),
+        body: Column(
+          children: [
+            _buildHud(),
+            Expanded(child: RepaintBoundary(child: _buildGameArea())),
+          ],
+        ),
       ),
     );
   }

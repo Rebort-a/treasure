@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/widget/canvas/grid_boundary.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
@@ -12,12 +14,16 @@ class ThreeTilesPage extends StatelessWidget {
   ThreeTilesPage({super.key});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: Scaffold(appBar: _appBar(), body: _body()),
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '10.three_tiles',
+    child: PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _manager.leavePage();
+      },
+      child: Scaffold(appBar: _appBar(), body: _body()),
+    ),
   );
 
   AppBar _appBar() => AppBar(
@@ -28,6 +34,7 @@ class ThreeTilesPage extends StatelessWidget {
       onPressed: _manager.leavePage,
     ),
     actions: [
+      const GameSoundButton(),
       IconButton(
         icon: const Icon(Icons.refresh),
         onPressed: _manager.restartGame,

@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import 'base.dart';
 import 'manager.dart';
 
@@ -12,7 +14,11 @@ class SoftPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: _buildBody(context));
+    return GameAudioScope(
+      source: _manager,
+      project: '12.soft',
+      child: Scaffold(body: _buildBody(context)),
+    );
   }
 
   Widget _buildBody(BuildContext context) {
@@ -38,6 +44,11 @@ class SoftPage extends StatelessWidget {
               focusNode: _manager.focusNode,
               onKeyEvent: _manager.handleKeyEvent,
               child: const SizedBox.expand(),
+            ),
+            const Positioned(
+              top: 24,
+              right: 16,
+              child: GameSoundButton(color: Colors.white),
             ),
           ],
         );

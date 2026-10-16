@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/game/gamer.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
@@ -25,7 +27,11 @@ class _LocalAnimalChessPageState extends State<LocalAnimalChessPage> {
   }
 
   @override
-  Widget build(BuildContext context) => _buildPage();
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '03.animal_chess',
+    child: _buildPage(),
+  );
 
   Widget _buildPage() => Scaffold(appBar: _buildAppBar(), body: _buildBody());
 
@@ -33,6 +39,7 @@ class _LocalAnimalChessPageState extends State<LocalAnimalChessPage> {
     title: Text(S.animalChess),
     centerTitle: true,
     actions: [
+      const GameSoundButton(),
       PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert),
         onSelected: (value) {

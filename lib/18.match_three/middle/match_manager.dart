@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../base/match_board.dart';
+import 'combo_praise.dart';
+import 'match_sound.dart';
 
 class MatchView {
   final BoardFrame frame;
@@ -36,14 +38,17 @@ class MatchManager {
   final busy = ValueNotifier(false);
   final comboMultiplier = ValueNotifier<int?>(null);
   final comboPraise = ValueNotifier<String?>(null);
+  final praiseVoice = ValueNotifier<ComboPraiseEvent?>(null);
   final bonusTime = ValueNotifier(false);
   final invalidSwap = ValueNotifier<(int, int)?>(null);
   final invalidSwapAnimating = ValueNotifier(false);
+  final sound = ValueNotifier<MatchSoundEvent?>(null);
   MatchBoard? _board;
   SwapResult? _publishedResult;
   int _animationEpoch = 0;
   int _invalidSwapEpoch = 0;
   bool _disposed = false;
+  bool _resultAnnounced = false;
   final Map<Timer, Completer<void>> _pendingDelays = {};
   Completer<void>? _conversionTransfer;
   BoardFrame? _conversionTransferFrame;
@@ -72,6 +77,8 @@ class MatchManager {
 
   void restart({int? seed}) {
     if (_disposed || !canRestart) return;
+    _emitSound(MatchSound.reset);
+    _resultAnnounced = false;
     _cancelDelays();
     _animationEpoch++;
     _invalidSwapEpoch++;
@@ -95,11 +102,14 @@ class MatchManager {
       swap(previous, index);
     } else {
       selected.value = index;
+      _emitSound(MatchSound.select);
     }
   }
 
   /// 联机新局丢弃旧棋盘与动画，由发布者重新生成并通过快照同步。
   void resetNetworkRound() {
+    _emitSound(MatchSound.reset);
+    _resultAnnounced = false;
     _cancelDelays();
     _animationEpoch++;
     _invalidSwapEpoch++;
@@ -140,6 +150,7 @@ class MatchManager {
       return;
     }
     final epoch = ++_invalidSwapEpoch;
+    _emitSound(MatchSound.invalid);
     invalidSwapAnimating.value = true;
     invalidSwap.value = (a, b);
     unawaited(() async {
@@ -211,6 +222,7 @@ class MatchManager {
     if (result != null) {
       _animate(result);
     } else {
+      _emitSound(MatchSound.reset);
       _animationEpoch++;
       busy.value = false;
       comboMultiplier.value = null;
@@ -225,6 +237,7 @@ class MatchManager {
   }
 
   void _startBoardEntrance() {
+    _resultAnnounced = false;
     final board = _board!;
     final epoch = ++_animationEpoch;
     _roundNumber++;
@@ -262,31 +275,97 @@ class MatchManager {
     if (!_disposed) view.value = MatchView(_board!, frame);
   }
 
+  void _emitSound(MatchSound cue) {
+    if (_disposed) return;
+    sound.value = MatchSoundEvent(cue);
+    if (cue == MatchSound.reset) {
+      praiseVoice.value = null;
+    }
+  }
+
+  /// 只在推进展示帧时发声，刷新视图和重复快照不会重播音效。
+  void _presentFrame(BoardFrame frame, {int cascade = 1}) {
+    final previous = view.value?.frame;
+    _show(frame);
+    switch (frame.phase) {
+      case FramePhase.swap:
+        _emitSound(MatchSound.swap);
+      case FramePhase.bonus:
+        _emitSound(MatchSound.bonus);
+      case FramePhase.clear:
+        final effects = {
+          for (final index in frame.clearing)
+            if (frame.pieces[index] != null) frame.pieces[index]!.effect,
+        };
+        _emitSound(
+          effects.contains(PieceEffect.rainbow)
+              ? MatchSound.rainbow
+              : effects.contains(PieceEffect.bomb)
+              ? MatchSound.bomb
+              : effects.contains(PieceEffect.row) ||
+                    effects.contains(PieceEffect.column)
+              ? MatchSound.line
+              : switch (cascade) {
+                  <= 1 => MatchSound.clear1,
+                  2 => MatchSound.clear2,
+                  3 => MatchSound.clear3,
+                  _ => MatchSound.clear4,
+                },
+        );
+        if (previous != null &&
+            List.generate(
+              frame.ice.length,
+              (index) => frame.ice[index] < previous.ice[index],
+            ).any((cracked) => cracked)) {
+          _emitSound(MatchSound.ice);
+        }
+      case FramePhase.fall:
+        if (frame.spawnedPieceIds.isNotEmpty) _emitSound(MatchSound.fall);
+      case FramePhase.transform:
+        if (frame.convertedPieceIds.isNotEmpty) {
+          _emitSound(MatchSound.transform);
+        }
+      case FramePhase.transfer:
+        _emitSound(MatchSound.transform);
+      case FramePhase.settled:
+        break;
+    }
+  }
+
+  void _announceResult() {
+    if (_disposed || _resultAnnounced || !roundSettled) return;
+    final status = view.value?.status;
+    if (status == MatchStatus.won || status == MatchStatus.lost) {
+      _resultAnnounced = true;
+      _emitSound(status == MatchStatus.won ? MatchSound.won : MatchSound.lost);
+    }
+  }
+
   void refreshView() {
     final current = view.value;
     if (current != null && !_disposed) _show(current.frame);
   }
 
-  String _praiseFor(SwapResult result) {
+  ComboPraise _praiseFor(SwapResult result) {
     if (result.cascades >= 6 || result.totalCleared >= 48) {
-      return 'Unbelievable';
+      return ComboPraise.unbelievable;
     }
     if (result.cascades >= 4 ||
         result.specialEffectsTriggered >= 4 ||
         result.totalCleared >= 32) {
-      return 'Amazing';
+      return ComboPraise.amazing;
     }
     if (result.cascades >= 3 ||
         result.specialEffectsTriggered >= 2 ||
         result.totalCleared >= 20) {
-      return 'Excellent';
+      return ComboPraise.excellent;
     }
     if (result.initialMatchCount >= 4 ||
         result.cascades >= 2 ||
         result.totalCleared >= 12) {
-      return 'Great';
+      return ComboPraise.great;
     }
-    return 'Good';
+    return ComboPraise.good;
   }
 
   Future<void> _delay(Duration duration) {
@@ -339,9 +418,10 @@ class MatchManager {
     }
   }
 
-  void _showPraiseBriefly(String praise, int epoch) {
+  void _showPraiseBriefly(ComboPraise praise, int epoch) {
     comboMultiplier.value = null;
-    comboPraise.value = praise;
+    comboPraise.value = praise.label;
+    praiseVoice.value = ComboPraiseEvent(praise);
     unawaited(() async {
       await _delay(const Duration(milliseconds: 1000));
       if (!_disposed && epoch == _animationEpoch) {
@@ -365,8 +445,12 @@ class MatchManager {
     if (reduceMotion && !hasBonusTime && !hasConversion) {
       busy.value = true;
       comboMultiplier.value = null;
+      // 减少动画时只播放一次操作与消除反馈，不补播被跳过的整段音效。
+      _emitSound(MatchSound.swap);
+      _emitSound(MatchSound.clear1);
       _show(result.frames.last);
       busy.value = false;
+      _announceResult();
       if (_board?.status == MatchStatus.playing) {
         _showPraiseBriefly(praise, epoch);
       }
@@ -383,7 +467,7 @@ class MatchManager {
           }
           if (_disposed || epoch != _animationEpoch) return;
           if (frame.phase == FramePhase.bonus) bonusTime.value = true;
-          _show(frame);
+          _presentFrame(frame);
           // 减少动画时跳过运动效果，但仍保留转换结果的静态展示与取消能力。
           await _delay(_conversionPause);
         }
@@ -392,6 +476,7 @@ class MatchManager {
         if (_disposed || epoch != _animationEpoch) return;
         bonusTime.value = false;
         busy.value = false;
+        _announceResult();
         if (!hasBonusTime && _board?.status == MatchStatus.playing) {
           _showPraiseBriefly(praise, epoch);
         }
@@ -418,7 +503,7 @@ class MatchManager {
         final transfer = frame.phase == FramePhase.transfer
             ? _waitConversionTransfer(frame)
             : null;
-        _show(frame);
+        _presentFrame(frame, cascade: cascade);
         if (transfer != null) {
           await transfer;
           continue;
@@ -445,6 +530,7 @@ class MatchManager {
         comboMultiplier.value = null;
         bonusTime.value = false;
         busy.value = false;
+        _announceResult();
       }
     }());
   }
@@ -459,8 +545,10 @@ class MatchManager {
     busy.dispose();
     comboMultiplier.dispose();
     comboPraise.dispose();
+    praiseVoice.dispose();
     bonusTime.dispose();
     invalidSwap.dispose();
     invalidSwapAnimating.dispose();
+    sound.dispose();
   }
 }

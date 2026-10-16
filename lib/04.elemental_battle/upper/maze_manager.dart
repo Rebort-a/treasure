@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../00.common/game/game_sound.dart';
+
 import '../../00.common/widget/banner/banner_template.dart';
 import '../../00.common/game/gamer.dart';
 import '../../00.common/widget/dialog/template_dialog.dart';
@@ -51,7 +53,7 @@ class CellNotifier extends ValueNotifier<CellData> {
   }
 }
 
-class MazeManager {
+class MazeManager with GameSoundEmitter {
   final int mapSize = 2 * mapLevel + 1; // 确定地图的宽和高
   final Random _random = Random(); // 初始化随机生成器
 
@@ -442,6 +444,7 @@ class MazeManager {
       switch (cell.id) {
         case EntityType.road:
           _setCellToPlayer(newY, newX, player.id);
+          emitSound(GameSound.move);
           break;
         case EntityType.wall:
           break;
@@ -480,6 +483,7 @@ class MazeManager {
           };
           break;
         case EntityType.hospital:
+          emitSound(GameSound.pickup);
           player.props[EntityType.hospital]?.count += 1;
           pageNavigator.value = (BuildContext context) {
             BannerTemplate.snackBarDialog(context, S.gotMedicine);
@@ -487,6 +491,7 @@ class MazeManager {
           _setCellToEntity(newY, newX, EntityType.road);
           break;
         case EntityType.sword:
+          emitSound(GameSound.pickup);
           player.props[EntityType.sword]?.count += 1;
           pageNavigator.value = (BuildContext context) {
             BannerTemplate.snackBarDialog(context, S.gotWeapon);
@@ -494,6 +499,7 @@ class MazeManager {
           _setCellToEntity(newY, newX, EntityType.road);
           break;
         case EntityType.shield:
+          emitSound(GameSound.pickup);
           player.props[EntityType.shield]?.count += 1;
           pageNavigator.value = (BuildContext context) {
             BannerTemplate.snackBarDialog(context, S.gotArmor);
@@ -501,6 +507,7 @@ class MazeManager {
           _setCellToEntity(newY, newX, EntityType.road);
           break;
         case EntityType.purse:
+          emitSound(GameSound.pickup);
           int money = 5 + _random.nextInt(25);
           player.money += money;
           pageNavigator.value = (BuildContext context) {

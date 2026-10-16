@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/network/client/net_turn_engine.dart';
 import '../00.common/game/step.dart';
 import '../00.common/model/notifiers.dart';
@@ -10,6 +12,10 @@ import '../00.common/network/client/socket_client.dart';
 import 'foundation_manager.dart';
 
 class NetManager extends FoundationalManager {
+  @override
+  GameSound get resultSound => board.lastWinner == turnEngine.playerType
+      ? GameSound.win
+      : GameSound.lose;
   late final NetTurnEngine turnEngine;
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
@@ -20,18 +26,19 @@ class NetManager extends FoundationalManager {
         resourceMode: TurnResourceMode.none,
         actionHandler: _onAction,
         exitHandler: _onExit,
-        restartHandler: board.restart,
+        restartHandler: restart,
       );
   }
 
   void _onAction(bool isSelf, NetworkMessage message) {
     final data = jsonDecode(message.content) as Map<String, dynamic>;
     int index = data['index'] as int;
-    board.placePiece(index);
+    applyBoardMove(index);
     if (board.gameOver) turnEngine.completeRound();
   }
 
   void resign() {
+    emitSound(GameSound.lose);
     turnEngine.completeRound();
   }
 
@@ -50,6 +57,7 @@ class NetManager extends FoundationalManager {
 
   void leavePage() => turnEngine.leavePage();
   void dispose() {
+    disposeAudioEvents();
     turnEngine.releaseGame();
     pageNavigator.dispose();
   }

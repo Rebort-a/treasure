@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
@@ -53,12 +55,16 @@ class _SchultePageState extends State<SchultePage>
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '16.schulte',
+    child: PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) _manager.leavePage();
+      },
+      child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+    ),
   );
 
   AppBar _buildAppBar() {
@@ -70,6 +76,7 @@ class _SchultePageState extends State<SchultePage>
       ),
       centerTitle: true,
       actions: [
+        const GameSoundButton(),
         IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _manager.resetGame,

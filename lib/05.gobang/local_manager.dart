@@ -1,11 +1,17 @@
 import 'package:flutter/foundation.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/game/gamer.dart';
 import 'foundation_manager.dart';
 import 'intelligence.dart';
 
 /// 本地对局管理器。AI 接入收归于此（middle 层），UI 层只做 toggle / 难度选择。
 class LocalManager extends FoundationalManager {
+  @override
+  GameSound get resultSound => _ai != null && board.lastWinner == _ai!.faction
+      ? GameSound.lose
+      : GameSound.win;
   AiController? _ai;
   AiDifficulty _difficulty = AiDifficulty.normal;
   bool _aiMoving = false;
@@ -29,7 +35,7 @@ class LocalManager extends FoundationalManager {
     if (board.gameOver) return;
     // 轮到 AI 或 AI 正在思考时，忽略人类点击
     if (_ai != null && (_isAiTurn || _aiMoving)) return;
-    board.placePiece(index);
+    applyBoardMove(index);
     _maybeAiMove();
   }
 
@@ -76,7 +82,7 @@ class LocalManager extends FoundationalManager {
         if (move != null &&
             !board.gameOver &&
             board.currentGamer.value == ai.faction) {
-          board.placePiece(move);
+          applyBoardMove(move);
         }
       } finally {
         // 仅当仍是同一控制器时重置状态，避免干扰新控制器
@@ -92,7 +98,7 @@ class LocalManager extends FoundationalManager {
   void restart() {
     final aiFaction = _ai?.faction;
     final wasAi = _ai != null;
-    board.restart();
+    super.restart();
     if (wasAi && aiFaction != null) {
       _ai?.dispose();
       _ai = AiController(
@@ -111,6 +117,7 @@ class LocalManager extends FoundationalManager {
   }
 
   void dispose() {
+    disposeAudioEvents();
     _ai?.dispose();
     _ai = null;
     _aiMoving = false;

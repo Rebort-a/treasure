@@ -3,6 +3,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../00.common/widget/component/game_audio_scope.dart';
+
 import '../base/constant.dart';
 import '../middle/control_manager.dart';
 import '../middle/manager.dart';
@@ -59,31 +61,40 @@ class _MinecraftPageState extends State<MinecraftPage> {
           TargetPlatform.iOS,
         }.contains(defaultTargetPlatform);
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // 场景渲染
-          _buildScene(),
+    return GameAudioScope(
+      source: manager,
+      project: '13.minecraft',
+      child: Scaffold(
+        body: Stack(
+          children: [
+            // 场景渲染
+            _buildScene(),
 
-          // 破坏进度指示器
-          if (manager.destroyProgress > 0)
-            Center(
-              child: DestroyProgressIndicator(
-                progress: manager.destroyProgress,
+            // 破坏进度指示器
+            if (manager.destroyProgress > 0)
+              Center(
+                child: DestroyProgressIndicator(
+                  progress: manager.destroyProgress,
+                ),
               ),
+
+            // 十字准星
+            const IgnorePointer(child: Crosshair()),
+
+            // 输入控制（按平台区分）
+            if (isDesktop) _buildDesktopControl(cm),
+            if (isMobile) _buildMobileGesture(cm),
+            if (isMobile) _buildMobileControl(cm),
+
+            // 背包栏（竖屏靠上，横屏靠下）
+            _buildHotbar(),
+            const Positioned(
+              top: 24,
+              right: 16,
+              child: GameSoundButton(color: Colors.white),
             ),
-
-          // 十字准星
-          const IgnorePointer(child: Crosshair()),
-
-          // 输入控制（按平台区分）
-          if (isDesktop) _buildDesktopControl(cm),
-          if (isMobile) _buildMobileGesture(cm),
-          if (isMobile) _buildMobileControl(cm),
-
-          // 背包栏（竖屏靠上，横屏靠下）
-          _buildHotbar(),
-        ],
+          ],
+        ),
       ),
     );
   }

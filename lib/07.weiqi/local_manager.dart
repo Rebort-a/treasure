@@ -28,7 +28,7 @@ class GoLocalManager extends GoFoundationalManager {
     if (board.gameOver) return;
     // 轮到 AI 或 AI 正在思考时，忽略人类点击
     if (_ai != null && (_isAiTurn || _aiMoving)) return;
-    board.placeStone(index);
+    applyBoardMove(index);
     _maybeAiMove();
   }
 
@@ -79,7 +79,7 @@ class GoLocalManager extends GoFoundationalManager {
         if (move != null &&
             !board.gameOver &&
             board.currentPlayer.value == ai.faction) {
-          board.placeStone(move);
+          applyBoardMove(move);
         }
       } finally {
         // 仅当仍是同一控制器时重置状态，避免干扰新控制器
@@ -95,7 +95,7 @@ class GoLocalManager extends GoFoundationalManager {
   void restart() {
     final aiFaction = _ai?.faction;
     final wasAi = _ai != null;
-    board.restart();
+    super.restart();
     if (wasAi && aiFaction != null) {
       _ai?.dispose();
       _ai = GoAiController(
@@ -114,6 +114,7 @@ class GoLocalManager extends GoFoundationalManager {
   }
 
   void dispose() {
+    disposeAudioEvents();
     _ai?.dispose();
     _ai = null;
     _aiMoving = false;

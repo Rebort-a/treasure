@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/network/client/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
 import '../00.common/game/step.dart';
@@ -55,10 +57,16 @@ class NetManager extends FoundationalManager {
 
   void _onExit() {}
 
-  void surrender() => turnEngine.completeRound();
+  void surrender() {
+    emitSound(GameSound.lose);
+    turnEngine.completeRound();
+  }
 
   @override
-  void handleGameOver(TurnGamerType winner) => turnEngine.completeRound();
+  void handleGameOver(TurnGamerType winner) {
+    emitSound(winner == turnEngine.playerType ? GameSound.win : GameSound.lose);
+    turnEngine.completeRound();
+  }
 
   String _mapToString() {
     List<List<int>> animalDistribution = displayMap.value
@@ -121,6 +129,7 @@ class NetManager extends FoundationalManager {
 
   void leavePage() => turnEngine.leavePage();
   void dispose() {
+    disposeAudioEvents();
     turnEngine.releaseGame();
     pageNavigator.dispose();
   }

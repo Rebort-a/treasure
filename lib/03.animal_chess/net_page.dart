@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/network/client/socket_client.dart';
 import '../00.common/network/widget/online_game_host.dart';
 import '../00.common/network/widget/round_replay_board.dart';
@@ -41,7 +43,11 @@ class _AnimalChessGame extends StatelessWidget {
        _onExit = onExit;
 
   @override
-  Widget build(BuildContext context) => _buildPage(context);
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '03.animal_chess',
+    child: _buildPage(context),
+  );
 
   Widget _buildPage(BuildContext context) {
     return Center(
@@ -66,6 +72,7 @@ class _AnimalChessGame extends StatelessWidget {
       title: Text(S.netAnimalChess),
       centerTitle: true,
       actions: [
+        const GameSoundButton(),
         if (step == GameStep.action)
           IconButton(
             tooltip: S.surrender,

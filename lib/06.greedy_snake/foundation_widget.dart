@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/widget/input/joystick.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/widget/button/circle_button.dart';
@@ -50,57 +52,69 @@ class GameScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        NotifierNavigator(navigatorHandler: manager.pageNavigator),
+    return GameAudioScope(
+      source: manager,
+      project: '06.greedy_snake',
+      child: Stack(
+        children: [
+          NotifierNavigator(navigatorHandler: manager.pageNavigator),
 
-        AnimatedBuilder(
-          animation: manager,
-          builder: (context, _) {
-            return DrawRegion(
-              identity: manager.identity,
-              backgroundColor: Colors.black87,
-              snakes: manager.snakes,
-              foods: manager.foodGrid.getGridEntries(),
-            );
-          },
-        ),
-        Positioned(
-          top: 40,
-          left: 20,
-          child: _buildIconButton(
-            icon: Icons.arrow_back,
-            onPressed: manager.leavePage,
-          ),
-        ),
-        if (showStateButton)
-          ValueListenableBuilder(
-            valueListenable: manager.gameState,
-            builder: (context, state, child) {
-              return Positioned(
-                top: 40,
-                right: 20,
-                child: _buildIconButton(
-                  icon: state ? Icons.pause : Icons.play_arrow,
-                  onPressed: () => manager.toggleState(),
-                ),
+          AnimatedBuilder(
+            animation: manager,
+            builder: (context, _) {
+              return DrawRegion(
+                identity: manager.identity,
+                backgroundColor: Colors.black87,
+                snakes: manager.snakes,
+                foods: manager.foodGrid.getGridEntries(),
               );
             },
           ),
-        Positioned(
-          left: 20,
-          bottom: 40,
-          child: Joystick(onDrag: manager.updatePlayerAngle, onRelease: () {}),
-        ),
-        Positioned(
-          right: 20,
-          bottom: 40,
-          child: CircleButton(
-            onToggle: manager.updatePlayerSpeed,
-            icon: Icons.flash_on,
+          Positioned(
+            top: 40,
+            left: 20,
+            child: _buildIconButton(
+              icon: Icons.arrow_back,
+              onPressed: manager.leavePage,
+            ),
           ),
-        ),
-      ],
+          const Positioned(
+            top: 40,
+            right: 80,
+            child: GameSoundButton(color: Colors.white),
+          ),
+          if (showStateButton)
+            ValueListenableBuilder(
+              valueListenable: manager.gameState,
+              builder: (context, state, child) {
+                return Positioned(
+                  top: 40,
+                  right: 20,
+                  child: _buildIconButton(
+                    icon: state ? Icons.pause : Icons.play_arrow,
+                    onPressed: () => manager.toggleState(),
+                  ),
+                );
+              },
+            ),
+          Positioned(
+            left: 20,
+            bottom: 40,
+            child: Joystick(
+              onDrag: manager.updatePlayerAngle,
+              onRelease: () {},
+            ),
+          ),
+          Positioned(
+            right: 20,
+            bottom: 40,
+            child: CircleButton(
+              onToggle: manager.updatePlayerSpeed,
+              icon: Icons.flash_on,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

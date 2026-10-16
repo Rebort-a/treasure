@@ -2342,6 +2342,42 @@ abstract class AppLocalizations {
   /// **'New round'**
   String get matchNewRound;
 
+  /// No description provided for @matchMuteSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute sound effects'**
+  String get matchMuteSound;
+
+  /// No description provided for @matchEnableSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable sound effects'**
+  String get matchEnableSound;
+
+  /// No description provided for @muteGameSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute game sound effects'**
+  String get muteGameSound;
+
+  /// No description provided for @enableGameSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable game sound effects'**
+  String get enableGameSound;
+
+  /// No description provided for @backgroundMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'Background music'**
+  String get backgroundMusic;
+
+  /// No description provided for @musicVolume.
+  ///
+  /// In en, this message translates to:
+  /// **'Music volume'**
+  String get musicVolume;
+
   /// No description provided for @matchSynchronizing.
   ///
   /// In en, this message translates to:

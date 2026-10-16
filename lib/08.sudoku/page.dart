@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/style/theme.dart';
 import '../00.common/widget/canvas/parchment_texture.dart';
@@ -15,12 +17,16 @@ class SudokuPage extends StatelessWidget {
   SudokuPage({super.key});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: _buildPage(),
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '08.sudoku',
+    child: PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) _manager.leavePage();
+      },
+      child: _buildPage(),
+    ),
   );
 
   Widget _buildPage() {
@@ -64,6 +70,7 @@ class SudokuPage extends StatelessWidget {
       ),
       centerTitle: true,
       actions: [
+        const GameSoundButton(),
         _buildAppBarAction(
           icon: isNightMode ? Icons.sunny : Icons.nights_stay,
           onPressed: () => _manager.setNightTheme(!isNightMode),

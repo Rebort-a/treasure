@@ -1235,6 +1235,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchNewRound => 'New round';
 
   @override
+  String get matchMuteSound => 'Mute sound effects';
+
+  @override
+  String get matchEnableSound => 'Enable sound effects';
+
+  @override
+  String get muteGameSound => 'Mute game sound effects';
+
+  @override
+  String get enableGameSound => 'Enable game sound effects';
+
+  @override
+  String get backgroundMusic => 'Background music';
+
+  @override
+  String get musicVolume => 'Music volume';
+
+  @override
   String get matchSynchronizing => 'Synchronizing the shared board…';
 
   @override

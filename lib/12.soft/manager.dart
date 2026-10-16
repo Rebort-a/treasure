@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import 'base.dart';
 
 /// 常量类，规定坐标系与边界规则
@@ -125,7 +127,7 @@ class Constant {
   }
 }
 
-class Manager with ChangeNotifier implements TickerProvider {
+class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   late Ticker _ticker;
   double _lastElapsed = 0; // 上次更新时间
   final FocusNode focusNode = FocusNode();
@@ -185,6 +187,8 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 立即重置
   void resetImmediate() {
+    emitSound(GameSound.reset);
+    emitSound(GameSound.move);
     _externalForce = Vector3.zero();
     _lastScale = 1.0;
     _soft = SoftTube(center: Constant.focus);
@@ -193,6 +197,21 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 处理键盘事件
   void handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        {
+          LogicalKeyboardKey.arrowUp,
+          LogicalKeyboardKey.arrowDown,
+          LogicalKeyboardKey.arrowLeft,
+          LogicalKeyboardKey.arrowRight,
+          LogicalKeyboardKey.keyW,
+          LogicalKeyboardKey.keyA,
+          LogicalKeyboardKey.keyS,
+          LogicalKeyboardKey.keyD,
+          LogicalKeyboardKey.keyO,
+          LogicalKeyboardKey.keyI,
+        }.contains(event.logicalKey)) {
+      emitSound(GameSound.move);
+    }
     const double keyForceStep = 0.1;
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
       switch (event.logicalKey) {
@@ -230,6 +249,10 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   /// 处理手势事件
   void handleDrag(ScaleUpdateDetails details) {
+    if (details.focalPointDelta.distanceSquared > 0 ||
+        details.scale != _lastScale) {
+      emitSound(GameSound.move);
+    }
     const double dragSensitivity = 0.01;
     const double scaleSensitivity = 0.8;
 
@@ -251,6 +274,7 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   @override
   void dispose() {
+    disposeAudioEvents();
     _ticker.dispose();
     focusNode.dispose();
     super.dispose();

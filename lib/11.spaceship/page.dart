@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/widget/button/cool_button.dart';
 import '../00.common/widget/container/glass_container.dart';
 import '../00.common/widget/navigator/notifier_navigator.dart';
@@ -17,7 +19,16 @@ class SpaceShipPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: _buildGameView(context));
+    return GameAudioScope(
+      source: _manager,
+      project: '11.spaceship',
+      musicAsset: 'audio/music/spaceship.wav',
+      musicState: _manager.state,
+      isMusicPlaying: () =>
+          _manager.state.value == GameState.playing ||
+          _manager.state.value == GameState.levelUp,
+      child: Scaffold(body: _buildGameView(context)),
+    );
   }
 
   Widget _buildGameView(BuildContext context) {
@@ -60,6 +71,17 @@ class SpaceShipPage extends StatelessWidget {
 
                 // 暂停/继续按钮
                 _buildControlButton(context),
+                const Positioned(
+                  top: 32,
+                  right: 70,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GameMusicButton(color: Colors.white),
+                      GameSoundButton(color: Colors.white),
+                    ],
+                  ),
+                ),
               ],
             );
           },

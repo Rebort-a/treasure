@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/model/notifiers.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
-class GuessManager {
+class GuessManager with GameSoundEmitter {
   late final TimerCounter _timer; // 计时器
 
   int _difficulty = 6;
@@ -31,6 +33,7 @@ class GuessManager {
   }
 
   void _initGame() {
+    emitSound(GameSound.reset);
     correctItems.value = (List<String>.from(
       guessItem,
     )..shuffle()).take(_difficulty).toList();
@@ -74,6 +77,7 @@ class GuessManager {
       selectedItem.value = -1;
     } else if (selectedItem.value == -1) {
       selectedItem.value = index;
+      emitSound(GameSound.tap);
     } else {
       _swapItems(selectedItem.value, index);
     }
@@ -84,6 +88,7 @@ class GuessManager {
     guessItems[i] = guessItems[j];
     guessItems[j] = temp;
     selectedItem.value = -1;
+    emitSound(GameSound.move);
     if (_correctCount == _difficulty) {
       _handleGameOver();
     } else {
@@ -92,6 +97,7 @@ class GuessManager {
   }
 
   void _handleGameOver() {
+    if (!_isGameOver) emitSound(GameSound.win);
     _timer.stop();
     _isGameOver = true;
     displayInfo.value = _displayText;

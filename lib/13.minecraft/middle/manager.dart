@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../00.common/game/game_sound.dart';
+
 import '../base/block.dart';
 import '../base/aabb.dart';
 import '../base/constant.dart';
@@ -15,7 +17,7 @@ import 'raycast.dart';
 import 'redstone_manager.dart';
 
 /// 游戏管理器
-class Manager with ChangeNotifier implements TickerProvider {
+class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   late final Ticker _ticker;
   late double _lastTime;
   late double _deltaTime;
@@ -194,6 +196,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     if (type == BlockType.bedrock) return false;
     if (!_canAddInventory(type)) return false;
     if (_chunkManager.destroyBlock(pos)) {
+      emitSound(GameSound.pickup);
       addInventory(type);
       _redstoneManager.onBlockDestroyed(_chunkManager, pos, type);
       targetedBlock = null;
@@ -211,6 +214,7 @@ class Manager with ChangeNotifier implements TickerProvider {
 
     // 点击拉杆 → 切换开关
     if (target.block.type == BlockType.lever) {
+      emitSound(GameSound.tap);
       _redstoneManager.toggleLever(_chunkManager, target.block.position);
       _sceneRevision++;
       _needsUpdate = true;
@@ -232,6 +236,7 @@ class Manager with ChangeNotifier implements TickerProvider {
     if (placedBounds.intersects(_player.collider.aabb)) return false;
 
     if (_chunkManager.placeBlock(placePos, selectedType)) {
+      emitSound(GameSound.move);
       removeInventory(selectedType);
       _redstoneManager.onBlockPlaced(_chunkManager, placePos, selectedType);
       _sceneRevision++;
@@ -294,6 +299,7 @@ class Manager with ChangeNotifier implements TickerProvider {
 
   @override
   void dispose() {
+    disposeAudioEvents();
     _ticker.dispose();
     _controlManager.dispose();
     super.dispose();

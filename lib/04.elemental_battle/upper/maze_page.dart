@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../00.common/widget/component/game_audio_scope.dart';
+
 import '../../00.common/widget/navigator/notifier_navigator.dart';
 import '../../00.common/widget/button/scale_button.dart';
 import '../../00.common/image/image_manager.dart';
@@ -17,10 +19,15 @@ class MazePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: _buildAppBar(), body: _buildBody());
+    return GameAudioScope(
+      source: _manager,
+      project: '04.elemental_battle',
+      child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+    );
   }
 
   AppBar _buildAppBar() => AppBar(
+    actions: const [GameSoundButton()],
     toolbarHeight: 32.0,
     title: ValueListenableBuilder<int>(
       valueListenable: _manager.floorNum,

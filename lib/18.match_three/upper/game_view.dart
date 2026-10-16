@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../00.common/l10n/strings.dart';
@@ -6,6 +8,7 @@ import '../../00.common/network/widget/round_replay_board.dart';
 import '../../00.common/widget/component/game_replay_board.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
+import '../middle/match_audio.dart';
 import '../middle/net_manager.dart';
 import 'animal_piece.dart';
 import 'match_board_widget.dart';
@@ -13,7 +16,7 @@ import 'match_celebration.dart';
 import 'team_chat_sheet.dart';
 
 /// 本地与联机共用游戏界面，页面不负责创建/销毁 Manager 或连接。
-class MatchGameView extends StatelessWidget {
+class MatchGameView extends StatefulWidget {
   final MatchManager manager;
   final VoidCallback onExit;
   final NetMultiTurnEngine? engine;
@@ -23,6 +26,85 @@ class MatchGameView extends StatelessWidget {
     required this.manager,
     required this.onExit,
     this.engine,
+  });
+
+  @override
+  State<MatchGameView> createState() => _MatchGameViewState();
+}
+
+class _MatchGameViewState extends State<MatchGameView>
+    with WidgetsBindingObserver {
+  late MatchAudioController _audio;
+  bool _routeCurrent = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _createAudio();
+  }
+
+  void _createAudio() {
+    _audio = MatchAudioController(manager: widget.manager);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _audio.setActive(
+      _routeCurrent &&
+          (lifecycle == null || lifecycle == AppLifecycleState.resumed),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _routeCurrent = TickerMode.valuesOf(context).enabled;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _audio.setActive(
+      _routeCurrent &&
+          (lifecycle == null || lifecycle == AppLifecycleState.resumed),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _audio.setActive(_routeCurrent && state == AppLifecycleState.resumed);
+  }
+
+  @override
+  void didUpdateWidget(MatchGameView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.manager != widget.manager) {
+      unawaited(_audio.dispose());
+      _createAudio();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _MatchGameContent(
+    manager: widget.manager,
+    onExit: widget.onExit,
+    engine: widget.engine,
+    audio: _audio,
+  );
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_audio.dispose());
+    super.dispose();
+  }
+}
+
+class _MatchGameContent extends StatelessWidget {
+  final MatchManager manager;
+  final VoidCallback onExit;
+  final NetMultiTurnEngine? engine;
+  final MatchAudioController audio;
+
+  const _MatchGameContent({
+    required this.manager,
+    required this.onExit,
+    required this.engine,
+    required this.audio,
   });
 
   @override
@@ -36,6 +118,16 @@ class MatchGameView extends StatelessWidget {
         ),
         title: Text(S.matchThree),
         actions: [
+          ValueListenableBuilder<bool>(
+            valueListenable: audio.enabled,
+            builder: (context, enabled, _) => IconButton(
+              tooltip: enabled ? S.matchMuteSound : S.matchEnableSound,
+              icon: Icon(
+                enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              ),
+              onPressed: () => audio.setEnabled(!enabled),
+            ),
+          ),
           if (engine != null)
             IconButton(
               tooltip: S.matchTeamChat,

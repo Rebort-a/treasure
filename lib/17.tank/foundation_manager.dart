@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/game/map.dart';
 import '../00.common/model/notifiers.dart';
 import 'base.dart';
@@ -15,6 +17,7 @@ import 'base.dart';
 ///   通过 action 消息广播给其他端应用，避免各端重复扣血或 AI 发散。
 /// - local：自己是权威；net：host 为权威，client 非权威。
 abstract class TankGameManager extends ChangeNotifier
+    with GameSoundEmitter
     implements TickerProvider {
   final Random _random = Random();
 
@@ -364,6 +367,7 @@ abstract class TankGameManager extends ChangeNotifier
       return false;
     }
     tank.health -= damage;
+    emitSound(GameSound.hit);
     if (tank.health <= 0) {
       tank.isAlive = false;
       _addExplosion(tank.position, tank.size);
@@ -432,6 +436,7 @@ abstract class TankGameManager extends ChangeNotifier
   // ---- 爆炸 ----
 
   void _addExplosion(Offset position, [double size = 32]) {
+    emitSound(GameSound.explosion);
     explosions.add(Explosion(position: position, size: size));
   }
 
@@ -510,6 +515,7 @@ abstract class TankGameManager extends ChangeNotifier
   void applyFire(int key, Bullet bullet) {
     final tank = tanks[key];
     if (tank == null || !tank.isAlive) return;
+    if (key == identity) emitSound(GameSound.shoot);
     tank.reloadTimer = tank.fireInterval;
     bullets.add(bullet);
   }
@@ -804,11 +810,16 @@ abstract class TankGameManager extends ChangeNotifier
   }
 
   void applyConfirmedPickup(int playerKey, PowerUpType type, Offset position) {
+    final present = powerups.any(
+      (item) =>
+          (item.position - position).distance < TankGameConfig.tileSize / 2,
+    );
     powerups.removeWhere(
       (item) =>
           (item.position - position).distance < TankGameConfig.tileSize / 2,
     );
     applyPowerUp(playerKey, type);
+    if (present && playerKey == identity) emitSound(GameSound.pickup);
   }
 
   void applyPowerUp(int playerKey, PowerUpType type) {
@@ -864,6 +875,7 @@ abstract class TankGameManager extends ChangeNotifier
 
   /// 重置全部状态（不含玩家重建与恢复运行）
   void resetState() {
+    emitSound(GameSound.reset);
     // NetTankManager 的 authority 身份由当前玩家坦克推导，必须在清空 tanks
     // 之前保存；否则联机 Host 重开时会被误判为非权威端。
     final shouldGenerateMap = isAuthority;
@@ -896,6 +908,7 @@ abstract class TankGameManager extends ChangeNotifier
   }
 
   void _handleGameOver(bool victory, int finalScore) {
+    emitSound(victory ? GameSound.win : GameSound.lose);
     _gameOver = true;
     suspendGame();
     gameResult.value = TankGameResult(victory: victory, score: finalScore);
@@ -996,6 +1009,7 @@ abstract class TankGameManager extends ChangeNotifier
 
   @override
   void dispose() {
+    disposeAudioEvents();
     _ticker.dispose();
     isRunning.dispose();
     gameResult.dispose();

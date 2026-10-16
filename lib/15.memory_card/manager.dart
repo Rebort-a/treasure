@@ -2,13 +2,15 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
-class MemoryManager {
+class MemoryManager with GameSoundEmitter {
   late final TimerCounter _timer;
 
   int _difficulty = 6; // 牌对数
@@ -37,6 +39,7 @@ class MemoryManager {
 
   /// 初始化棋盘：取 _difficulty 种图案各 2 张洗牌填入；计时归零但不启动（首翻启动）
   void _initGame() {
+    emitSound(GameSound.reset);
     _timer.stop();
     _timer.setTick(0);
     elapsed.value = 0;
@@ -84,6 +87,7 @@ class MemoryManager {
 
     // 翻开这张牌（触发翻面动画 0→1）
     card.changeState(CardState.revealed);
+    emitSound(GameSound.flip);
     if (!_timer.isRunning) _timer.start(); // 首次翻牌启动计时
 
     // 第一步：无展示牌时，此牌停留作参考
@@ -128,10 +132,12 @@ class MemoryManager {
       cardA.changeState(CardState.matched);
       cardB.changeState(CardState.matched);
       matchedCount.value++;
+      emitSound(GameSound.success);
       displayInfo.value = _displayText;
       if (matchedCount.value == _difficulty) _handleGameOver();
     } else {
       // 匹配失败：翻回背面
+      emitSound(GameSound.error);
       cardA.changeState(CardState.hidden);
       cardB.changeState(CardState.hidden);
     }
@@ -140,6 +146,7 @@ class MemoryManager {
   }
 
   void _handleGameOver() {
+    emitSound(GameSound.win);
     _timer.stop();
     gameOver.value = true;
     displayInfo.value = _displayText;

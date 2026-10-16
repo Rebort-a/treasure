@@ -3,11 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/model/notifiers.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 abstract class FoundationalManager extends ChangeNotifier
+    with GameSoundEmitter
     implements TickerProvider {
   static const int initialLength = 100;
   static const double simulationStep = 1 / 120;
@@ -211,6 +214,7 @@ abstract class FoundationalManager extends ChangeNotifier
         snake.style.headSize,
       );
       if (position != null) {
+        if (identical(snake, snakes[identity])) emitSound(GameSound.pickup);
         foodGrid.remove(position);
         snake.updateLength(SpatialGrid.cellSize ~/ 2);
       }
@@ -225,6 +229,7 @@ abstract class FoundationalManager extends ChangeNotifier
   void updatePlayerSpeed(bool isFaster);
 
   void _handleGameOver(int length) {
+    emitSound(GameSound.lose);
     suspendGame();
     handleGameOverCallback();
     if (!showGameOverDialog) {
@@ -265,6 +270,7 @@ abstract class FoundationalManager extends ChangeNotifier
 
   @override
   void dispose() {
+    disposeAudioEvents();
     _ticker.dispose();
     gameState.dispose();
     pageNavigator.dispose();

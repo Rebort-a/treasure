@@ -1225,6 +1225,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchNewRound => '新局';
 
   @override
+  String get matchMuteSound => '关闭音效';
+
+  @override
+  String get matchEnableSound => '开启音效';
+
+  @override
+  String get muteGameSound => '关闭游戏音效';
+
+  @override
+  String get enableGameSound => '开启游戏音效';
+
+  @override
+  String get backgroundMusic => '背景音乐';
+
+  @override
+  String get musicVolume => '音乐音量';
+
+  @override
   String get matchSynchronizing => '正在同步共同棋盘…';
 
   @override

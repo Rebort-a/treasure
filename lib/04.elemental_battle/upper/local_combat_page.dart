@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../00.common/widget/component/game_audio_scope.dart';
+
 import '../../00.common/game/gamer.dart';
 import '../../00.common/widget/navigator/notifier_navigator.dart';
 import 'foundation_combat_widget.dart';
@@ -24,7 +26,11 @@ class LocalCombatPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(canPop: false, child: Scaffold(body: _buildBody()));
+    return GameAudioScope(
+      source: _manager,
+      project: '04.elemental_battle',
+      child: PopScope(canPop: false, child: Scaffold(body: _buildBody())),
+    );
   }
 
   Widget _buildBody() {

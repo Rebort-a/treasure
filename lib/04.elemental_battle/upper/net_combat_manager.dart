@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../00.common/game/game_sound.dart';
 import '../../00.common/network/client/net_turn_engine.dart';
 import '../../00.common/game/step.dart';
 import '../../00.common/game/gamer.dart';
@@ -200,6 +201,8 @@ class NetCombatManager extends FoundationalCombatManager {
     } else {
       combatResult =
           FoundationalCombatManager.stepResultMapping[result]![isSelf]!;
+      if (combatResult == ResultType.victory) emitSound(GameSound.win);
+      if (combatResult == ResultType.defeat) emitSound(GameSound.lose);
       turnEngine.completeRound();
     }
   }
@@ -210,6 +213,7 @@ class NetCombatManager extends FoundationalCombatManager {
   }
 
   void dispose() {
+    disposeAudioEvents();
     turnEngine.releaseGame();
     pageNavigator.dispose();
   }

@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/widget/component/game_replay_board.dart';
 
 import '../00.common/widget/navigator/notifier_navigator.dart';
@@ -15,12 +17,16 @@ class MemoryPage extends StatelessWidget {
   MemoryPage({super.key});
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (bool didPop, Object? result) {
-      if (!didPop) _manager.leavePage();
-    },
-    child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '15.memory_card',
+    child: PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) _manager.leavePage();
+      },
+      child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
+    ),
   );
 
   AppBar _buildAppBar() {
@@ -32,6 +38,7 @@ class MemoryPage extends StatelessWidget {
       ),
       centerTitle: true,
       actions: [
+        const GameSoundButton(),
         IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _manager.resetGame,

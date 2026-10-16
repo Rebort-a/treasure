@@ -25,6 +25,7 @@ dependencies:
   file_picker: ^12.1.2
   path_provider: ^2.1.5
   package_info_plus: ^10.2.1
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -35,4 +36,8 @@ flutter:
   generate: true
   assets:
     - assets/images/
+    - assets/audio/match_three/
+    - assets/audio/common/
+    - assets/audio/music/
+    - assets/audio/match_praise/
   uses-material-design: true

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/game/game_sound.dart';
+
 import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
-class SchulteManager {
+class SchulteManager with GameSoundEmitter {
   static const int cols = 10;
   static const int rows = 10;
 
@@ -39,6 +41,7 @@ class SchulteManager {
 
   /// 初始化：生成不规则区域 + 填 1~N 打乱；计时归零不启动（首次正确点击启动）
   void _initGame() {
+    emitSound(GameSound.reset);
     _timer.stop();
     _timer.setTick(0);
     elapsed.value = 0;
@@ -56,6 +59,7 @@ class SchulteManager {
 
   /// 释放资源（page dispose 时调用）
   void dispose() {
+    disposeAudioEvents();
     _timer.dispose();
     board.dispose();
     nextNumber.dispose();
@@ -88,6 +92,7 @@ class SchulteManager {
     final r = board.value.regions[id];
 
     if (r.number == nextNumber.value) {
+      emitSound(GameSound.success);
       // 正确：首次启动计时，棋盘样式保持不变（不标记/不清理）
       if (!_timer.isRunning) _timer.start();
       nextNumber.value++;
@@ -96,11 +101,13 @@ class SchulteManager {
       if (nextNumber.value > _regionCount) _handleGameOver();
     } else {
       // 错误：触发红色反馈，棋盘样式不变
+      emitSound(GameSound.error);
       tapFeedback.value = SchulteTapFeedback(regionId: id, isCorrect: false);
     }
   }
 
   void _handleGameOver() {
+    emitSound(GameSound.win);
     _timer.stop();
     _isGameOver = true;
     displayInfo.value = _displayText;

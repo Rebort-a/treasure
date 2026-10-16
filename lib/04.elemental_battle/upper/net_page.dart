@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../00.common/widget/component/game_audio_scope.dart';
+
 import '../../00.common/network/client/socket_client.dart';
 import '../../00.common/network/widget/online_game_host.dart';
 import '../../00.common/network/widget/round_replay_board.dart';
@@ -37,7 +39,11 @@ class _CombatGame extends StatelessWidget {
        _onExit = onExit;
 
   @override
-  Widget build(BuildContext context) => _buildPage(context);
+  Widget build(BuildContext context) => GameAudioScope(
+    source: _manager,
+    project: '04.elemental_battle',
+    child: _buildPage(context),
+  );
 
   Widget _buildPage(BuildContext context) {
     return ValueListenableBuilder<GameStep>(
@@ -61,6 +67,7 @@ class _CombatGame extends StatelessWidget {
           onPressed: _onExit,
         ),
         actions: [
+          const GameSoundButton(),
           IconButton(
             tooltip: S.surrender,
             icon: const Icon(Icons.flag),

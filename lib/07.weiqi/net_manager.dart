@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../00.common/game/game_sound.dart';
+
 import 'package:flutter/material.dart';
 
 import '../00.common/network/client/net_turn_engine.dart';
@@ -26,14 +28,14 @@ class GoNetManager extends GoFoundationalManager {
         resourceMode: TurnResourceMode.none,
         actionHandler: _onAction,
         exitHandler: _onExit,
-        restartHandler: board.restart,
+        restartHandler: restart,
       );
   }
 
   void _onAction(bool isSelf, NetworkMessage message) {
     final data = jsonDecode(message.content) as Map<String, dynamic>;
     if (data['type'] == 'place') {
-      board.placeStone(data['index'] as int);
+      applyBoardMove(data['index'] as int);
     }
     if (board.gameOver) turnEngine.completeRound();
   }
@@ -54,11 +56,13 @@ class GoNetManager extends GoFoundationalManager {
 
   @override
   void resign() {
+    emitSound(GameSound.lose);
     turnEngine.completeRound();
   }
 
   void leavePage() => turnEngine.leavePage();
   void dispose() {
+    disposeAudioEvents();
     turnEngine.releaseGame();
     pageNavigator.dispose();
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../00.common/widget/component/game_audio_scope.dart';
+
 import '../00.common/l10n/strings.dart';
 import '../00.common/widget/component/game_replay_board.dart';
 import 'base.dart';
@@ -58,121 +60,126 @@ class _GoLocalPageState extends State<GoLocalPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(S.weiqi),
-        centerTitle: true,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              switch (value) {
-                case 'surrender':
-                  _manager.resign();
-                case 'restart':
-                  _restart();
-                case 'undo':
-                  _manager.undo();
-                case 'ai':
-                  _toggleAi(!_vsAi);
-                case 'easy':
-                  _setDifficulty(GoAiDifficulty.easy);
-                case 'normal':
-                  _setDifficulty(GoAiDifficulty.normal);
-                case 'hard':
-                  _setDifficulty(GoAiDifficulty.hard);
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'surrender',
-                child: ListTile(
-                  leading: const Icon(Icons.flag),
-                  title: Text(S.surrender),
-                  dense: true,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'restart',
-                child: ListTile(
-                  leading: const Icon(Icons.refresh),
-                  title: Text(S.restart),
-                  dense: true,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'undo',
-                child: ListTile(
-                  leading: const Icon(Icons.undo),
-                  title: Text(S.undo),
-                  dense: true,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'ai',
-                child: ListTile(
-                  leading: const Icon(Icons.smart_toy),
-                  title: Text(S.aiLabel),
-                  dense: true,
-                  trailing: Switch(
-                    value: _vsAi,
-                    onChanged: (v) {
-                      Navigator.pop(context);
-                      _toggleAi(v);
-                    },
+    return GameAudioScope(
+      source: _manager,
+      project: '07.weiqi',
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(S.weiqi),
+          centerTitle: true,
+          actions: [
+            const GameSoundButton(),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                switch (value) {
+                  case 'surrender':
+                    _manager.resign();
+                  case 'restart':
+                    _restart();
+                  case 'undo':
+                    _manager.undo();
+                  case 'ai':
+                    _toggleAi(!_vsAi);
+                  case 'easy':
+                    _setDifficulty(GoAiDifficulty.easy);
+                  case 'normal':
+                    _setDifficulty(GoAiDifficulty.normal);
+                  case 'hard':
+                    _setDifficulty(GoAiDifficulty.hard);
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'surrender',
+                  child: ListTile(
+                    leading: const Icon(Icons.flag),
+                    title: Text(S.surrender),
+                    dense: true,
                   ),
                 ),
-              ),
-              if (_vsAi) ...[
-                const PopupMenuDivider(),
-                _difficultyItem(S.easy, 'easy', GoAiDifficulty.easy),
-                _difficultyItem(S.medium, 'normal', GoAiDifficulty.normal),
-                _difficultyItem(S.hard, 'hard', GoAiDifficulty.hard),
-              ],
-            ],
-          ),
-        ],
-      ),
-      body: ValueListenableBuilder<bool>(
-        valueListenable: _manager.board.gameOverNotifier,
-        builder: (_, finished, _) => Column(
-          children: [
-            ValueListenableBuilder<StoneState>(
-              valueListenable: _manager.board.currentPlayer,
-              builder: (context, player, _) {
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    _manager.board.gameOver
-                        ? S.sideWin(
-                            player == StoneState.white
-                                ? S.blackSide
-                                : S.whiteSide,
-                          )
-                        : S.currentTurn(
-                            player == StoneState.black
-                                ? S.blackSide
-                                : S.whiteSide,
-                          ),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                PopupMenuItem(
+                  value: 'restart',
+                  child: ListTile(
+                    leading: const Icon(Icons.refresh),
+                    title: Text(S.restart),
+                    dense: true,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'undo',
+                  child: ListTile(
+                    leading: const Icon(Icons.undo),
+                    title: Text(S.undo),
+                    dense: true,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'ai',
+                  child: ListTile(
+                    leading: const Icon(Icons.smart_toy),
+                    title: Text(S.aiLabel),
+                    dense: true,
+                    trailing: Switch(
+                      value: _vsAi,
+                      onChanged: (v) {
+                        Navigator.pop(context);
+                        _toggleAi(v);
+                      },
                     ),
                   ),
-                );
-              },
-            ),
-            Expanded(
-              child: GameReplayBoard(
-                finished: finished,
-                onReplay: _restart,
-                child: GoFoundationWidget(
-                  manager: _manager,
-                  onGridSelected: _onGridSelected,
                 ),
-              ),
+                if (_vsAi) ...[
+                  const PopupMenuDivider(),
+                  _difficultyItem(S.easy, 'easy', GoAiDifficulty.easy),
+                  _difficultyItem(S.medium, 'normal', GoAiDifficulty.normal),
+                  _difficultyItem(S.hard, 'hard', GoAiDifficulty.hard),
+                ],
+              ],
             ),
           ],
+        ),
+        body: ValueListenableBuilder<bool>(
+          valueListenable: _manager.board.gameOverNotifier,
+          builder: (_, finished, _) => Column(
+            children: [
+              ValueListenableBuilder<StoneState>(
+                valueListenable: _manager.board.currentPlayer,
+                builder: (context, player, _) {
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      _manager.board.gameOver
+                          ? S.sideWin(
+                              player == StoneState.white
+                                  ? S.blackSide
+                                  : S.whiteSide,
+                            )
+                          : S.currentTurn(
+                              player == StoneState.black
+                                  ? S.blackSide
+                                  : S.whiteSide,
+                            ),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              Expanded(
+                child: GameReplayBoard(
+                  finished: finished,
+                  onReplay: _restart,
+                  child: GoFoundationWidget(
+                    manager: _manager,
+                    onGridSelected: _onGridSelected,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
