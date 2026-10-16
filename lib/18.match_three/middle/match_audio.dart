@@ -68,7 +68,9 @@ class MatchAudioController extends SoundController<MatchSound> {
       player:
           bonusPlayer ??
           AssetSoundPlayer<MatchSound>(
-            assets: const {MatchSound.bonus: 'audio/match_praise/bonus.wav'},
+            assets: const {
+              MatchSound.bonus: 'audio/match_praise/bonus_time.wav',
+            },
             voiceCount: 1,
             volume: .95,
             latestOnly: true,
