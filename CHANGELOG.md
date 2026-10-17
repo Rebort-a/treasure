@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.4] - 2026-10-17
+- Fix Linux release builds by installing required GStreamer development libraries
+- Harden release verification with atomic pushes and matching workflow checks
+- Add release regression coverage and simplify the English match victory message
+
+### Fixed
+- verify release integrity and refine match victory text
+
 ## [1.3.3] - 2026-10-17
 - Improve match-three scoring, special-effect sequencing, conversion animations, and personal rankings
 - Settle match actions and finish praise playback before Bonus Time
