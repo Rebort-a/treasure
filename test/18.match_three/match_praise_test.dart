@@ -13,16 +13,28 @@ import 'package:treasure/18.match_three/middle/match_sound.dart';
 
 class _Voice implements SoundPlayer<ComboPraise> {
   final played = <ComboPraise>[];
+  Completer<void>? playing;
   int stops = 0;
   int disposals = 0;
   @override
   Future<void> preload() async {}
   @override
-  Future<void> play(ComboPraise sound) async => played.add(sound);
+  Future<void> play(ComboPraise sound) async {
+    played.add(sound);
+    await playing?.future;
+  }
+
   @override
-  Future<void> stop() async => stops++;
+  Future<void> stop() async {
+    stops++;
+    if (playing?.isCompleted == false) playing!.complete();
+  }
+
   @override
-  Future<void> dispose() async => disposals++;
+  Future<void> dispose() async {
+    disposals++;
+    if (playing?.isCompleted == false) playing!.complete();
+  }
 }
 
 class _Effects implements MatchSoundPlayer {
@@ -278,6 +290,85 @@ void main() {
     manager.dispose();
   });
 
+  testWidgets('等待通关播报期间重开、同步重置或退出，不得迟到进入旧奖励阶段', (tester) async {
+    for (final cancel in ['restart', 'snapshot', 'reset', 'dispose']) {
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = true
+        ..loadState(_board(winning: true));
+      final voice = _Voice()..playing = Completer<void>();
+      final bonus = _Effects();
+      final audio = MatchAudioController(
+        manager: manager,
+        player: _Effects(),
+        praisePlayer: voice,
+        bonusPlayer: bonus,
+        store: _Store(),
+      );
+      await audio.ready;
+      manager.swap(10, 2);
+      expect(voice.played, hasLength(1));
+      expect(manager.bonusTime.value, isFalse);
+      switch (cancel) {
+        case 'restart':
+          manager.restart(seed: 42);
+        case 'snapshot':
+          manager.loadState(manager.board!.toJson());
+        case 'reset':
+          manager.resetNetworkRound();
+        case 'dispose':
+          await audio.dispose();
+          manager.dispose();
+      }
+      await tester.pump(const Duration(seconds: 10));
+      expect(bonus.played, isEmpty, reason: cancel);
+      await audio.dispose();
+      manager.dispose();
+    }
+  });
+
+  testWidgets('静音、切后台或播放器不回报完成时，奖励结算仍可继续且不补播', (tester) async {
+    for (final mode in ['mute', 'background', 'timeout']) {
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = true
+        ..loadState(_board(winning: true));
+      final voice = _Voice()..playing = Completer<void>();
+      final bonus = _Effects();
+      final audio = MatchAudioController(
+        manager: manager,
+        player: _Effects(),
+        praisePlayer: voice,
+        bonusPlayer: bonus,
+        store: _Store(),
+      );
+      await audio.ready;
+      manager.swap(10, 2);
+      expect(voice.played, hasLength(1));
+      switch (mode) {
+        case 'mute':
+          audio.audioPreferences!.setVoiceEnabled(false);
+        case 'background':
+          audio.setActive(false);
+        case 'timeout':
+          break;
+      }
+      for (var i = 0; i < 100 && manager.busy.value; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(manager.busy.value, isFalse, reason: mode);
+      expect(manager.board!.status, MatchStatus.won);
+      expect(manager.roundSettled, isTrue);
+      expect(voice.played, hasLength(1));
+      expect(bonus.played, mode == 'timeout' ? [MatchSound.bonus] : isEmpty);
+      audio.audioPreferences!.setVoiceEnabled(true);
+      audio.setActive(true);
+      await tester.pump();
+      expect(voice.played, hasLength(1));
+      expect(bonus.played, mode == 'timeout' ? [MatchSound.bonus] : isEmpty);
+      await audio.dispose();
+      manager.dispose();
+    }
+  });
+
   for (final reduceMotion in [false, true]) {
     testWidgets('连续两次真实 Good 都播报，刷新与重复快照不补播：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
@@ -313,15 +404,24 @@ void main() {
       manager.dispose();
     });
 
-    testWidgets('通关多个奖励帧只播一次 Bonus Time，刷新与快照不补播：$reduceMotion', (
-      tester,
-    ) async {
+    testWidgets('通关先结算本次行动并完成播报，再进入奖励阶段且不重复播报：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = true
         ..loadState(_board(winning: true))
         ..reduceMotion = reduceMotion;
-      final voice = _Voice();
+      final voice = _Voice()..playing = Completer<void>();
       final bonus = _Effects();
+      final order = <String>[];
+      manager.praiseVoice.addListener(() {
+        if (manager.praiseVoice.value != null) order.add('praise');
+      });
+      manager.bonusTime.addListener(() {
+        if (manager.bonusTime.value) order.add('bonus');
+      });
+      final actionEnd = MatchBoard.fromJson(manager.board!.toJson())
+          .playSwap(10, 2)!
+          .frames
+          .firstWhere((frame) => frame.phase == FramePhase.bonus);
       var bonusFrames = 0;
       manager.sound.addListener(() {
         if (manager.sound.value?.sound == MatchSound.bonus) bonusFrames++;
@@ -335,6 +435,30 @@ void main() {
       );
       await audio.ready;
       manager.swap(10, 2);
+      for (
+        var i = 0;
+        i < 400 && voice.played.isEmpty && manager.busy.value;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(voice.played, hasLength(1));
+      expect(manager.view.value!.frame.phase, FramePhase.settled);
+      expect(manager.view.value!.score, actionEnd.score);
+      expect(manager.view.value!.movesLeft, actionEnd.movesLeft);
+      expect(manager.bonusTime.value, isFalse);
+      expect(manager.busy.value, isTrue);
+      expect(manager.roundSettled, isFalse);
+      expect(manager.canInteract, isFalse);
+      expect(bonus.played, isEmpty);
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(manager.bonusTime.value, isFalse);
+      expect(manager.comboPraise.value, voice.played.single.label);
+      expect(bonus.played, isEmpty);
+      voice.playing!.complete();
+      await tester.pump();
+      expect(manager.bonusTime.value, isTrue);
+      expect(bonus.played, [MatchSound.bonus]);
       for (var i = 0; i < 400 && manager.busy.value; i++) {
         await tester.pump(const Duration(milliseconds: 250));
       }
@@ -342,7 +466,8 @@ void main() {
       expect(manager.board!.status, MatchStatus.won);
       expect(bonusFrames, greaterThan(1));
       expect(bonus.played, [MatchSound.bonus]);
-      expect(voice.played, isEmpty);
+      expect(voice.played, hasLength(1));
+      expect(order, ['praise', 'bonus']);
       manager.refreshView();
       manager.loadState(manager.board!.toJson());
       expect(bonus.played, hasLength(1));

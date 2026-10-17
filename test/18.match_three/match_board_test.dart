@@ -872,7 +872,16 @@ void main() {
     final bonusCount =
         result.frames.where((frame) => frame.phase == FramePhase.bonus).length -
         1;
-    expect(bonusIndex, greaterThanOrEqualTo(0));
+    expect(bonusIndex, greaterThan(0));
+    expect(result.frames[bonusIndex - 1].phase, FramePhase.settled);
+    expect(
+      result.frames[bonusIndex - 1].score,
+      result.frames[bonusIndex].score,
+    );
+    expect(
+      result.frames[bonusIndex - 1].movesLeft,
+      result.frames[bonusIndex].movesLeft,
+    );
     final bonusScores = <int>{};
     for (final frame in result.frames.skip(bonusIndex)) {
       if (!bonusScores.contains(frame.score)) bonusScores.add(frame.score);

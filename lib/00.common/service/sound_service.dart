@@ -22,13 +22,18 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
   final double volume;
   final bool latestOnly;
 
+  /// 仅独占且保留最新请求的播报可等待原生播放结束。
+  final bool waitForCompletion;
+
   AssetSoundPlayer({
     required this.assets,
     this.voiceCount = 4,
     this.volume = .65,
     this.latestOnly = false,
+    this.waitForCompletion = false,
   }) : assert(voiceCount > 0),
-       assert(volume >= 0 && volume <= 1);
+       assert(volume >= 0 && volume <= 1),
+       assert(!waitForCompletion || (latestOnly && voiceCount == 1));
   final AudioCache _cache = AudioCache(prefix: 'assets/');
   final List<AudioPlayer> _voices = [];
   Future<void>? _initializing;
@@ -37,6 +42,13 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
   int _nextVoice = 0;
   int _epoch = 0;
   bool _disposed = false;
+  Completer<void>? _playbackCancelled;
+
+  void _invalidatePlayback() {
+    _epoch++;
+    _playbackCancelled?.complete();
+    _playbackCancelled = null;
+  }
 
   @override
   Future<void> preload() =>
@@ -77,7 +89,7 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
   @override
   Future<void> play(T sound) {
     // 语音只保留最新请求，过时的异步加载不能在下一句之后恢复播放。
-    if (latestOnly) _epoch++;
+    if (latestOnly) _invalidatePlayback();
     final epoch = _epoch;
     final requestedAt = DateTime.now();
     return _enqueue(() async {
@@ -95,13 +107,40 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
       if (_disposed || epoch != _epoch) return;
       await player.setSource(AssetSource(assets[sound]!));
       if (_disposed || epoch != _epoch) return;
-      await player.resume();
+      if (!waitForCompletion) {
+        await player.resume();
+        return;
+      }
+      // 播报的 Future 等待真实播放结束；替换、停止和释放必须能打断这段等待。
+      final completed = Completer<void>();
+      final cancelled = Completer<void>();
+      _playbackCancelled = cancelled;
+      void finish() {
+        if (!completed.isCompleted) completed.complete();
+      }
+
+      final subscription = player.onPlayerComplete.listen(
+        (_) => finish(),
+        onError: (Object _) => finish(),
+        onDone: finish,
+      );
+      try {
+        await player.resume();
+        if (!_disposed && epoch == _epoch) {
+          await Future.any([completed.future, cancelled.future]);
+        }
+      } finally {
+        if (identical(_playbackCancelled, cancelled)) {
+          _playbackCancelled = null;
+        }
+        await subscription.cancel();
+      }
     });
   }
 
   @override
   Future<void> stop() {
-    _epoch++;
+    _invalidatePlayback();
     return _enqueue(() async {
       await Future.wait([for (final player in _voices) player.stop()]);
     });
@@ -133,7 +172,7 @@ class AssetSoundPlayer<T> implements SoundPlayer<T> {
 
   Future<void> _dispose() async {
     _disposed = true;
-    _epoch++;
+    _invalidatePlayback();
     try {
       await _initializing;
     } catch (_) {
@@ -157,6 +196,9 @@ class SoundController<T> {
   final String project;
   final bool persistSettings;
   final SoundChannel channel;
+
+  /// 展示层可关联本次播放完成状态，不必估算语音时长。
+  final void Function(T sound, Future<void> playback)? onPlayback;
   final SoundPlayer<T> _player;
   late final AudioPreferences? _preferences;
   late final bool _ownsPreferences;
@@ -179,6 +221,7 @@ class SoundController<T> {
     required this.project,
     this.persistSettings = true,
     this.channel = SoundChannel.effects,
+    this.onPlayback,
     this.resetSound,
     this.minimumInterval,
     this.deferUntilReady,
@@ -262,7 +305,9 @@ class SoundController<T> {
       return;
     }
     _lastPlayed[sound] = now;
-    unawaited(_guard(() => _player.play(sound)));
+    final playback = _guard(() => _player.play(sound));
+    onPlayback?.call(sound, playback);
+    unawaited(playback);
   }
 
   void _silence() {

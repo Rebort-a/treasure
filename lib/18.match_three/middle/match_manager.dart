@@ -52,6 +52,7 @@ class MatchManager {
   final Map<Timer, Completer<void>> _pendingDelays = {};
   Completer<void>? _conversionTransfer;
   BoardFrame? _conversionTransferFrame;
+  Future<void>? _praisePlayback;
   bool reduceMotion = false;
   int _roundNumber = 0;
 
@@ -244,7 +245,7 @@ class MatchManager {
     if (reduceMotion) {
       busy.value = false;
       _show(BoardFrame(board, FramePhase.settled));
-      _emitSound(MatchSound.appear);
+      _emitSound(MatchSound.entrance);
       return;
     }
     busy.value = true;
@@ -254,7 +255,7 @@ class MatchManager {
       await _delay(const Duration(milliseconds: 100));
       if (_disposed || epoch != _animationEpoch) return;
       if (!reduceMotion) {
-        _presentFrame(
+        _show(
           BoardFrame(
             board,
             FramePhase.fall,
@@ -264,10 +265,11 @@ class MatchManager {
                 .toSet(),
           ),
         );
+        _emitSound(MatchSound.entrance);
         await _delay(const Duration(milliseconds: 220));
         if (_disposed || epoch != _animationEpoch) return;
       } else {
-        _emitSound(MatchSound.appear);
+        _emitSound(MatchSound.entrance);
       }
       _show(BoardFrame(board, FramePhase.settled));
       busy.value = false;
@@ -391,6 +393,7 @@ class MatchManager {
   }
 
   void _cancelDelays() {
+    _praisePlayback = null;
     final transfer = _conversionTransfer;
     _conversionTransfer = null;
     _conversionTransferFrame = null;
@@ -429,16 +432,46 @@ class MatchManager {
     }
   }
 
-  void _showPraiseBriefly(ComboPraise praise, int epoch) {
+  /// 仅关联当前展示事件，旧播报不能结束下一次赞美的等待。
+  void trackPraisePlayback(ComboPraiseEvent event, Future<void> playback) {
+    if (!_disposed && identical(praiseVoice.value, event)) {
+      _praisePlayback = playback;
+    }
+  }
+
+  void _showPraiseBriefly(
+    ComboPraise praise,
+    int epoch, {
+    bool keepVisible = false,
+  }) {
+    _praisePlayback = null;
     comboMultiplier.value = null;
     comboPraise.value = praise.label;
     praiseVoice.value = ComboPraiseEvent(praise);
+    if (keepVisible) return;
     unawaited(() async {
       await _delay(const Duration(milliseconds: 1000));
       if (!_disposed && epoch == _animationEpoch) {
         comboPraise.value = null;
       }
     }());
+  }
+
+  Future<bool> _beginBonusAfterPraise(ComboPraise praise, int epoch) async {
+    _showPraiseBriefly(praise, epoch, keepVisible: true);
+    final playback = _praisePlayback;
+    await Future.wait([
+      // 静音或未挂载播放器时也保留本次行动的展示，不直接跳到奖励转换。
+      _delay(const Duration(milliseconds: 1000)),
+      if (playback != null)
+        // 设备异常不能永久阻塞结算；重开和同步重置也会取消这段等待。
+        Future.any([playback, _delay(const Duration(seconds: 5))]),
+    ]);
+    if (_disposed || epoch != _animationEpoch) return false;
+    comboPraise.value = null;
+    comboMultiplier.value = null;
+    bonusTime.value = true;
+    return true;
   }
 
   void _animate(SwapResult result) {
@@ -452,6 +485,13 @@ class MatchManager {
       (frame) => frame.convertedPieceIds.isNotEmpty,
     );
     final hasFullBoardSpawn = result.frames.any(_isFullBoardSpawn);
+    final bonusIndex = result.frames.indexWhere(
+      (frame) => frame.phase == FramePhase.bonus,
+    );
+    final hasActionFullBoardSpawn =
+        hasBonusTime && result.frames.take(bonusIndex).any(_isFullBoardSpawn);
+    final hasBonusFullBoardSpawn =
+        hasBonusTime && result.frames.skip(bonusIndex).any(_isFullBoardSpawn);
     comboPraise.value = null;
     bonusTime.value = false;
     if (reduceMotion && !hasBonusTime && !hasConversion) {
@@ -473,13 +513,21 @@ class MatchManager {
       busy.value = true;
       comboMultiplier.value = null;
       unawaited(() async {
+        if (hasBonusTime) {
+          _emitSound(MatchSound.swap);
+          _emitSound(MatchSound.clear1);
+        }
         for (final frame in result.frames) {
           if (frame.phase != FramePhase.bonus &&
               frame.convertedPieceIds.isEmpty) {
             continue;
           }
           if (_disposed || epoch != _animationEpoch) return;
-          if (frame.phase == FramePhase.bonus) bonusTime.value = true;
+          if (frame.phase == FramePhase.bonus && !bonusTime.value) {
+            _show(result.frames[bonusIndex - 1]);
+            if (hasActionFullBoardSpawn) _emitSound(MatchSound.appear);
+            if (!await _beginBonusAfterPraise(praise, epoch)) return;
+          }
           _presentFrame(frame);
           // 减少动画时跳过运动效果，但仍保留转换结果的静态展示与取消能力。
           await _delay(_conversionPause);
@@ -487,7 +535,9 @@ class MatchManager {
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
         if (_disposed || epoch != _animationEpoch) return;
-        if (hasFullBoardSpawn) _emitSound(MatchSound.appear);
+        if (hasBonusTime ? hasBonusFullBoardSpawn : hasFullBoardSpawn) {
+          _emitSound(MatchSound.appear);
+        }
         bonusTime.value = false;
         busy.value = false;
         _announceResult();
@@ -506,9 +556,7 @@ class MatchManager {
         if (_disposed || epoch != _animationEpoch) return;
         if (frame.phase == FramePhase.bonus && !praiseShown) {
           praiseShown = true;
-          comboPraise.value = null;
-          comboMultiplier.value = null;
-          bonusTime.value = true;
+          if (!await _beginBonusAfterPraise(praise, epoch)) return;
         }
         if (frame.phase == FramePhase.clear && !bonusTime.value) {
           cascade++;

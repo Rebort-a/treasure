@@ -4,6 +4,10 @@ import 'dart:typed_data';
 
 /// 生成原创的短音效，不依赖外部素材或音频编码器。
 const _rate = 22050;
+
+/// 默认音色保持原样，新提示通过独立音色与包络建立辨识度。
+enum _Timbre { classic, wood, bubble, bell }
+
 typedef _Note = ({
   double start,
   double duration,
@@ -11,6 +15,7 @@ typedef _Note = ({
   double end,
   double gain,
   double noise,
+  _Timbre timbre,
 });
 
 _Note _note(
@@ -20,6 +25,7 @@ _Note _note(
   double? end,
   double gain = .45,
   double noise = 0,
+  _Timbre timbre = _Timbre.classic,
 }) => (
   start: start,
   duration: duration,
@@ -27,6 +33,7 @@ _Note _note(
   end: end ?? frequency,
   gain: gain,
   noise: noise,
+  timbre: timbre,
 );
 
 void main(List<String> arguments) {
@@ -75,27 +82,39 @@ void main(List<String> arguments) {
       _note(3300, start: .04, duration: .09, noise: .4, gain: .15),
     ],
     'fall': [_note(620, end: 280, duration: .08, gain: .16)],
-    'appear': [
-      for (var i = 0; i < 4; i++)
+    // 开局与重开专用：两下同音木质敲击，停顿后落到同时发声的和弦。
+    'entrance': [
+      _note(293.66, duration: .09, gain: .32, timbre: _Timbre.wood),
+      _note(293.66, start: .10, duration: .09, gain: .28, timbre: _Timbre.wood),
+      for (final frequency in [369.99, 440.0, 587.33])
         _note(
-          [523.25, 659.25, 783.99, 1046.5][i],
-          start: i * .045,
-          duration: .14,
-          gain: .25,
+          frequency,
+          start: .23,
+          duration: .27,
+          gain: .19,
+          timbre: _Timbre.wood,
         ),
+    ],
+    // 整盘补齐使用短促的双气泡下滑，不再与开局或奖励共用上行琶音。
+    'appear': [
+      _note(760, end: 300, duration: .10, gain: .32, timbre: _Timbre.bubble),
+      _note(
+        530,
+        end: 210,
+        start: .105,
+        duration: .15,
+        gain: .35,
+        timbre: _Timbre.bubble,
+      ),
     ],
     'transform': [
       _note(660, end: 1320, duration: .20, gain: .3),
       _note(1568, start: .12, duration: .18, gain: .22),
     ],
+    // 奖励提示使用高频金属双铃，短于胜利旋律，适合逐步转换时重复触发。
     'bonus': [
-      for (var i = 0; i < 4; i++)
-        _note(
-          [523.25, 659.25, 783.99, 1046.5][i],
-          start: i * .09,
-          duration: .23,
-          gain: .34,
-        ),
+      _note(1318.51, duration: .12, gain: .25, timbre: _Timbre.bell),
+      _note(987.77, start: .14, duration: .25, gain: .30, timbre: _Timbre.bell),
     ],
     'won': [
       for (var i = 0; i < 6; i++)
@@ -176,20 +195,40 @@ void main(List<String> arguments) {
     for (final note in entry.value) {
       final offset = (note.start * _rate).round();
       final length = (note.duration * _rate).floor();
+      final (attack, decay, release) = switch (note.timbre) {
+        _Timbre.classic => (.006, 4.0, .02),
+        _Timbre.wood => (.002, 5.0, .02),
+        _Timbre.bubble => (.004, 3.0, .02),
+        _Timbre.bell => (.003, 2.5, .04),
+      };
       for (var i = 0; i < length; i++) {
         final t = i / _rate;
         final progress = t / note.duration;
         // 短起音和缓慢衰减同时防止爆音与结尾截断。
         final envelope =
-            math.min(1.0, t / .006) *
-            math.exp(-4 * progress) *
-            math.min(1.0, (note.duration - t) / .02);
+            math.min(1.0, t / attack) *
+            math.exp(-decay * progress) *
+            math.min(1.0, (note.duration - t) / release);
         final phase =
             2 *
             math.pi *
             (note.frequency * t +
                 (note.end - note.frequency) * t * t / (2 * note.duration));
-        final tone = math.sin(phase) + .18 * math.sin(phase * 2);
+        final tone = switch (note.timbre) {
+          _Timbre.classic => math.sin(phase) + .18 * math.sin(phase * 2),
+          // 高次分音迅速衰减，保留短而温暖的木质敲击感。
+          _Timbre.wood =>
+            math.sin(phase) +
+                .35 * math.sin(phase * 3) * math.exp(-10 * progress) +
+                .12 * math.sin(phase * 4.2) * math.exp(-16 * progress),
+          _Timbre.bubble => math.sin(phase) + .07 * math.sin(phase * 2),
+          // 非整数倍分音与轻微拍频使铃声区别于默认的电子提示音。
+          _Timbre.bell =>
+            (math.sin(phase) +
+                    .38 * math.sin(phase * 2.756) * math.exp(-3 * progress) +
+                    .18 * math.sin(phase * 4.07) * math.exp(-6 * progress)) *
+                (.88 + .12 * math.cos(2 * math.pi * 12 * t)),
+        };
         final noise = random.nextDouble() * 2 - 1;
         samples[offset + i] +=
             (tone * (1 - note.noise) + noise * note.noise) *

@@ -88,6 +88,17 @@ class _NativeAudio {
     return null;
   }
 
+  Future<void> complete(String id) async {
+    active.remove(id);
+    await messenger.handlePlatformMessage(
+      'xyz.luan/audioplayers/events/$id',
+      const StandardMethodCodec().encodeSuccessEnvelope({
+        'event': 'audio.onComplete',
+      }),
+      (_) {},
+    );
+  }
+
   void uninstall() {
     for (final name in [
       'plugins.flutter.io/path_provider',
@@ -238,6 +249,53 @@ void main() {
       expect(native.resumes, hasLength(2));
       await player.dispose();
       expect(native.disposed, native.created);
+    } finally {
+      await player.dispose();
+      native.uninstall();
+    }
+  });
+
+  test('播报等待真实播放结束，替换、停止和退出均可取消等待且释放声道', () async {
+    final native = _NativeAudio()..install();
+    final player = AssetSoundPlayer<ComboPraise>(
+      assets: {for (final praise in ComboPraise.values) praise: praise.asset},
+      voiceCount: 1,
+      latestOnly: true,
+      waitForCompletion: true,
+    );
+    Future<void> waitForResume(int count) async {
+      for (var i = 0; i < 100 && native.resumes.length < count; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(native.resumes, hasLength(count));
+    }
+
+    try {
+      await player.preload();
+      var finished = false;
+      final first = player.play(ComboPraise.good).then((_) => finished = true);
+      await waitForResume(1);
+      expect(finished, isFalse);
+      await native.complete(native.created.single);
+      await first;
+      expect(finished, isTrue);
+
+      final preparing = player.play(ComboPraise.great);
+      await waitForResume(2);
+      final latest = player.play(ComboPraise.unbelievable);
+      await preparing;
+      await waitForResume(3);
+      await player.stop();
+      await latest;
+      expect(native.active, isEmpty);
+
+      final leaving = player.play(ComboPraise.good);
+      await waitForResume(4);
+      await player.dispose();
+      await leaving;
+      expect(native.created, hasLength(1));
+      expect(native.disposed, native.created);
+      expect(native.active, isEmpty);
     } finally {
       await player.dispose();
       native.uninstall();

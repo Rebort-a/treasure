@@ -316,8 +316,11 @@ void main() {
       }
       await _synced(games, players: 6);
       _sameBoards(games);
-      final swap = games.first.board!.legalMoves.first;
-      games.first.swap(swap.$1, swap.$2);
+      // 同时匹配的协调者受收包顺序影响，不能假定列表首位拥有当前回合。
+      await waitFor(() => games.any((game) => game.canInteract));
+      final actor = games.singleWhere((game) => game.canInteract);
+      final swap = actor.board!.legalMoves.first;
+      actor.swap(swap.$1, swap.$2);
       await _synced(games, moves: 1, players: 6);
       _sameBoards(games);
     } finally {

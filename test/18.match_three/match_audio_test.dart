@@ -297,11 +297,11 @@ void main() {
       expect(player.played, isEmpty);
       player.loading!.complete();
       await audio.ready;
-      expect(player.played, [MatchSound.appear]);
+      expect(player.played, [MatchSound.entrance]);
 
       manager.restart(seed: 8);
       await _settle(tester, [manager]);
-      expect(player.played, [MatchSound.appear, MatchSound.appear]);
+      expect(player.played, [MatchSound.entrance, MatchSound.entrance]);
       manager.refreshView();
       manager.loadState(manager.board!.toJson());
       expect(player.played, hasLength(2));
@@ -320,7 +320,7 @@ void main() {
       manager.dispose();
     });
 
-    testWidgets('双彩虹全清补齐时播放整盘入场音，本地与联机重演一致：$reduceMotion', (tester) async {
+    testWidgets('双彩虹全清补齐播放补齐音而非开局音，本地与联机重演一致：$reduceMotion', (tester) async {
       final data = _boardData(effect: PieceEffect.rainbow);
       (data['pieces'] as List)[1][2] = PieceEffect.rainbow.index;
       final local = _manager(data)..reduceMotion = reduceMotion;
@@ -338,6 +338,7 @@ void main() {
         localSounds.where((cue) => cue == MatchSound.appear),
         hasLength(1),
       );
+      expect(localSounds, isNot(contains(MatchSound.entrance)));
       expect(memberSounds, localSounds);
       expect(
         local.board!.pieces.whereType<Piece>(),
@@ -495,7 +496,7 @@ void main() {
     winning.reduceMotion = true;
     winning.restart(seed: 42);
     expect(sounds, contains(MatchSound.reset));
-    expect(sounds.last, MatchSound.appear);
+    expect(sounds.last, MatchSound.entrance);
     await tester.pump(const Duration(seconds: 10));
     expect(sounds, isNot(contains(MatchSound.won)));
     winning.dispose();

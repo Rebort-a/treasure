@@ -37,7 +37,8 @@ class MatchAudioController extends SoundController<MatchSound> {
          player: player ?? MatchAssetSoundPlayer(),
          project: '18.match_three',
          resetSound: MatchSound.reset,
-         deferUntilReady: (sound) => sound == MatchSound.appear,
+         deferUntilReady: (sound) =>
+             sound == MatchSound.entrance || sound == MatchSound.appear,
          minimumInterval: (sound) => sound == MatchSound.select ? 45 : 90,
        ) {
     _praiseAudio = SoundController<ComboPraise>(
@@ -52,12 +53,19 @@ class MatchAudioController extends SoundController<MatchSound> {
             voiceCount: 1,
             volume: .95,
             latestOnly: true,
+            waitForCompletion: true,
           ),
       project: '18.match_three',
       preferences: audioPreferences,
       channel: SoundChannel.voice,
       // 展示层已保证每次结算只发一次事件，不再按档位吞掉连续操作的播报。
       minimumInterval: (_) => 0,
+      onPlayback: (praise, playback) {
+        final event = manager.praiseVoice.value;
+        if (event != null && event.praise == praise) {
+          manager.trackPraisePlayback(event, playback);
+        }
+      },
     );
     _bonusAudio = SoundController<MatchSound>(
       // 奖励阶段包含多个转换帧，只在进入阶段时播报一次。

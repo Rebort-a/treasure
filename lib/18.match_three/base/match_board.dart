@@ -789,7 +789,9 @@ class MatchBoard {
     }
     final cascades = resolution.waves;
     if (status == MatchStatus.won) {
-      // 先进入奖励阶段，再触发已有特效；即使没有剩余步数也适用。
+      // 本次行动先稳定结算，展示层完成赞美后再进入奖励阶段。
+      frames.add(BoardFrame(this, FramePhase.settled));
+      // 奖励阶段先触发已有特效，即使没有剩余步数也适用。
       frames.add(BoardFrame(this, FramePhase.bonus));
       var bonusCascade = _settleCascades(
         frames: frames,
