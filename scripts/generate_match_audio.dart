@@ -39,17 +39,9 @@ _Note _note(
 void main(List<String> arguments) {
   final common = arguments.contains('--common');
   final output = Directory.fromUri(
-    Platform.script.resolve(
-      common ? '../assets/audio/common/' : '../assets/audio/match_three/',
-    ),
+    Platform.script.resolve('../assets/audio/effects/'),
   )..createSync(recursive: true);
   final sounds = <String, List<_Note>>{
-    'select': [_note(880, duration: .055, end: 1100, gain: .28)],
-    'swap': [_note(420, duration: .10, end: 760, gain: .3)],
-    'invalid': [
-      _note(330, duration: .10),
-      _note(247, start: .09, duration: .14),
-    ],
     for (var i = 0; i < 4; i++)
       'clear${i + 1}': [
         _note(523.25 * math.pow(1.1892, i), duration: .16),
@@ -64,10 +56,6 @@ void main(List<String> arguments) {
       _note(260, end: 1800, duration: .22, noise: .22),
       _note(1047, start: .10, duration: .19, gain: .22),
     ],
-    'bomb': [
-      _note(150, end: 42, duration: .34, noise: .55, gain: .6),
-      _note(70, duration: .25, gain: .3),
-    ],
     'rainbow': [
       for (var i = 0; i < 5; i++)
         _note(
@@ -81,18 +69,14 @@ void main(List<String> arguments) {
       _note(2400, end: 1350, duration: .12, noise: .65, gain: .25),
       _note(3300, start: .04, duration: .09, noise: .4, gain: .15),
     ],
-    'fall': [_note(620, end: 280, duration: .08, gain: .16)],
-    // 开局与重开专用：两下同音木质敲击，停顿后落到同时发声的和弦。
+    // 开局与重开改用原失败提示的下行三音，事件和文件名仍保留开局语义。
     'entrance': [
-      _note(293.66, duration: .09, gain: .32, timbre: _Timbre.wood),
-      _note(293.66, start: .10, duration: .09, gain: .28, timbre: _Timbre.wood),
-      for (final frequency in [369.99, 440.0, 587.33])
+      for (var i = 0; i < 3; i++)
         _note(
-          frequency,
-          start: .23,
-          duration: .27,
-          gain: .19,
-          timbre: _Timbre.wood,
+          [392.0, 329.63, 261.63][i],
+          start: i * .16,
+          duration: .30,
+          gain: .32,
         ),
     ],
     // 整盘补齐使用短促的双气泡下滑，不再与开局或奖励共用上行琶音。
@@ -106,10 +90,6 @@ void main(List<String> arguments) {
         gain: .35,
         timbre: _Timbre.bubble,
       ),
-    ],
-    'transform': [
-      _note(660, end: 1320, duration: .20, gain: .3),
-      _note(1568, start: .12, duration: .18, gain: .22),
     ],
     // 奖励提示使用高频金属双铃，短于胜利旋律，适合逐步转换时重复触发。
     'bonus': [
@@ -125,13 +105,17 @@ void main(List<String> arguments) {
           gain: .38,
         ),
     ],
+    // 失败与开局交换声音内容，使用两下木质敲击及短和弦。
     'lost': [
-      for (var i = 0; i < 3; i++)
+      _note(293.66, duration: .09, gain: .32, timbre: _Timbre.wood),
+      _note(293.66, start: .10, duration: .09, gain: .28, timbre: _Timbre.wood),
+      for (final frequency in [369.99, 440.0, 587.33])
         _note(
-          [392.0, 329.63, 261.63][i],
-          start: i * .16,
-          duration: .30,
-          gain: .32,
+          frequency,
+          start: .23,
+          duration: .27,
+          gain: .19,
+          timbre: _Timbre.wood,
         ),
     ],
   };

@@ -74,17 +74,17 @@ class MatchAudioController extends SoundController<MatchSound> {
       player:
           bonusPlayer ??
           AssetSoundPlayer<MatchSound>(
-            assets: const {
-              MatchSound.bonus: 'audio/match_praise/bonus_time.wav',
-            },
+            assets: const {MatchSound.bonus: 'audio/voice/bonus_time.wav'},
             voiceCount: 1,
             volume: .95,
             latestOnly: true,
+            waitForCompletion: true,
           ),
       project: '18.match_three',
       preferences: audioPreferences,
       channel: SoundChannel.voice,
       minimumInterval: (_) => 0,
+      onPlayback: (_, playback) => manager.trackBonusPlayback(playback),
     );
     manager.bonusTime.addListener(_syncVoices);
     manager.sound.addListener(_onGameSound);

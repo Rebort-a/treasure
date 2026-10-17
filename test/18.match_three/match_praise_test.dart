@@ -39,16 +39,28 @@ class _Voice implements SoundPlayer<ComboPraise> {
 
 class _Effects implements MatchSoundPlayer {
   final played = <MatchSound>[];
+  Completer<void>? playing;
   int stops = 0;
   int disposals = 0;
   @override
   Future<void> preload() async {}
   @override
-  Future<void> play(MatchSound sound) async => played.add(sound);
+  Future<void> play(MatchSound sound) async {
+    played.add(sound);
+    await playing?.future;
+  }
+
   @override
-  Future<void> stop() async => stops++;
+  Future<void> stop() async {
+    stops++;
+    if (playing?.isCompleted == false) playing!.complete();
+  }
+
   @override
-  Future<void> dispose() async => disposals++;
+  Future<void> dispose() async {
+    disposals++;
+    if (playing?.isCompleted == false) playing!.complete();
+  }
 }
 
 class _Store implements JsonStore {
@@ -93,11 +105,24 @@ Map<String, dynamic> _board({bool winning = false}) {
   return data;
 }
 
+Future<void> _waitForBonus(
+  WidgetTester tester,
+  MatchManager manager,
+  _Effects bonus,
+) async {
+  for (var i = 0; i < 400 && bonus.played.isEmpty && manager.busy.value; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(bonus.played, [MatchSound.bonus]);
+  expect(manager.bonusTime.value, isTrue);
+  expect(manager.busy.value, isTrue);
+}
+
 void main() {
   test('赞美与奖励播报均绑定完整且非静音的离线 PCM WAV 资源', () {
     for (final asset in [
       for (final praise in ComboPraise.values) praise.asset,
-      'audio/match_praise/bonus_time.wav',
+      'audio/voice/bonus_time.wav',
     ]) {
       final bytes = File('assets/$asset').readAsBytesSync();
       final header = ByteData.sublistView(bytes);
@@ -370,6 +395,98 @@ void main() {
   });
 
   for (final reduceMotion in [false, true]) {
+    testWidgets('奖励开场等待可被重开、快照、联机重置和退出取消：$reduceMotion', (tester) async {
+      for (final cancel in ['restart', 'snapshot', 'reset', 'dispose']) {
+        final manager = MatchManager(generate: false)
+          ..reduceMotion = true
+          ..loadState(_board(winning: true))
+          ..reduceMotion = reduceMotion;
+        final bonus = _Effects()..playing = Completer<void>();
+        final audio = MatchAudioController(
+          manager: manager,
+          player: _Effects(),
+          praisePlayer: _Voice(),
+          bonusPlayer: bonus,
+          store: _Store(),
+        );
+        await audio.ready;
+        manager.swap(10, 2);
+        await _waitForBonus(tester, manager, bonus);
+        var conversions = 0;
+        manager.view.addListener(() {
+          final frame = manager.view.value?.frame;
+          if (frame != null &&
+              (frame.transferringPieceIds.isNotEmpty ||
+                  frame.convertedPieceIds.isNotEmpty)) {
+            conversions++;
+          }
+        });
+        switch (cancel) {
+          case 'restart':
+            manager.restart(seed: 42);
+          case 'snapshot':
+            manager.loadState(manager.board!.toJson());
+          case 'reset':
+            manager.resetNetworkRound();
+          case 'dispose':
+            await audio.dispose();
+            manager.dispose();
+        }
+        await tester.pump(const Duration(seconds: 10));
+        expect(conversions, 0, reason: cancel);
+        expect(bonus.played, hasLength(1), reason: cancel);
+        await audio.dispose();
+        manager.dispose();
+      }
+    });
+
+    testWidgets('奖励开场静音、切后台或超时后仍继续结算，恢复时不补播：$reduceMotion', (tester) async {
+      for (final mode in ['mute', 'background', 'timeout']) {
+        final manager = MatchManager(generate: false)
+          ..reduceMotion = true
+          ..loadState(_board(winning: true))
+          ..reduceMotion = reduceMotion;
+        final bonus = _Effects()..playing = Completer<void>();
+        final audio = MatchAudioController(
+          manager: manager,
+          player: _Effects(),
+          praisePlayer: _Voice(),
+          bonusPlayer: bonus,
+          store: _Store(),
+        );
+        await audio.ready;
+        manager.swap(10, 2);
+        await _waitForBonus(tester, manager, bonus);
+        final moves = manager.view.value!.movesLeft;
+        switch (mode) {
+          case 'mute':
+            audio.audioPreferences!.setVoiceEnabled(false);
+          case 'background':
+            audio.setActive(false);
+          case 'timeout':
+            await tester.pump(const Duration(milliseconds: 4900));
+            expect(manager.view.value!.movesLeft, moves);
+            expect(manager.busy.value, isTrue);
+        }
+        // 取消播报应立即解除等待，不必再耗尽五秒保护时间。
+        for (var i = 0; i < 15 && manager.view.value!.movesLeft == moves; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(manager.view.value!.movesLeft, lessThan(moves), reason: mode);
+        for (var i = 0; i < 400 && manager.busy.value; i++) {
+          await tester.pump(const Duration(milliseconds: 250));
+        }
+        expect(manager.roundSettled, isTrue, reason: mode);
+        expect(manager.board!.status, MatchStatus.won);
+        audio.audioPreferences!.setVoiceEnabled(true);
+        audio.setActive(true);
+        await tester.pump();
+        expect(bonus.played, hasLength(1));
+        await audio.dispose();
+        manager.dispose();
+      }
+    });
+
     testWidgets('连续两次真实 Good 都播报，刷新与重复快照不补播：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = true
@@ -404,19 +521,29 @@ void main() {
       manager.dispose();
     });
 
-    testWidgets('通关先结算本次行动并完成播报，再进入奖励阶段且不重复播报：$reduceMotion', (tester) async {
+    testWidgets('行动评价与奖励开场依次播完才转换步数，且不重复播报：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = true
         ..loadState(_board(winning: true))
         ..reduceMotion = reduceMotion;
       final voice = _Voice()..playing = Completer<void>();
-      final bonus = _Effects();
+      final bonus = _Effects()..playing = Completer<void>();
       final order = <String>[];
       manager.praiseVoice.addListener(() {
         if (manager.praiseVoice.value != null) order.add('praise');
       });
       manager.bonusTime.addListener(() {
         if (manager.bonusTime.value) order.add('bonus');
+      });
+      manager.view.addListener(() {
+        final frame = manager.view.value?.frame;
+        if (manager.bonusTime.value &&
+            frame != null &&
+            (frame.transferringPieceIds.isNotEmpty ||
+                frame.convertedPieceIds.isNotEmpty) &&
+            !order.contains('conversion')) {
+          order.add('conversion');
+        }
       });
       final actionEnd = MatchBoard.fromJson(manager.board!.toJson())
           .playSwap(10, 2)!
@@ -459,6 +586,15 @@ void main() {
       await tester.pump();
       expect(manager.bonusTime.value, isTrue);
       expect(bonus.played, [MatchSound.bonus]);
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(manager.view.value!.movesLeft, actionEnd.movesLeft);
+      expect(manager.view.value!.score, actionEnd.score);
+      expect(manager.busy.value, isTrue);
+      expect(manager.roundSettled, isFalse);
+      expect(bonusFrames, 0);
+      expect(order, ['praise', 'bonus']);
+      bonus.playing!.complete();
+      await tester.pump();
       for (var i = 0; i < 400 && manager.busy.value; i++) {
         await tester.pump(const Duration(milliseconds: 250));
       }
@@ -467,7 +603,7 @@ void main() {
       expect(bonusFrames, greaterThan(1));
       expect(bonus.played, [MatchSound.bonus]);
       expect(voice.played, hasLength(1));
-      expect(order, ['praise', 'bonus']);
+      expect(order, ['praise', 'bonus', 'conversion']);
       manager.refreshView();
       manager.loadState(manager.board!.toJson());
       expect(bonus.played, hasLength(1));

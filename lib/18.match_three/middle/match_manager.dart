@@ -53,6 +53,7 @@ class MatchManager {
   Completer<void>? _conversionTransfer;
   BoardFrame? _conversionTransferFrame;
   Future<void>? _praisePlayback;
+  Future<void>? _bonusPlayback;
   bool reduceMotion = false;
   int _roundNumber = 0;
 
@@ -394,6 +395,7 @@ class MatchManager {
 
   void _cancelDelays() {
     _praisePlayback = null;
+    _bonusPlayback = null;
     final transfer = _conversionTransfer;
     _conversionTransfer = null;
     _conversionTransferFrame = null;
@@ -439,6 +441,11 @@ class MatchManager {
     }
   }
 
+  /// 播放器同步关联当前奖励开场，旧局等待由动画代次与可取消延时隔离。
+  void trackBonusPlayback(Future<void> playback) {
+    if (!_disposed && bonusTime.value) _bonusPlayback = playback;
+  }
+
   void _showPraiseBriefly(
     ComboPraise praise,
     int epoch, {
@@ -470,8 +477,14 @@ class MatchManager {
     if (_disposed || epoch != _animationEpoch) return false;
     comboPraise.value = null;
     comboMultiplier.value = null;
+    _bonusPlayback = null;
     bonusTime.value = true;
-    return true;
+    final bonusPlayback = _bonusPlayback;
+    if (bonusPlayback != null) {
+      // 先完整播报奖励开场，再触发自动消除及步数转换，避免提示音压住语音。
+      await Future.any([bonusPlayback, _delay(const Duration(seconds: 5))]);
+    }
+    return !_disposed && epoch == _animationEpoch;
   }
 
   void _animate(SwapResult result) {
@@ -501,7 +514,7 @@ class MatchManager {
       _emitSound(MatchSound.swap);
       _emitSound(MatchSound.clear1);
       _show(result.frames.last);
-      if (hasFullBoardSpawn) _emitSound(MatchSound.appear);
+      if (hasFullBoardSpawn || result.shuffled) _emitSound(MatchSound.appear);
       busy.value = false;
       _announceResult();
       if (_board?.status == MatchStatus.playing) {
@@ -535,7 +548,8 @@ class MatchManager {
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
         if (_disposed || epoch != _animationEpoch) return;
-        if (hasBonusTime ? hasBonusFullBoardSpawn : hasFullBoardSpawn) {
+        if (result.shuffled ||
+            (hasBonusTime ? hasBonusFullBoardSpawn : hasFullBoardSpawn)) {
           _emitSound(MatchSound.appear);
         }
         bonusTime.value = false;
@@ -566,6 +580,10 @@ class MatchManager {
             ? _waitConversionTransfer(frame)
             : null;
         _presentFrame(frame, cascade: cascade);
+        // 重排没有独立的下落帧，只在最终棋盘真正展示时提示一次。
+        if (result.shuffled && identical(frame, result.frames.last)) {
+          _emitSound(MatchSound.appear);
+        }
         if (transfer != null) {
           await transfer;
           continue;

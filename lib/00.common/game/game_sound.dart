@@ -18,7 +18,7 @@ enum GameSound {
   win,
   lose;
 
-  String get asset => 'audio/common/$name.wav';
+  String get asset => 'audio/effects/$name.wav';
 }
 
 class GameSoundEvent {

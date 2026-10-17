@@ -11,7 +11,7 @@ extension ComboPraiseAudio on ComboPraise {
     ComboPraise.amazing => 'Amazing',
     ComboPraise.unbelievable => 'Unbelievable',
   };
-  String get asset => 'audio/match_praise/$name.wav';
+  String get asset => 'audio/voice/$name.wav';
 }
 
 class ComboPraiseEvent {

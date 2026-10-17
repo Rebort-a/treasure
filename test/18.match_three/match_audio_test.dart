@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:treasure/00.common/game/game_sound.dart';
 import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/service/sound_service.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
@@ -118,10 +119,21 @@ Future<void> _settle(WidgetTester tester, List<MatchManager> managers) async {
 }
 
 void main() {
-  test('所有播放事件都有有效且有界的 PCM 资源', () {
-    for (final sound in MatchSound.values) {
-      if (sound == MatchSound.reset) continue;
-      final bytes = File('assets/${sound.asset}').readAsBytesSync();
+  test('通用与三消事件均有有效 PCM 资源，目录不保留未引用的音效', () {
+    final assets = {
+      for (final sound in GameSound.values)
+        if (sound != GameSound.reset) sound.asset,
+      for (final sound in MatchSound.values)
+        if (sound != MatchSound.reset) sound.asset,
+    };
+    final files = {
+      for (final file in Directory('assets/audio/effects').listSync())
+        if (file is File && file.path.endsWith('.wav'))
+          file.path.replaceAll(r'\', '/').substring('assets/'.length),
+    };
+    expect(files, assets);
+    for (final asset in assets) {
+      final bytes = File('assets/$asset').readAsBytesSync();
       final header = ByteData.sublistView(bytes);
       expect(String.fromCharCodes(bytes.sublist(0, 4)), 'RIFF');
       expect(String.fromCharCodes(bytes.sublist(8, 12)), 'WAVE');
@@ -281,6 +293,93 @@ void main() {
   });
 
   for (final reduceMotion in [false, true]) {
+    testWidgets('无可用交换自动重排时播放补齐音，本地与联机重演一致且不重复：$reduceMotion', (tester) async {
+      final data = _boardData();
+      // 只开放一次合法交换，消除后无可用交换，从而触发真实的自动重排。
+      data['ice'] = [
+        for (var i = 0; i < MatchBoard.cells; i++) i == 2 || i == 10 ? 0 : 2,
+      ];
+      final before = MatchBoard.fromJson(data);
+      expect(before.legalMoves, [(2, 10)]);
+      expect(before.playSwap(10, 2)!.shuffled, isTrue);
+      final local = _manager(data)..reduceMotion = reduceMotion;
+      final member = _manager(data)..reduceMotion = reduceMotion;
+      final localSounds = <MatchSound>[];
+      final memberSounds = <MatchSound>[];
+      local.sound.addListener(() => localSounds.add(local.sound.value!.sound));
+      member.sound.addListener(
+        () => memberSounds.add(member.sound.value!.sound),
+      );
+      final player = _Player();
+      final audio = MatchAudioController(
+        manager: local,
+        player: player,
+        praisePlayer: _Voice(),
+        bonusPlayer: _Player(),
+        store: _Store(),
+      );
+      await audio.ready;
+      player.played.clear();
+      local.swap(10, 2);
+      member.loadState(local.board!.toJson());
+      await _settle(tester, [local, member]);
+      expect(local.board!.reshuffles, 1);
+      expect(local.board!.legalMoves, isNotEmpty);
+      expect(member.board!.toJson(), local.board!.toJson());
+      expect(memberSounds, localSounds);
+      expect(
+        player.played.where((cue) => cue == MatchSound.appear),
+        hasLength(1),
+      );
+      expect(localSounds.last, MatchSound.appear);
+      local.refreshView();
+      local.loadState(local.board!.toJson());
+      member.refreshView();
+      member.loadState(member.board!.toJson());
+      expect(
+        player.played.where((cue) => cue == MatchSound.appear),
+        hasLength(1),
+      );
+      expect(
+        memberSounds.where((cue) => cue == MatchSound.appear),
+        hasLength(1),
+      );
+      await audio.dispose();
+      local.dispose();
+      member.dispose();
+    });
+
+    testWidgets('步数耗尽在行动结算结束后播放一次失败音效，刷新和快照不重播：$reduceMotion', (tester) async {
+      final manager = _manager(_boardData(moves: 1))
+        ..reduceMotion = reduceMotion;
+      final player = _Player();
+      final audio = MatchAudioController(
+        manager: manager,
+        player: player,
+        praisePlayer: _Voice(),
+        bonusPlayer: _Player(),
+        store: _Store(),
+      );
+      await audio.ready;
+      player.played.clear();
+      manager.swap(10, 2);
+      if (!reduceMotion)
+        expect(player.played, isNot(contains(MatchSound.lost)));
+      await _settle(tester, [manager]);
+      expect(manager.board!.movesLeft, 0);
+      expect(manager.board!.status, MatchStatus.lost);
+      expect(manager.roundSettled, isTrue);
+      expect(player.played.last, MatchSound.lost);
+      manager.refreshView();
+      manager.loadState(manager.board!.toJson());
+      expect(
+        player.played.where((cue) => cue == MatchSound.lost),
+        hasLength(1),
+      );
+      await audio.dispose();
+      manager.dispose();
+    });
+
     testWidgets('首次入场等待冷加载，重开只播一次，刷新静音与后台不补播：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = reduceMotion
@@ -480,17 +579,10 @@ void main() {
     }
   });
 
-  testWidgets('失败和重开取消旧奖励，不遗留迟到的结果音效', (tester) async {
-    final losing = _manager(_boardData(moves: 1));
+  testWidgets('重开取消旧奖励，不遗留迟到的结果音效', (tester) async {
     final sounds = <MatchSound>[];
-    losing.sound.addListener(() => sounds.add(losing.sound.value!.sound));
-    losing.swap(10, 2);
-    expect(sounds.last, MatchSound.lost);
-    losing.dispose();
-
     final winning = _manager(_boardData(moves: 3, winning: true))
       ..reduceMotion = false;
-    sounds.clear();
     winning.sound.addListener(() => sounds.add(winning.sound.value!.sound));
     winning.swap(10, 2);
     winning.reduceMotion = true;

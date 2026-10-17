@@ -36,8 +36,7 @@ flutter:
   generate: true
   assets:
     - assets/images/
-    - assets/audio/match_three/
-    - assets/audio/common/
+    - assets/audio/effects/
     - assets/audio/music/
-    - assets/audio/match_praise/
+    - assets/audio/voice/
   uses-material-design: true
