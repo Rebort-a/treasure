@@ -29,8 +29,10 @@ usage() {
   -n, --dry-run           预览模式，不实际执行
   -y, --yes               跳过确认提示
   --skip-changelog        跳过 CHANGELOG.md 自动更新
-  --skip-wait             不等待 GitHub Actions 结果（默认会等待并校验）
+  --skip-wait             仅跳过等待构建结束，仍校验远程标签与 Release 运行已创建
   -h, --help              显示帮助
+
+实际发布需要已安装并登录 GitHub CLI（gh）；预览模式不要求登录。
 
 示例（标题格式固定为「前缀 vX.Y.Z」，-m 内容进正文，不可篡改标题）:
   ./scripts/release.sh -m "修复联机断线"            # patch: 标题 release: vX.Y.Z，正文「修复联机断线」
@@ -185,60 +187,83 @@ update_changelog() {
   info "CHANGELOG.md → 已添加 [${new_ver}] 条目（基于 ${log_range} 提交自动分类）"
 }
 
-# ─── 等待并校验 GitHub Actions ─────────────────────────
+# ─── 发布前检查 ───────────────────────────────────────
+check_release_access() {
+  local remote_url remote_tags
+  # 使用原始地址，避免 Git 的 insteadOf 重写影响 GitHub 仓库识别。
+  remote_url=$(git config --get remote.origin.url) || error "未配置 origin 远程仓库"
+  case "$remote_url" in
+    https://github.com/*|http://github.com/*|git@github.com:*) ;;
+    *) error "origin 不是受支持的 GitHub 仓库地址: $remote_url" ;;
+  esac
+  REPO_SLUG=$(echo "$remote_url" | sed -E 's#^(https?://|git@)github\.com[:/]##; s#\.git$##')
+  [[ "$REPO_SLUG" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
+    error "origin 不是受支持的 GitHub 仓库地址: $remote_url"
+
+  # 必须在改版本、创建提交和推送之前确认可以查询 Actions，避免留下半发布。
+  command -v gh >/dev/null 2>&1 || error "发布校验需要 GitHub CLI（gh），请安装并执行 gh auth login"
+  gh auth status --hostname github.com >/dev/null 2>&1 ||
+    error "GitHub CLI 未登录或凭据失效，请先执行 gh auth login"
+  gh run list --repo "$REPO_SLUG" --workflow release.yml --limit 1 --json databaseId >/dev/null ||
+    error "无法读取 Release 工作流，请检查网络及 GitHub Actions 读取权限"
+
+  remote_tags=$(git ls-remote --tags origin "refs/tags/$TAG") ||
+    error "无法读取远程标签，尚未修改版本或创建发布提交"
+  [[ -z "$remote_tags" ]] || error "远程标签 $TAG 已存在，不能覆盖已有版本"
+}
+
+# ─── 校验远程标签 ─────────────────────────────────────
+verify_remote_tag() {
+  local tag="$1" commit="$2"
+  local refs remote_tag remote_commit local_tag
+  refs=$(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}") ||
+    error "推送后无法读取远程标签，请检查网络并确认 $tag 是否发布成功"
+  remote_tag=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }')
+  remote_commit=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$tag^{}" '$2 == ref { print $1 }')
+  local_tag=$(git rev-parse "refs/tags/$tag")
+  [[ -n "$remote_tag" ]] ||
+    error "推送后远程标签 $tag 不存在，不能确认发布成功"
+  [[ "$remote_tag" == "$local_tag" && "$remote_commit" == "$commit" ]] ||
+    error "远程标签 $tag 与本次发布提交不一致，不能确认发布成功"
+  info "已校验远程标签 $tag → $commit"
+}
+
+# ─── 确认 Release 运行并等待构建 ────────────────────────
 wait_for_ci() {
-  local tag="$1"
-
-  if $SKIP_WAIT; then
-    warn "已跳过 CI 等待（--skip-wait）"
-    return 0
-  fi
-
-  # 从 remote URL 解析 owner/repo（兼容 https 与 ssh 两种格式），用于拼装 Actions 链接
-  local remote_url repo_slug actions_url
-  remote_url=$(git remote get-url origin 2>/dev/null || echo "")
-  # 兼容 https(https://github.com/o/r[.git]) 与 ssh(git@github.com:o/r[.git]) 两种 remote 格式
-  repo_slug=$(echo "$remote_url" | sed -E 's#(https?://|git@)github\.com[:/]##; s#\.git$##')
-  actions_url="https://github.com/${repo_slug}/actions"
-
-  if [[ -z "$repo_slug" ]]; then
-    warn "无法解析仓库地址，请手动前往 GitHub Actions 确认构建状态"
-    return 0
-  fi
-
-  # 无 gh CLI 时降级为打印链接，不强制安装、不阻塞
-  if ! command -v gh >/dev/null 2>&1; then
-    echo ""
-    warn "未安装 gh CLI，无法自动等待构建结果"
-    info "请手动确认 Release 构建状态："
-    echo -e "  ${CYAN}${actions_url}${NC}"
-    return 0
-  fi
-
-  echo ""
-  info "等待 GitHub Actions (Release) 完成构建..."
-  # tag 触发的 run 需数秒注册，轮询等待其出现
+  local tag="$1" commit="$2"
   local run_id="" tries=0
-  while [[ -z "$run_id" && $tries -lt 20 ]]; do
-    sleep 3
-    run_id=$(gh run list --workflow release.yml --branch "$tag" --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
+  info "等待本次标签推送对应的 Release 运行创建..."
+  # 标签、提交和事件都必须匹配，不能把同名旧版本或普通分支 CI 当成本次发布。
+  while (( tries < 20 )); do
+    run_id=$(gh run list --repo "$REPO_SLUG" --workflow release.yml \
+      --branch "$tag" --commit "$commit" --event push --limit 1 \
+      --json databaseId --jq '.[0].databaseId // empty') ||
+      error "查询 Release 运行失败，标签已推送但发布状态尚未确认"
+    if [[ "$run_id" =~ ^[0-9]+$ ]]; then
+      break
+    fi
     tries=$((tries + 1))
+    if (( tries < 20 )); then sleep 3; fi
   done
 
-  if [[ -z "$run_id" ]]; then
-    warn "未找到对应 Release run（可能尚未注册），请手动查看："
-    echo -e "  ${CYAN}${actions_url}${NC}"
+  [[ "$run_id" =~ ^[0-9]+$ ]] ||
+    error "等待超时：未找到 $tag（$commit）对应的 Release 运行，请检查 https://github.com/$REPO_SLUG/actions"
+
+  info "已确认 Release run: $run_id"
+  info "运行地址: https://github.com/$REPO_SLUG/actions/runs/$run_id"
+  if $SKIP_WAIT; then
+    warn "已确认发布触发；--skip-wait 仅跳过等待构建结束，产物尚未确认"
     return 0
   fi
 
-  info "找到 Release run: $run_id，开始监听（多平台构建可能耗时 10-20 分钟，可 Ctrl+C 跳过）..."
-  if gh run watch "$run_id" --exit-status 2>/dev/null; then
+  info "开始监听（多平台构建可能耗时 10-20 分钟，中断不会取消远程构建）..."
+  if gh run watch "$run_id" --repo "$REPO_SLUG" --exit-status; then
     echo ""
     info "✅ Release 构建通过"
     CI_VERIFIED=true
   else
     echo ""
-    error "❌ Release 构建失败，请查看：gh run view $run_id --log-failed"
+    error "❌ Release 构建未成功，请查看：gh run view $run_id --repo $REPO_SLUG --log-failed"
   fi
 }
 
@@ -251,6 +276,7 @@ AUTO_YES=false
 SKIP_CHANGELOG=false
 SKIP_WAIT=false
 CI_VERIFIED=false
+REPO_SLUG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -347,6 +373,9 @@ if $DRY_RUN; then
   exit 0
 fi
 
+# 预览不依赖登录状态，实际发布则必须先通过完整的远程访问检查。
+check_release_access
+
 # #5: 确认提示
 if ! $AUTO_YES; then
   echo -en "${CYAN}确认发布？[y/N] ${NC}"
@@ -376,22 +405,30 @@ fi
 
 info "创建标签 $TAG..."
 git tag -a "$TAG" -m "$COMMIT_MSG"
+RELEASE_COMMIT=$(git rev-parse HEAD)
 
-info "推送到远程..."
-git push origin HEAD
-git push origin "$TAG"
+info "原子推送发布提交与标签到远程..."
+# 两个引用必须一起成功，禁止出现主分支已更新但版本标签未推送的半发布。
+if ! git push --atomic origin HEAD:refs/heads/main "refs/tags/$TAG:refs/tags/$TAG"; then
+  error "原子推送失败；本地发布提交和标签已保留，请排查后重试推送，不要重复创建版本"
+fi
 
-# 校验 CI 结果，避免「半发布」（可用 --skip-wait 跳过）
-wait_for_ci "$TAG"
+verify_remote_tag "$TAG" "$RELEASE_COMMIT"
+# --skip-wait 不能跳过标签和运行创建检查，只能跳过最终构建结果。
+wait_for_ci "$TAG" "$RELEASE_COMMIT"
 
 echo ""
-info "✅ 发布完成！"
+if $CI_VERIFIED; then
+  info "✅ 发布完成！"
+else
+  info "✅ 发布已触发，构建结果待确认"
+fi
 info "   版本: $NEW_VERSION"
 info "   标签: $TAG"
 if $CI_VERIFIED; then
   info "   GitHub Actions 已构建并通过，各平台产物已发布"
 else
-  warn "   GitHub Actions 已触发但未自动校验，请手动确认构建结果"
+  warn "   远程标签及 Release 运行已核验，请稍后确认构建结果和发布产物"
 fi
 
 echo ""

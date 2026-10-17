@@ -2429,7 +2429,7 @@ abstract class AppLocalizations {
   /// No description provided for @matchWon.
   ///
   /// In en, this message translates to:
-  /// **'Congratulations, you won!'**
+  /// **'Congratulations!'**
   String get matchWon;
 
   /// No description provided for @matchBonusTime.

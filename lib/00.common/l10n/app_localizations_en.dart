@@ -1282,7 +1282,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get matchWon => 'Congratulations, you won!';
+  String get matchWon => 'Congratulations!';
 
   @override
   String get matchBonusTime => 'Bonus Time';
