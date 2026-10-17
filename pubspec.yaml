@@ -2,7 +2,7 @@ name: treasure
 description: "A Flutter game lab: 16 games and LAN chat, self-built Dart game cores, voxel rendering, and multiplayer synchronization."
 publishing_to: 'none'
 
-version: 1.3.2+10
+version: 1.3.3+11
 
 topics:
   - game

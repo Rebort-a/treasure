@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.3] - 2026-10-17
+- Improve match-three scoring, special-effect sequencing, conversion animations, and personal rankings
+- Settle match actions and finish praise playback before Bonus Time
+- Add game audio, looping music, and distinct entrance, refill, and bonus cues
+- Separate sound, voice, music, and vibration preferences and refine settings
+- Improve room joining, home navigation, and adaptive chat layouts
+
+### Added
+- split feedback settings and improve match-three audio
+- centralize audio settings and refresh match-three voices
+- add game audio, looping music, and English combo praise
+- revise match-three scoring and unify conversion animations
+- improve match-three effect sequencing and personal rankings
+
+### Fixed
+- sequence match bonus playback and distinguish sound cues
+- update match praise audio assets and playback
+- preserve and sequence match-three special effects
+- synchronize match-three selections and defer celebrations
+
 ## [1.3.2] - 2026-10-12
 Improve room joining and multiplayer match-three gameplay, simplify room cards, and focus regression tests on critical behavior.
 
