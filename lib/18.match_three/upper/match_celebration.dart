@@ -5,10 +5,8 @@ import 'package:flutter/material.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
 
-/// 结算后的一次性撒花层，不占布局空间，也不拦截重开、聊天等操作。
+/// 奖励开场的一次性撒花层，不占布局空间，也不拦截重开、聊天等操作。
 class MatchCelebration extends StatefulWidget {
-  /// 仅决定庆祝强度，不作为通关条件，也不保存历史成绩。
-  static const richScoreThreshold = 6000;
   final MatchManager manager;
   final Widget child;
 
@@ -31,7 +29,6 @@ class _MatchCelebrationState extends State<MatchCelebration>
   bool _celebrated = false;
   bool _visible = false;
   bool _reduceMotion = true;
-  bool _rich = false;
 
   @override
   void initState() {
@@ -82,11 +79,10 @@ class _MatchCelebrationState extends State<MatchCelebration>
       return;
     }
     if (_reduceMotion) _hide();
-    // 胜利状态可能先于网络回环和奖励动画成立，统一等待完整结算结束。
-    if (_celebrated || !manager.roundSettled) return;
+    // 奖励开场与语音同时开始，不能被提前成立的胜利状态触发。
+    if (_celebrated || !manager.bonusTime.value) return;
     _celebrated = true;
     if (_reduceMotion) return;
-    _rich = manager.view.value!.score > MatchCelebration.richScoreThreshold;
     setState(() => _visible = true);
     _controller.forward(from: 0);
   }
@@ -113,7 +109,7 @@ class _MatchCelebrationState extends State<MatchCelebration>
             child: RepaintBoundary(
               child: CustomPaint(
                 key: const ValueKey('match-celebration'),
-                painter: MatchConfettiPainter(_controller, rich: _rich),
+                painter: MatchConfettiPainter(_controller),
               ),
             ),
           ),
@@ -124,10 +120,7 @@ class _MatchCelebrationState extends State<MatchCelebration>
 
 class MatchConfettiPainter extends CustomPainter {
   final Animation<double> animation;
-  final bool rich;
-
-  MatchConfettiPainter(this.animation, {required this.rich})
-    : super(repaint: animation);
+  MatchConfettiPainter(this.animation) : super(repaint: animation);
 
   static const _colors = [
     Color(0xFFFFCF55),
@@ -144,7 +137,7 @@ class MatchConfettiPainter extends CustomPainter {
     final elapsed = animation.value * 3.2;
     final scale = (size.width / 480).clamp(0.65, 1.3);
     final paint = Paint();
-    for (var i = 0; i < (rich ? 112 : 80); i++) {
+    for (var i = 0; i < 112; i++) {
       final right = i.isOdd;
       final delay = random.nextDouble() * 0.45;
       final speedX = (65 + random.nextDouble() * 180) * scale;
@@ -152,7 +145,7 @@ class MatchConfettiPainter extends CustomPainter {
       final originY = size.height * (0.45 + random.nextDouble() * 0.14);
       final radius = (3 + random.nextDouble() * 4) * scale;
       final spin = random.nextDouble() * math.pi * 2;
-      final color = rich && i % 3 == 0
+      final color = i % 3 == 0
           ? _colors.first
           : _colors[random.nextInt(_colors.length)];
       final t = elapsed - delay;
@@ -164,7 +157,7 @@ class MatchConfettiPainter extends CustomPainter {
       canvas.save();
       canvas.translate(x, y);
       canvas.rotate(spin + t * (right ? -5 : 5));
-      if (i % (rich ? 3 : 7) == 0) {
+      if (i % 3 == 0) {
         final star = Path();
         for (var point = 0; point < 10; point++) {
           final angle = point * math.pi / 5 - math.pi / 2;
@@ -199,5 +192,5 @@ class MatchConfettiPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(MatchConfettiPainter oldDelegate) =>
-      oldDelegate.rich != rich || oldDelegate.animation != animation;
+      oldDelegate.animation != animation;
 }
