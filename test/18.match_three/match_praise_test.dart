@@ -550,8 +550,16 @@ void main() {
           .frames
           .firstWhere((frame) => frame.phase == FramePhase.bonus);
       var bonusFrames = 0;
+      final bonusSoundAfterVoice = <bool>[];
+      final bonusSoundOnConversion = <bool>[];
       manager.sound.addListener(() {
-        if (manager.sound.value?.sound == MatchSound.bonus) bonusFrames++;
+        if (manager.sound.value?.sound == MatchSound.bonus) {
+          bonusFrames++;
+          bonusSoundAfterVoice.add(bonus.playing!.isCompleted);
+          bonusSoundOnConversion.add(
+            manager.view.value!.frame.convertedPieceIds.isNotEmpty,
+          );
+        }
       });
       final audio = MatchAudioController(
         manager: manager,
@@ -600,7 +608,9 @@ void main() {
       }
       expect(manager.busy.value, isFalse);
       expect(manager.board!.status, MatchStatus.won);
-      expect(bonusFrames, greaterThan(1));
+      expect(bonusFrames, actionEnd.movesLeft);
+      expect(bonusSoundAfterVoice, everyElement(isTrue));
+      expect(bonusSoundOnConversion, everyElement(isTrue));
       expect(bonus.played, [MatchSound.bonus]);
       expect(voice.played, hasLength(1));
       expect(order, ['praise', 'bonus', 'conversion']);

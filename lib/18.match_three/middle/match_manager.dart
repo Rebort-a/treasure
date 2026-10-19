@@ -301,7 +301,10 @@ class MatchManager {
       case FramePhase.swap:
         _emitSound(MatchSound.swap);
       case FramePhase.bonus:
-        _emitSound(MatchSound.bonus);
+        // 奖励开场仅播报语音，步数转换完成时才播放提示音。
+        if (frame.convertedPieceIds.isNotEmpty) {
+          _emitSound(MatchSound.bonus);
+        }
       case FramePhase.clear:
         final effects = {
           for (final index in frame.clearing)
