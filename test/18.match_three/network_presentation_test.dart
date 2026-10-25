@@ -183,6 +183,8 @@ void main() {
       expect(find.text(S.matchYourRank(2)), findsOneWidget);
       expect(actor.personalScore, 50 + normalScore);
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 300));
       expect(replay, findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {

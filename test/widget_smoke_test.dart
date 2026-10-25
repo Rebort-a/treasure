@@ -94,6 +94,8 @@ void main() {
     await tester.tap(find.text(S.confirm));
     await tester.pumpAndSettle();
     expect(PlayerSettings.instance.defaultName.value, 'Alice');
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text(S.defaultPlayerNameSummary), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

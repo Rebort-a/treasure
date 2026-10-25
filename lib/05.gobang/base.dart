@@ -33,6 +33,16 @@ class GridNotifier extends ValueNotifier<Grid> {
 }
 
 class Board {
+  static const maxPiecesPerPlayer = 12;
+  final Map<PieceType, List<int>> _pieceOrder = {
+    PieceType.black: [],
+    PieceType.white: [],
+  };
+  final List<int?> _expiredHistory = [];
+
+  /// 当前仍在棋盘上的棋子，按各自落子先后排序。
+  List<int> pieceOrder(PieceType type) => List.of(_pieceOrder[type]!);
+
   final int size;
   final ListNotifier<GridNotifier> grids = ListNotifier([]);
   List<Grid> moveHistory = [];
@@ -51,20 +61,29 @@ class Board {
   }
 
   PieceType obtainPiece(TurnGamerType player) {
-    return currentGamer.value == TurnGamerType.front
-        ? PieceType.black
-        : PieceType.white;
+    return player == TurnGamerType.front ? PieceType.black : PieceType.white;
   }
 
   /// 导出位编码快照：0=空 1=黑 2=白（PieceType.index），供 AI 只读使用
   List<int> snapshot() => [for (final g in grids.value) g.value.type.index];
 
   void placePiece(int index) {
+    if (index < 0 || index >= grids.value.length) return;
     GridNotifier grid = grids.value[index];
 
     if (!gameOver && grid.value.isEmpty()) {
-      grid.placePiece(obtainPiece(currentGamer.value));
-      moveHistory.add(grid.value);
+      final type = obtainPiece(currentGamer.value);
+      final order = _pieceOrder[type]!;
+      grid.placePiece(type);
+      order.add(index);
+      // 先移除最早一子，再按最终棋盘判断胜负。
+      final expired = order.length > maxPiecesPerPlayer
+          ? order.removeAt(0)
+          : null;
+      if (expired != null) grids.value[expired].clear();
+      _expiredHistory.add(expired);
+      // 使用独立快照，避免同一格被清空、重用后污染历史。
+      moveHistory.add(Grid(coordinate: index)..type = type);
       _checkWin(index);
     }
   }
@@ -102,6 +121,11 @@ class Board {
   void restart() {
     _clear();
     moveHistory.clear();
+    _expiredHistory.clear();
+    for (final order in _pieceOrder.values) {
+      order.clear();
+    }
+    lastWinner = null;
     changeGamer(TurnGamerType.front);
     gameOver = false;
   }
@@ -117,6 +141,14 @@ class Board {
 
     final lastMove = moveHistory.removeLast();
     grids.value[lastMove.coordinate].clear();
+    final order = _pieceOrder[lastMove.type]!;
+    order.removeLast();
+    final expired = _expiredHistory.removeLast();
+    if (expired != null) {
+      order.insert(0, expired);
+      grids.value[expired].placePiece(lastMove.type);
+    }
+    lastWinner = null;
     gameOver = false;
     changeGamer(currentGamer.value.opponent);
   }

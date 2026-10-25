@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../00.common/game/gamer.dart';
 import '../00.common/game/minimax.dart';
+import 'base.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 评估参数 — 棋型分值与难度配置集中管理
@@ -96,17 +97,17 @@ abstract final class Evaluator {
     final size = board.size;
     final row = idx ~/ size, col = idx % size;
     int total = 0;
-    board.cells[idx] = player;
-    for (final (dr, dc) in SearchBoard.directions) {
-      final line = <int>[];
-      for (int k = -4; k <= 4; k++) {
-        final r = row + dr * k, c = col + dc * k;
-        line.add(board.inBounds(r, c) ? board.cells[r * size + c] : -1);
+    return board.withMove(idx, player, () {
+      for (final (dr, dc) in SearchBoard.directions) {
+        final line = <int>[];
+        for (int k = -4; k <= 4; k++) {
+          final r = row + dr * k, c = col + dc * k;
+          line.add(board.inBounds(r, c) ? board.cells[r * size + c] : -1);
+        }
+        total += _evaluateLine(_buildLine(line, player));
       }
-      total += _evaluateLine(_buildLine(line, player));
-    }
-    board.cells[idx] = 0;
-    return total;
+      return total;
+    });
   }
 
   /// 消费法逐模式匹配：命中即替换为 '#' 防止重叠重复计分
@@ -147,7 +148,18 @@ class SearchBoard implements SearchableBoard<int> {
   final int size;
   final List<int> cells;
 
-  SearchBoard(this.cells, this.size);
+  final Map<int, List<int>> _pieceOrder;
+
+  SearchBoard(this.cells, this.size, {Map<int, List<int>>? pieceOrder})
+    : _pieceOrder = {
+        for (final player in [1, 2])
+          player: pieceOrder != null
+              ? List.of(pieceOrder[player]!)
+              : [
+                  for (int i = 0; i < cells.length; i++)
+                    if (cells[i] == player) i,
+                ],
+      };
 
   static const directions = [(0, 1), (1, 0), (1, 1), (1, -1)];
 
@@ -174,19 +186,29 @@ class SearchBoard implements SearchableBoard<int> {
   /// 假设 player 落 idx 能否成五（不改棋盘状态）
   bool canWin(int idx, int player) {
     if (cells[idx] != 0) return false;
-    cells[idx] = player;
-    final win = checkWin(idx, player);
-    cells[idx] = 0;
-    return win;
+    return withMove(idx, player, () => checkWin(idx, player));
   }
 
-  /// do/undo：落子 → 跑 fn → 撤回（五子棋落子单点，undo 仅置空）
+  /// 搜索分支模拟旧子消失，并在退出时完整还原落子顺序。
   @override
   T withMove<T>(int idx, int player, T Function() fn) {
     cells[idx] = player;
-    final result = fn();
-    cells[idx] = 0;
-    return result;
+    final order = _pieceOrder[player]!;
+    order.add(idx);
+    final expired = order.length > Board.maxPiecesPerPlayer
+        ? order.removeAt(0)
+        : null;
+    if (expired != null) cells[expired] = 0;
+    try {
+      return fn();
+    } finally {
+      cells[idx] = 0;
+      order.removeLast();
+      if (expired != null) {
+        order.insert(0, expired);
+        cells[expired] = player;
+      }
+    }
   }
 
   /// 提取某方向的所有线（每条 ≥ winLen 格），用于全盘模式匹配
@@ -332,13 +354,23 @@ class AiController {
   });
 
   /// 异步获取最佳着法。每次接收当前局面快照（无内部状态，避免与 UI 不同步）
-  Future<int?> getAction(List<int> rawSnapshot) async {
+  Future<int?> getAction(
+    List<int> rawSnapshot, {
+    List<int>? blackOrder,
+    List<int>? whiteOrder,
+  }) async {
     thinking.value = true;
     try {
       return await compute(
         _searchEntry,
         _SearchArgs(
           board: _toSelfView(rawSnapshot, faction),
+          pieceOrder: blackOrder != null && whiteOrder != null
+              ? {
+                  1: faction == TurnGamerType.front ? blackOrder : whiteOrder,
+                  2: faction == TurnGamerType.front ? whiteOrder : blackOrder,
+                }
+              : null,
           size: size,
           self: 1,
           difficulty: difficulty.index,
@@ -367,12 +399,14 @@ class AiController {
 
 /// compute 入口参数（须可跨 isolate 序列化）
 class _SearchArgs {
+  final Map<int, List<int>>? pieceOrder;
   final List<int> board;
   final int size;
   final int self;
   final int difficulty;
   final int timeBudgetMs;
   const _SearchArgs({
+    this.pieceOrder,
     required this.board,
     required this.size,
     required this.self,
@@ -384,7 +418,11 @@ class _SearchArgs {
 /// isolate 入口：重建 SearchBoard 并搜索（web 上 compute 退化为同步回调，行为一致）
 @pragma('vm:entry-point')
 int? _searchEntry(_SearchArgs args) {
-  final board = SearchBoard(List<int>.of(args.board), args.size);
+  final board = SearchBoard(
+    List<int>.of(args.board),
+    args.size,
+    pieceOrder: args.pieceOrder,
+  );
   return SearchEngine.search(
     board,
     args.self,

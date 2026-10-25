@@ -29,6 +29,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text(S.surrender));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
     expect(_replay, findsOneWidget);
     expect(find.byType(AlertDialog), findsNothing);
     expect(
@@ -54,6 +56,8 @@ void main() {
       manager.placePiece(index);
     }
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
     expect(_replay, findsOneWidget);
     final count = manager.board.moveHistory.length;
     manager.placePiece(100);
@@ -63,6 +67,8 @@ void main() {
     expect(_replay, findsNothing);
     manager.placePiece(4);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
     expect(_replay, findsOneWidget);
     await tester.tap(_replay);
     await tester.pumpAndSettle();
@@ -72,7 +78,7 @@ void main() {
     expect(tester.element(find.byType(LocalGomokuPage)), same(page));
   });
 
-  testWidgets('单机围棋投降即显示共用重开层，重开清空棋盘', (tester) async {
+  testWidgets('单机围棋投降后显示共用重开层，重开清空棋盘', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: GoLocalPage()));
     final page = tester.element(find.byType(GoLocalPage));
     final manager = tester
@@ -81,6 +87,8 @@ void main() {
     manager.placePiece(0);
     manager.resign();
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
     expect(_replay, findsOneWidget);
     expect(find.textContaining(S.sideWin(S.blackSide)), findsOneWidget);
     await tester.tap(_replay);
@@ -119,6 +127,8 @@ void main() {
         isTrue,
       );
     }
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
     expect(_replay, findsOneWidget);
     await tester.tap(_replay);
     await tester.pumpAndSettle();

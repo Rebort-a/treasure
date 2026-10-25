@@ -114,13 +114,17 @@ class HomeSettingsPage extends StatelessWidget {
     ],
   );
 
-  Widget _defaultNameTile(BuildContext context) => ListTile(
-    leading: const Icon(Icons.person_outline),
-    title: Text(S.defaultPlayerName),
-    subtitle: Text(S.defaultPlayerNameSummary),
-    trailing: const Icon(Icons.chevron_right),
-    onTap: () => unawaited(_editDefaultName(context)),
-  );
+  Widget _defaultNameTile(BuildContext context) =>
+      ValueListenableBuilder<String>(
+        valueListenable: PlayerSettings.instance.defaultName,
+        builder: (_, name, _) => ListTile(
+          leading: const Icon(Icons.person_outline),
+          title: Text(S.defaultPlayerName),
+          subtitle: Text(name.isEmpty ? S.defaultPlayerNameSummary : name),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => unawaited(_editDefaultName(context)),
+        ),
+      );
 
   Future<void> _editDefaultName(BuildContext context) async {
     await PlayerSettings.instance.load();

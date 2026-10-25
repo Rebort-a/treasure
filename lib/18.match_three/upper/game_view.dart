@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../00.common/l10n/strings.dart';
 import '../../00.common/network/client/net_multi_turn_engine.dart';
 import '../../00.common/network/widget/round_replay_board.dart';
+import '../../00.common/service/audio_preferences.dart';
 import '../../00.common/widget/component/game_replay_board.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';
@@ -42,6 +44,17 @@ class _MatchGameViewState extends State<MatchGameView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _createAudio();
+    widget.manager.invalidSwapAnimating.addListener(_onInvalidSwap);
+  }
+
+  void _onInvalidSwap() {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (widget.manager.invalidSwapAnimating.value &&
+        _routeCurrent &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+        AudioPreferences.instance.vibrationEnabled.value) {
+      unawaited(HapticFeedback.mediumImpact());
+    }
   }
 
   void _createAudio() {
@@ -73,6 +86,8 @@ class _MatchGameViewState extends State<MatchGameView>
   void didUpdateWidget(MatchGameView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.manager != widget.manager) {
+      oldWidget.manager.invalidSwapAnimating.removeListener(_onInvalidSwap);
+      widget.manager.invalidSwapAnimating.addListener(_onInvalidSwap);
       unawaited(_audio.dispose());
       _createAudio();
     }
@@ -87,6 +102,7 @@ class _MatchGameViewState extends State<MatchGameView>
 
   @override
   void dispose() {
+    widget.manager.invalidSwapAnimating.removeListener(_onInvalidSwap);
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_audio.dispose());
     super.dispose();

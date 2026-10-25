@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:treasure/00.common/service/audio_preferences.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
 import 'package:treasure/18.match_three/upper/game_view.dart';
@@ -44,6 +46,56 @@ Map<String, dynamic> _rainbowState() => _winningState()
   ];
 
 void main() {
+  testWidgets('无效交换提供一次振动反馈，关闭振动后不触发', (tester) async {
+    final manager = MatchManager(seed: 7)..reduceMotion = true;
+    manager.loadState(_rainbowState());
+    final vibration = AudioPreferences.instance.vibrationEnabled;
+    final original = vibration.value;
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') calls.add(call);
+        return null;
+      },
+    );
+    addTearDown(() {
+      vibration.value = original;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+      manager.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MatchGameView(manager: manager, onExit: () {}),
+      ),
+    );
+    // 选取相邻但无法消除的普通棋子，走实际的无效交换流程。
+    final board = manager.board!;
+    final from = List.generate(MatchBoard.cells - 1, (i) => i).firstWhere(
+      (i) =>
+          board.adjacent(i, i + 1) &&
+          board.ice[i] == 0 &&
+          board.ice[i + 1] == 0 &&
+          !board.canSwap(i, i + 1),
+    );
+    vibration.value = true;
+    manager.swap(from, from + 1);
+    await tester.pump();
+    expect(calls, hasLength(1));
+    expect(calls.single.arguments, 'HapticFeedbackType.mediumImpact');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    vibration.value = false;
+    manager.swap(from, from + 1);
+    await tester.pump();
+    expect(calls, hasLength(1));
+    await tester.pumpWidget(const SizedBox.shrink());
+    manager.dispose();
+  });
+
   testWidgets('通关结算结束后可重开，结算期间不开放重开入口', (tester) async {
     final manager = MatchManager(seed: 7);
     addTearDown(manager.dispose);
@@ -65,6 +117,8 @@ void main() {
     expect(manager.view.value!.status, MatchStatus.won);
     expect(manager.view.value!.score, manager.board!.score);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 300));
     expect(replay, findsOneWidget);
     await tester.ensureVisible(replay);
     await tester.tap(replay);

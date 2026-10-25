@@ -4,6 +4,7 @@ import '../00.common/game/game_sound.dart';
 
 import '../00.common/game/gamer.dart';
 import 'foundation_manager.dart';
+import 'base.dart';
 import 'intelligence.dart';
 
 /// 本地对局管理器。AI 接入收归于此（middle 层），UI 层只做 toggle / 难度选择。
@@ -77,7 +78,11 @@ class LocalManager extends FoundationalManager {
         // 让 UI 先刷新到"思考中"状态再开算
         await Future.delayed(const Duration(milliseconds: 50));
         if (_ai != ai) return; // 期间控制器被替换（重开/切难度/关 AI）
-        final move = await ai.getAction(board.snapshot());
+        final move = await ai.getAction(
+          board.snapshot(),
+          blackOrder: board.pieceOrder(PieceType.black),
+          whiteOrder: board.pieceOrder(PieceType.white),
+        );
         if (_ai != ai) return; // 搜索期间控制器被替换
         if (move != null &&
             !board.gameOver &&
