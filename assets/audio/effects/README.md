@@ -41,7 +41,7 @@ dart run scripts/generate_match_audio.dart
 
 ## 播放与设置
 
-播放底层位于 `00.common/service/sound_service.dart`，每个游戏页面管理后台停止和资源释放；音效开关统一由首页设置页控制，所有游戏共享 `00.common/audio` 设置。全局音频偏好位于 `audio_preferences.dart`，退出或切换游戏不会重置偏好。原生端沿用 JSON 文件，Web 音频设置使用浏览器 localStorage；浏览器存储不可用时不影响游戏。
+播放底层位于 `00.common/sound/sound_service.dart`，每个游戏页面管理后台停止和资源释放；音效开关统一由首页设置页控制，所有游戏共享 `00.common/audio` 设置。全局音频偏好位于 `audio_preferences.dart`，退出或切换游戏不会重置偏好。原生端沿用 JSON 文件，Web 音频设置使用浏览器 localStorage；浏览器存储不可用时不影响游戏。
 
 只在已确认的游戏行为发生时发布音效事件，渲染、初始快照、重复消息和插值不发声。实时游戏的射击、受击及爆炸另有频率限制。
 

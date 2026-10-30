@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 
 import '../../../00.common/l10n/l10n.dart';
 import '../../../00.common/l10n/strings.dart';
-import '../../../00.common/service/audio_preferences.dart';
+import '../../../00.common/sound/audio_preferences.dart';
 import '../../../00.common/style/theme.dart';
 import '../../../00.common/tool/app_info.dart';
 import '../../../00.common/widget/component/chat_component.dart'
     show MediaFilePicker;
 import '../../middle/background_settings.dart';
-import '../../middle/player_settings.dart';
+import '../../../00.common/service/player_settings.dart';
 import '../../middle/home_state.dart';
 
 class HomeSettingsPage extends StatelessWidget {

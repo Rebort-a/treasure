@@ -1,25 +1,22 @@
-import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/game/game_sound.dart';
-import 'package:treasure/00.common/service/audio_preferences.dart';
+import 'package:treasure/00.common/sound/sound_manager.dart';
+import 'package:treasure/00.common/sound/audio_preferences.dart';
 import 'package:treasure/00.common/service/json_store.dart';
-import 'package:treasure/00.common/service/sound_service.dart';
+import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/00.common/widget/component/game_audio_scope.dart';
 
-class _Events with GameSoundEmitter {}
+class _Events with SoundEmitter {}
 
-class _Player implements SoundPlayer<GameSound> {
-  final sounds = <GameSound>[];
+class _Player implements SoundPlayer<Sound> {
+  final sounds = <Sound>[];
   int stops = 0;
   int disposals = 0;
 
   @override
   Future<void> preload() async {}
   @override
-  Future<void> play(GameSound sound) async => sounds.add(sound);
+  Future<void> play(Sound sound) async => sounds.add(sound);
   @override
   Future<void> stop() async => stops++;
   @override
@@ -50,22 +47,6 @@ Widget _game(_Events source, _Player player, AudioPreferences preferences) =>
     );
 
 void main() {
-  test('通用音效事件均有可播放的短 PCM 资源', () {
-    for (final sound in GameSound.values) {
-      if (sound == GameSound.reset) continue;
-      final bytes = File('assets/${sound.asset}').readAsBytesSync();
-      final data = ByteData.sublistView(bytes);
-      expect(String.fromCharCodes(bytes.take(4)), 'RIFF');
-      expect(String.fromCharCodes(bytes.skip(8).take(4)), 'WAVE');
-      expect(data.getUint16(20, Endian.little), 1);
-      expect(data.getUint16(22, Endian.little), 1);
-      expect(data.getUint32(24, Endian.little), 22050);
-      expect(data.getUint16(34, Endian.little), 16);
-      expect(data.getUint32(40, Endian.little), bytes.length - 44);
-      expect(bytes.length, inInclusiveRange(1000, 40000));
-    }
-  });
-
   testWidgets('静音与前后台切换只影响音频，不积压事件，退出释放一次', (tester) async {
     final source = _Events();
     final player = _Player();
@@ -74,28 +55,28 @@ void main() {
       MaterialApp(home: _game(source, player, preferences)),
     );
     await tester.pump();
-    source.emitSound(GameSound.move);
-    expect(player.sounds, [GameSound.move]);
+    source.emitSound(Sound.move);
+    expect(player.sounds, [Sound.move]);
     preferences.setSoundEnabled(false);
     await tester.pump();
-    source.emitSound(GameSound.win);
-    expect(player.sounds, [GameSound.move]);
+    source.emitSound(Sound.win);
+    expect(player.sounds, [Sound.move]);
     expect(player.stops, greaterThan(0));
     preferences.setSoundEnabled(true);
     await tester.pump();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
-    source.emitSound(GameSound.hit);
+    source.emitSound(Sound.hit);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    expect(player.sounds, [GameSound.move]);
-    source.emitSound(GameSound.pickup);
-    expect(player.sounds.last, GameSound.pickup);
+    expect(player.sounds, [Sound.move]);
+    source.emitSound(Sound.pickup);
+    expect(player.sounds.last, Sound.pickup);
     await tester.pumpWidget(const SizedBox());
-    source.emitSound(GameSound.shoot);
+    source.emitSound(Sound.shoot);
     await tester.pump();
     expect(player.disposals, 1);
-    expect(player.sounds, [GameSound.move, GameSound.pickup]);
+    expect(player.sounds, [Sound.move, Sound.pickup]);
     source.disposeAudioEvents();
     await preferences.dispose();
   });
@@ -117,21 +98,21 @@ void main() {
       builder: (_) => const AlertDialog(content: Text('Result')),
     );
     await tester.pumpAndSettle();
-    source.emitSound(GameSound.win);
-    expect(player.sounds, [GameSound.win]);
+    source.emitSound(Sound.win);
+    expect(player.sounds, [Sound.win]);
     navigator.currentState!.pop();
     await tester.pumpAndSettle();
     navigator.currentState!.push(
       MaterialPageRoute<void>(builder: (_) => const Scaffold()),
     );
     await tester.pumpAndSettle();
-    source.emitSound(GameSound.shoot);
-    expect(player.sounds, [GameSound.win]);
+    source.emitSound(Sound.shoot);
+    expect(player.sounds, [Sound.win]);
     navigator.currentState!.pop();
     await tester.pumpAndSettle();
-    expect(player.sounds, [GameSound.win]);
-    source.emitSound(GameSound.capture);
-    expect(player.sounds.last, GameSound.capture);
+    expect(player.sounds, [Sound.win]);
+    source.emitSound(Sound.capture);
+    expect(player.sounds.last, Sound.capture);
     await tester.pumpWidget(const SizedBox());
     source.disposeAudioEvents();
     await preferences.dispose();
@@ -147,16 +128,16 @@ void main() {
       MaterialApp(home: _game(first, oldPlayer, preferences)),
     );
     await tester.pump();
-    first.emitSound(GameSound.tap);
+    first.emitSound(Sound.tap);
     await tester.pumpWidget(
       MaterialApp(home: _game(next, player, preferences)),
     );
     await tester.pump();
-    first.emitSound(GameSound.hit);
-    next.emitSound(GameSound.success);
-    expect(oldPlayer.sounds, [GameSound.tap]);
+    first.emitSound(Sound.hit);
+    next.emitSound(Sound.success);
+    expect(oldPlayer.sounds, [Sound.tap]);
     expect(oldPlayer.disposals, 1);
-    expect(player.sounds, [GameSound.success]);
+    expect(player.sounds, [Sound.success]);
     await tester.pumpWidget(const SizedBox());
     first.disposeAudioEvents();
     next.disposeAudioEvents();

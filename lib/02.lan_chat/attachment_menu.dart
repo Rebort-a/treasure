@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../00.common/l10n/strings.dart';
 import '../00.common/network/client/room_chat_engine.dart';
-import '../00.common/tool/blur_hash.dart';
+import '../00.common/image/blur_hash.dart';
 
 /// 附件选择菜单
 /// 通过传入不同的回调来控制显示哪些选项。

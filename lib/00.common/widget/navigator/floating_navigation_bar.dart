@@ -11,13 +11,13 @@ enum NavigationBarType {
   /// 观感最接近 iOS 26 液态玻璃，GPU 开销最高。
   liquidGlass,
 
-  /// 毛玻璃：轻模糊，保留底下内容的轮廓与色彩（即原 frostedGlass，观感不变）。
+  /// 毛玻璃：轻模糊，保留底下内容的轮廓与色彩。
   frostedGlass,
 
   /// 模拟玻璃：不做实时模糊，用渐变高光与描边画出玻璃质感，适合低端机型。
   simulatedGlass,
 
-  /// 半透明：仅一层半透明底板，最轻量（即原 translucent，观感不变）。
+  /// 半透明：仅一层半透明底板，最轻量。
   translucent;
 
   /// 是否需要 BackdropFilter 实时模糊底图。

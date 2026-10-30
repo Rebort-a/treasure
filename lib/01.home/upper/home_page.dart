@@ -11,7 +11,7 @@ import 'home_manager.dart';
 import 'pages/apps_page.dart';
 import 'pages/online_page.dart';
 import 'pages/settings_page.dart';
-import 'widgets/floating_navigation_bar.dart';
+import '../../00.common/widget/navigator/floating_navigation_bar.dart';
 import 'widgets/home_background.dart';
 import 'widgets/home_tab_page.dart';
 

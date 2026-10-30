@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/network/client/net_turn_engine.dart';
 import '../00.common/game/step.dart';
@@ -13,9 +13,8 @@ import 'foundation_manager.dart';
 
 class NetManager extends FoundationalManager {
   @override
-  GameSound get resultSound => board.lastWinner == turnEngine.playerType
-      ? GameSound.win
-      : GameSound.lose;
+  Sound get resultSound =>
+      board.lastWinner == turnEngine.playerType ? Sound.win : Sound.lose;
   late final NetTurnEngine turnEngine;
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {});
@@ -38,7 +37,7 @@ class NetManager extends FoundationalManager {
   }
 
   void resign() {
-    emitSound(GameSound.lose);
+    emitSound(Sound.lose);
     turnEngine.completeRound();
   }
 

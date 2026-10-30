@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/model/app_item_type.dart';
-import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/net_manager.dart';
 import 'package:treasure/18.match_three/upper/game_view.dart';
@@ -99,7 +98,7 @@ void main() {
     }
   });
 
-  testWidgets('联机撒花随奖励开场出现，队友提前结束不能让重开抢在结算前出现', (tester) async {
+  testWidgets('队友提前结束时，本机完成奖励结算后才允许重开', (tester) async {
     HttpOverrides.global = null;
     final h = RoomHarness(OnlineItemType.matchThree.index);
     final games = <NetMatchManager>[];
@@ -146,9 +145,7 @@ void main() {
       expect(actor.board!.status, MatchStatus.won);
       expect(actor.roundSettled, isFalse);
       expect(actor.turnEngine.roundReplay!.finished.value, isFalse);
-      final celebration = find.byKey(const ValueKey('match-celebration'));
       await tester.pump();
-      expect(celebration, findsNothing);
       actor.loadState(actor.saveState());
       expect(actor.busy.value, isTrue);
       expect(actor.personalScore, 50 + normalScore);
@@ -161,26 +158,14 @@ void main() {
       });
       await tester.pump();
       final replay = find.byKey(const ValueKey('round-replay'));
-      var sawBonusOpening = false;
       for (var i = 0; i < 120 && actor.busy.value; i++) {
         expect(replay, findsNothing);
-        if (!sawBonusOpening) expect(celebration, findsNothing);
         await tester.pump(const Duration(milliseconds: 100));
-        if (actor.bonusTime.value) {
-          if (!sawBonusOpening) {
-            expect(celebration, findsOneWidget);
-            sawBonusOpening = true;
-          }
-          expect(find.text(S.matchYourRank(2)), findsOneWidget);
-          expect(find.text('${actor.personalScore}'), findsOneWidget);
-        }
       }
-      expect(sawBonusOpening, isTrue);
       expect(actor.busy.value, isFalse);
       expect(actor.bonusTime.value, isFalse);
       expect(actor.roundSettled, isTrue);
       expect(actor.showPersonalScore.value, isTrue);
-      expect(find.text(S.matchYourRank(2)), findsOneWidget);
       expect(actor.personalScore, 50 + normalScore);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));

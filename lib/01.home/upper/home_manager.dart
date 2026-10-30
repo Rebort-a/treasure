@@ -7,11 +7,11 @@ import '../../00.common/model/notifiers.dart';
 import '../../00.common/network/client/socket_client.dart';
 import '../../00.common/network/protocol/network_room.dart';
 import '../base/created_room_info.dart';
-import '../middle/player_settings.dart';
+import '../../00.common/service/player_settings.dart';
 import '../middle/room_manager.dart';
-import 'route.dart';
-import 'widgets/room_dialog.dart';
-import 'widgets/room_type_picker.dart';
+import '../route.dart';
+import 'dialogs/room_dialog.dart';
+import 'dialogs/room_type_picker.dart';
 
 export '../base/created_room_info.dart';
 

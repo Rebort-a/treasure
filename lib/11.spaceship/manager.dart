@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/widget/banner/banner_template.dart';
 import '../00.common/widget/dialog/template_dialog.dart';
@@ -18,7 +18,7 @@ import 'constant.dart';
 enum GameState { start, playing, paused, gameOver, levelUp }
 
 /// 游戏管理类（核心逻辑）
-class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
+class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   final Random _random = Random();
   late Ticker _ticker;
   final FocusNode focusNode = FocusNode();
@@ -391,7 +391,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
     // 敌人被消灭
     if (enemy.health <= 0) {
-      emitSound(GameSound.explosion);
+      emitSound(Sound.explosion);
       _score += enemy.points;
 
       // 创建爆炸效果
@@ -446,7 +446,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   }
 
   void _deductPlayerHealth(int damage) {
-    emitSound(GameSound.hit);
+    emitSound(Sound.hit);
     _player.health -= damage;
     if (_player.health <= 0) {
       _gameOver();
@@ -510,7 +510,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
       // 玩家拾取道具
       if (_checkCollision(_player.rect, prop.rect)) {
-        emitSound(GameSound.pickup);
+        emitSound(Sound.pickup);
         _props.remove(prop);
         switch (prop.type) {
           case PropType.triple:
@@ -573,7 +573,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
   // 等级提升
   void _levelUp() {
-    emitSound(GameSound.success);
+    emitSound(Sound.success);
     _level++;
     _state.value = GameState.levelUp;
     _levelUpTimer = 0;
@@ -745,7 +745,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   }
 
   void _resetState() {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     _enemies.clear();
     _bullets.clear();
     _props.clear();
@@ -772,7 +772,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
   // 游戏结束
   void _gameOver() {
-    if (_state.value != GameState.gameOver) emitSound(GameSound.lose);
+    if (_state.value != GameState.gameOver) emitSound(Sound.lose);
     _explosions.add(
       Explosion(
         position:
@@ -790,7 +790,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
     if (_state.value != GameState.playing) return;
 
     if (_player.cooldown <= 0) {
-      emitSound(GameSound.shoot);
+      emitSound(Sound.shoot);
       // 计算子弹配置
       int damage = ParamConstants.bulletBaseDamage;
       Color color = ColorConstants.bulletDefault;

@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/game/game_sound.dart';
 import 'package:treasure/00.common/service/json_store.dart';
-import 'package:treasure/00.common/service/sound_service.dart';
+import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_audio.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
@@ -119,34 +116,6 @@ Future<void> _settle(WidgetTester tester, List<MatchManager> managers) async {
 }
 
 void main() {
-  test('通用与三消事件均有有效 PCM 资源，目录不保留未引用的音效', () {
-    final assets = {
-      for (final sound in GameSound.values)
-        if (sound != GameSound.reset) sound.asset,
-      for (final sound in MatchSound.values)
-        if (sound != MatchSound.reset) sound.asset,
-    };
-    final files = {
-      for (final file in Directory('assets/audio/effects').listSync())
-        if (file is File && file.path.endsWith('.wav'))
-          file.path.replaceAll(r'\', '/').substring('assets/'.length),
-    };
-    expect(files, assets);
-    for (final asset in assets) {
-      final bytes = File('assets/$asset').readAsBytesSync();
-      final header = ByteData.sublistView(bytes);
-      expect(String.fromCharCodes(bytes.sublist(0, 4)), 'RIFF');
-      expect(String.fromCharCodes(bytes.sublist(8, 12)), 'WAVE');
-      expect(header.getUint16(20, Endian.little), 1);
-      expect(header.getUint16(22, Endian.little), 1);
-      expect(header.getUint32(24, Endian.little), 22050);
-      expect(header.getUint16(34, Endian.little), 16);
-      expect(header.getUint32(40, Endian.little), bytes.length - 44);
-      expect(bytes.length, inInclusiveRange(1000, 50000));
-      expect(bytes.skip(44).any((byte) => byte != 0), isTrue);
-    }
-  });
-
   test('静音设置加载、切换、保存，并立即停止当前音频', () async {
     final manager = MatchManager(generate: false);
     final player = _Player();

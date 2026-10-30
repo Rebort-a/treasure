@@ -11,7 +11,7 @@ import 'package:treasure/06.greedy_snake/net_page.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 import 'package:treasure/06.greedy_snake/foundation_widget.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
-import 'package:treasure/01.home/upper/route.dart';
+import 'package:treasure/01.home/route.dart';
 
 import '00.common/network/support/network_room_harness.dart';
 

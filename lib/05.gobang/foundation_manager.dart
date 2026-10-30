@@ -1,7 +1,7 @@
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 import 'base.dart';
 
-abstract class FoundationalManager with GameSoundEmitter {
+abstract class FoundationalManager with SoundEmitter {
   final Board board = Board(size: 15);
 
   void placePiece(int index);
@@ -11,13 +11,13 @@ abstract class FoundationalManager with GameSoundEmitter {
     final before = board.moveHistory.length;
     board.placePiece(index);
     if (board.moveHistory.length == before) return;
-    emitSound(board.gameOver ? resultSound : GameSound.move);
+    emitSound(board.gameOver ? resultSound : Sound.move);
   }
 
-  GameSound get resultSound => GameSound.win;
+  Sound get resultSound => Sound.win;
 
   void restart() {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     board.restart();
   }
 

@@ -1,5 +1,5 @@
-import 'json_store.dart';
-import 'storage_service.dart';
+import '../service/json_store.dart';
+import '../service/storage_service.dart';
 import 'web_audio_settings_stub.dart'
     if (dart.library.js_interop) 'web_audio_settings.dart'
     as browser;

@@ -4,7 +4,7 @@ import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/style/theme.dart';
-import 'package:treasure/01.home/upper/widgets/floating_navigation_bar.dart';
+import 'package:treasure/00.common/widget/navigator/floating_navigation_bar.dart';
 import 'package:treasure/01.home/upper/home_manager.dart';
 import 'package:treasure/01.home/upper/home_page.dart';
 import 'package:treasure/main.dart';

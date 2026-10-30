@@ -2,17 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../game/game_sound.dart';
-import '../../service/audio_preferences.dart';
-import '../../service/music_service.dart';
-import '../../service/sound_service.dart';
+import '../../sound/sound_manager.dart';
+import '../../sound/audio_preferences.dart';
+import '../../sound/music_service.dart';
+import '../../sound/sound_service.dart';
 
 /// 音频生命周期跟随页面，不跟随 Manager 的计时器或网络连接。
 class GameAudioScope extends StatefulWidget {
-  final GameSoundEmitter source;
+  final SoundEmitter source;
   final String project;
   final Widget child;
-  final SoundPlayer<GameSound>? player;
+  final SoundPlayer<Sound>? player;
   final String? musicAsset;
   final Listenable? musicState;
   final bool Function()? isMusicPlaying;
@@ -38,7 +38,7 @@ class GameAudioScope extends StatefulWidget {
 
 class _GameAudioScopeState extends State<GameAudioScope>
     with WidgetsBindingObserver {
-  late SoundController<GameSound> _audio;
+  late SoundController<Sound> _audio;
   BackgroundMusicController? _music;
   bool _routeCurrent = true;
 
@@ -51,24 +51,24 @@ class _GameAudioScopeState extends State<GameAudioScope>
 
   void _create() {
     final source = widget.source;
-    _audio = SoundController<GameSound>(
+    _audio = SoundController<Sound>(
       events: source.audioEvents,
       currentSound: () => source.audioEvents.value?.sound,
-      resetSound: GameSound.reset,
+      resetSound: Sound.reset,
       project: widget.project,
       preferences: widget.preferences,
       minimumInterval: (sound) => switch (sound) {
-        GameSound.shoot => 110,
-        GameSound.hit || GameSound.explosion => 140,
-        GameSound.tap => 45,
+        Sound.shoot => 110,
+        Sound.hit || Sound.explosion => 140,
+        Sound.tap => 45,
         _ => 90,
       },
       player:
           widget.player ??
-          AssetSoundPlayer<GameSound>(
+          AssetSoundPlayer<Sound>(
             assets: {
-              for (final sound in GameSound.values)
-                if (sound != GameSound.reset) sound: sound.asset,
+              for (final sound in Sound.values)
+                if (sound != Sound.reset) sound: sound.asset,
             },
           ),
     );

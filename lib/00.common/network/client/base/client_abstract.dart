@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../config/network_config.dart';
+import '../../network_config.dart';
 import '../../protocol/tcp_frame_codec.dart';
 
 typedef ClientDataCallback = void Function(List<int> data);

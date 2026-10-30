@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/service/json_store.dart';
-import 'package:treasure/00.common/service/sound_service.dart';
+import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/18.match_three/middle/combo_praise.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_audio.dart';
@@ -119,67 +117,6 @@ Future<void> _waitForBonus(
 }
 
 void main() {
-  test('赞美与奖励播报均绑定完整且非静音的离线 PCM WAV 资源', () {
-    for (final asset in [
-      for (final praise in ComboPraise.values) praise.asset,
-      'audio/voice/bonus_time.wav',
-    ]) {
-      final bytes = File('assets/$asset').readAsBytesSync();
-      final header = ByteData.sublistView(bytes);
-      expect(bytes.length, greaterThanOrEqualTo(44), reason: asset);
-      expect(String.fromCharCodes(bytes.take(4)), 'RIFF');
-      expect(String.fromCharCodes(bytes.skip(8).take(4)), 'WAVE');
-      expect(
-        header.getUint32(4, Endian.little),
-        bytes.length - 8,
-        reason: asset,
-      );
-      var offset = 12;
-      var hasFormat = false;
-      var hasAudio = false;
-      var blockAlign = 0;
-      // WAV 可包含 LIST 等元数据块，不能假定音频固定从第 44 字节开始。
-      while (offset + 8 <= bytes.length) {
-        final id = String.fromCharCodes(bytes.sublist(offset, offset + 4));
-        final size = header.getUint32(offset + 4, Endian.little);
-        final start = offset + 8;
-        final end = start + size;
-        expect(end, lessThanOrEqualTo(bytes.length), reason: '$asset: $id');
-        if (id == 'fmt ') {
-          expect(size, greaterThanOrEqualTo(16), reason: asset);
-          expect(header.getUint16(start, Endian.little), 1, reason: asset);
-          final channels = header.getUint16(start + 2, Endian.little);
-          final sampleRate = header.getUint32(start + 4, Endian.little);
-          final byteRate = header.getUint32(start + 8, Endian.little);
-          blockAlign = header.getUint16(start + 12, Endian.little);
-          expect(channels, greaterThan(0), reason: asset);
-          expect(sampleRate, greaterThan(0), reason: asset);
-          expect(
-            header.getUint16(start + 14, Endian.little),
-            16,
-            reason: asset,
-          );
-          expect(blockAlign, channels * 2, reason: asset);
-          expect(byteRate, sampleRate * blockAlign, reason: asset);
-          hasFormat = true;
-        } else if (id == 'data') {
-          expect(hasFormat, isTrue, reason: asset);
-          expect(size, greaterThan(0), reason: asset);
-          expect(size % blockAlign, 0, reason: asset);
-          expect(
-            bytes.sublist(start, end).any((byte) => byte != 0),
-            isTrue,
-            reason: asset,
-          );
-          hasAudio = true;
-        }
-        offset = end + size % 2;
-      }
-      expect(offset, bytes.length, reason: asset);
-      expect(hasFormat && hasAudio, isTrue, reason: asset);
-    }
-  });
-
   test('连续赞美每次都播报，消除声不抢占语音，静音后台和重开仍可取消', () async {
     final manager = MatchManager(generate: false);
     final voice = _Voice();

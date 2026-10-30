@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../00.common/game/game_sound.dart';
+import '../../00.common/sound/sound_manager.dart';
 
 import '../../00.common/widget/banner/banner_template.dart';
 import '../../00.common/game/gamer.dart';
@@ -24,10 +24,10 @@ import 'dialog.dart';
 import 'cast_page.dart';
 import 'local_combat_page.dart';
 import 'maze_combat_route.dart';
-import '../upper/package_page.dart';
-import '../upper/skill_page.dart';
-import '../upper/status_page.dart';
-import '../upper/store_page.dart';
+import 'package_page.dart';
+import 'skill_page.dart';
+import 'status_page.dart';
+import 'store_page.dart';
 
 class CellNotifier extends ValueNotifier<CellData> {
   CellNotifier(super.value);
@@ -53,7 +53,7 @@ class CellNotifier extends ValueNotifier<CellData> {
   }
 }
 
-class MazeManager with GameSoundEmitter {
+class MazeManager with SoundEmitter {
   final int mapSize = 2 * mapLevel + 1; // 确定地图的宽和高
   final Random _random = Random(); // 初始化随机生成器
 
@@ -444,7 +444,7 @@ class MazeManager with GameSoundEmitter {
       switch (cell.id) {
         case EntityType.road:
           _setCellToPlayer(newY, newX, player.id);
-          emitSound(GameSound.move);
+          emitSound(Sound.move);
           break;
         case EntityType.wall:
           break;
@@ -483,7 +483,7 @@ class MazeManager with GameSoundEmitter {
           };
           break;
         case EntityType.hospital:
-          emitSound(GameSound.pickup);
+          emitSound(Sound.pickup);
           player.props[EntityType.hospital]?.count += 1;
           pageNavigator.value = (BuildContext context) {
             BannerTemplate.snackBarDialog(context, S.gotMedicine);
@@ -491,7 +491,7 @@ class MazeManager with GameSoundEmitter {
           _setCellToEntity(newY, newX, EntityType.road);
           break;
         case EntityType.sword:
-          emitSound(GameSound.pickup);
+          emitSound(Sound.pickup);
           player.props[EntityType.sword]?.count += 1;
           pageNavigator.value = (BuildContext context) {
             BannerTemplate.snackBarDialog(context, S.gotWeapon);
@@ -499,7 +499,7 @@ class MazeManager with GameSoundEmitter {
           _setCellToEntity(newY, newX, EntityType.road);
           break;
         case EntityType.shield:
-          emitSound(GameSound.pickup);
+          emitSound(Sound.pickup);
           player.props[EntityType.shield]?.count += 1;
           pageNavigator.value = (BuildContext context) {
             BannerTemplate.snackBarDialog(context, S.gotArmor);
@@ -507,7 +507,7 @@ class MazeManager with GameSoundEmitter {
           _setCellToEntity(newY, newX, EntityType.road);
           break;
         case EntityType.purse:
-          emitSound(GameSound.pickup);
+          emitSound(Sound.pickup);
           int money = 5 + _random.nextInt(25);
           player.money += money;
           pageNavigator.value = (BuildContext context) {

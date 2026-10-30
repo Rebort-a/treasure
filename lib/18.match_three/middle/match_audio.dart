@@ -1,4 +1,4 @@
-import '../../00.common/service/sound_service.dart';
+import '../../00.common/sound/sound_service.dart';
 import 'combo_praise.dart';
 import 'match_manager.dart';
 import 'match_sound.dart';
@@ -58,7 +58,7 @@ class MatchAudioController extends SoundController<MatchSound> {
       project: '18.match_three',
       preferences: audioPreferences,
       channel: SoundChannel.voice,
-      // 展示层已保证每次结算只发一次事件，不再按档位吞掉连续操作的播报。
+      // 每次结算发布一次事件，连续操作的播报不设间隔。
       minimumInterval: (_) => 0,
       onPlayback: (praise, playback) {
         final event = manager.praiseVoice.value;
@@ -87,7 +87,7 @@ class MatchAudioController extends SoundController<MatchSound> {
       onPlayback: (_, playback) => manager.trackBonusPlayback(playback),
     );
     manager.bonusTime.addListener(_syncVoices);
-    manager.sound.addListener(_onGameSound);
+    manager.sound.addListener(_onSound);
     _syncVoices();
   }
 
@@ -103,7 +103,7 @@ class MatchAudioController extends SoundController<MatchSound> {
     _bonusAudio.setActive(active);
   }
 
-  void _onGameSound() {
+  void _onSound() {
     if (manager.sound.value?.sound == MatchSound.reset) {
       _praiseAudio.stop();
       _bonusAudio.stop();
@@ -122,7 +122,7 @@ class MatchAudioController extends SoundController<MatchSound> {
 
   Future<void> _disposeAll() async {
     manager.bonusTime.removeListener(_syncVoices);
-    manager.sound.removeListener(_onGameSound);
+    manager.sound.removeListener(_onSound);
     await Future.wait([
       _praiseAudio.dispose(),
       _bonusAudio.dispose(),

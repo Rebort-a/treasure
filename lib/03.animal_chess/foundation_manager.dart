@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/game/gamer.dart';
 import '../00.common/game/map.dart';
@@ -10,7 +10,7 @@ import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'extension.dart';
 
-abstract class FoundationalManager with GameSoundEmitter {
+abstract class FoundationalManager with SoundEmitter {
   int boardLevel = 2;
   int get _boardSize => boardLevel * 2 + 1;
 
@@ -83,7 +83,7 @@ abstract class FoundationalManager with GameSoundEmitter {
   }
 
   void resetGameState() {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     _markedCell.clear();
     winner.value = null;
     currentGamer.value = TurnGamerType.front;
@@ -141,11 +141,11 @@ abstract class FoundationalManager with GameSoundEmitter {
     _clearSelectionAndHighlight();
     if (action is FlipAction) {
       _revealPiece(action.index);
-      emitSound(GameSound.flip);
+      emitSound(Sound.flip);
     } else if (action is MoveAction) {
       final capture = displayMap.value[action.to].value.hasAnimal;
       _movePiece(action.from, action.to);
-      emitSound(capture ? GameSound.capture : GameSound.move);
+      emitSound(capture ? Sound.capture : Sound.move);
     }
   }
 
@@ -297,6 +297,6 @@ abstract class FoundationalManager with GameSoundEmitter {
   void handleGameOver(TurnGamerType winner) {
     if (this.winner.value != null) return;
     this.winner.value = winner;
-    emitSound(GameSound.win);
+    emitSound(Sound.win);
   }
 }

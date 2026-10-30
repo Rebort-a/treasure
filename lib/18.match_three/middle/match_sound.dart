@@ -1,4 +1,4 @@
-import '../../00.common/game/game_sound.dart';
+import '../../00.common/sound/sound_manager.dart';
 
 /// 仅用于本机展示，不序列化，也不参与联机判定。
 enum MatchSound {
@@ -24,12 +24,12 @@ enum MatchSound {
 
   /// 通用短音效复用共享资源，三消事件语义与触发逻辑保持独立。
   String get asset => switch (this) {
-    select => GameSound.tap.asset,
-    swap => GameSound.flip.asset,
-    invalid => GameSound.error.asset,
-    bomb => GameSound.explosion.asset,
-    fall => GameSound.move.asset,
-    transform => GameSound.cast.asset,
+    select => Sound.tap.asset,
+    swap => Sound.flip.asset,
+    invalid => Sound.error.asset,
+    bomb => Sound.explosion.asset,
+    fall => Sound.move.asset,
+    transform => Sound.cast.asset,
     _ => 'audio/effects/$name.wav',
   };
 }

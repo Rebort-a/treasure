@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../../tool/blur_hash.dart';
+import '../../image/blur_hash.dart';
 
 /// BlurHash 模糊占位 + 高斯模糊溶解加载动画
 ///

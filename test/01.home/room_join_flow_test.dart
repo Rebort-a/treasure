@@ -7,8 +7,8 @@ import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/network/protocol/network_room.dart';
 import 'package:treasure/00.common/widget/navigator/notifier_navigator.dart';
 import 'package:treasure/01.home/upper/home_manager.dart';
-import 'package:treasure/01.home/upper/widgets/room_dialog.dart';
-import 'package:treasure/01.home/middle/player_settings.dart';
+import 'package:treasure/01.home/upper/dialogs/room_dialog.dart';
+import 'package:treasure/00.common/service/player_settings.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 
 import '../00.common/network/support/network_room_harness.dart';

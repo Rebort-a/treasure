@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 
-import '../../00.common/game/game_sound.dart';
+import '../../00.common/sound/sound_manager.dart';
 
 import '../base/constant.dart';
 import '../base/player.dart';
@@ -168,7 +168,7 @@ class ControlManager {
     if (_jumpRequested) {
       final grounded = player.isGrounded;
       player.jump();
-      if (grounded && !player.isGrounded) manager.emitSound(GameSound.jump);
+      if (grounded && !player.isGrounded) manager.emitSound(Sound.jump);
       _jumpRequested = false;
     }
   }

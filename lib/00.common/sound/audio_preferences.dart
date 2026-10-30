@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'audio_settings_store.dart';
-import 'json_store.dart';
+import '../service/json_store.dart';
 
 /// 所有游戏共用声音和震动偏好，页面仅管理播放器生命周期。
 class AudioPreferences {

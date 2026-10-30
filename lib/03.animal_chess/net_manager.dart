@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/network/client/net_turn_engine.dart';
 import '../00.common/game/gamer.dart';
@@ -58,13 +58,13 @@ class NetManager extends FoundationalManager {
   void _onExit() {}
 
   void surrender() {
-    emitSound(GameSound.lose);
+    emitSound(Sound.lose);
     turnEngine.completeRound();
   }
 
   @override
   void handleGameOver(TurnGamerType winner) {
-    emitSound(winner == turnEngine.playerType ? GameSound.win : GameSound.lose);
+    emitSound(winner == turnEngine.playerType ? Sound.win : Sound.lose);
     turnEngine.completeRound();
   }
 

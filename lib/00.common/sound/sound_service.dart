@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
-import 'json_store.dart';
+import '../service/json_store.dart';
 import 'audio_preferences.dart';
 
 /// 播放实现必须在 stop 后取消尚未开始的旧请求。

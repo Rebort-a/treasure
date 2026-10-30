@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/service/json_store.dart';
-import 'package:treasure/00.common/service/music_service.dart';
+import 'package:treasure/00.common/sound/music_service.dart';
 
 class _Player implements MusicPlayer {
   Completer<void>? loading;

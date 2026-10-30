@@ -436,7 +436,7 @@ class Bullet {
       'ang': angle,
       'owner': ownerId,
     };
-    // 与默认值相同的字段省略；size/speed 补齐序列化（此前缺失会被丢弃）
+    // 与默认值相同的字段省略，反序列化时使用对应默认值。
     putIfNotDefault(json, 'sz', size, 8.0);
     putIfNotDefault(json, 'dmg', damage, baseDamage);
     putIfNotDefault(json, 'spd', speed, 300.0);

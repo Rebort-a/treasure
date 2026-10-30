@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import 'package:flutter/material.dart';
 
@@ -56,7 +56,7 @@ class GoNetManager extends GoFoundationalManager {
 
   @override
   void resign() {
-    emitSound(GameSound.lose);
+    emitSound(Sound.lose);
     turnEngine.completeRound();
   }
 

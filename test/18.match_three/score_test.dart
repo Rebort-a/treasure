@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/service/audio_preferences.dart';
+import 'package:treasure/00.common/sound/audio_preferences.dart';
 import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
 import 'package:treasure/18.match_three/upper/game_view.dart';

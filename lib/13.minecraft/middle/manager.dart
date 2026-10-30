@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import '../../00.common/game/game_sound.dart';
+import '../../00.common/sound/sound_manager.dart';
 
 import '../base/block.dart';
 import '../base/aabb.dart';
@@ -17,7 +17,7 @@ import 'raycast.dart';
 import 'redstone_manager.dart';
 
 /// 游戏管理器
-class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
+class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   late final Ticker _ticker;
   late double _lastTime;
   late double _deltaTime;
@@ -134,7 +134,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
       _needsUpdate = true;
     }
 
-    // 恢复旧版的更新阈值，减少无效渲染更新
+    // 按更新条件刷新区块与可见方块，减少无效渲染更新。
     if (_shouldUpdate()) {
       // 更新区块加载状态
       _chunkManager.updateChunks(_player.position);
@@ -196,7 +196,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
     if (type == BlockType.bedrock) return false;
     if (!_canAddInventory(type)) return false;
     if (_chunkManager.destroyBlock(pos)) {
-      emitSound(GameSound.pickup);
+      emitSound(Sound.pickup);
       addInventory(type);
       _redstoneManager.onBlockDestroyed(_chunkManager, pos, type);
       targetedBlock = null;
@@ -214,7 +214,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
     // 点击拉杆 → 切换开关
     if (target.block.type == BlockType.lever) {
-      emitSound(GameSound.tap);
+      emitSound(Sound.tap);
       _redstoneManager.toggleLever(_chunkManager, target.block.position);
       _sceneRevision++;
       _needsUpdate = true;
@@ -236,7 +236,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
     if (placedBounds.intersects(_player.collider.aabb)) return false;
 
     if (_chunkManager.placeBlock(placePos, selectedType)) {
-      emitSound(GameSound.move);
+      emitSound(Sound.move);
       removeInventory(selectedType);
       _redstoneManager.onBlockPlaced(_chunkManager, placePos, selectedType);
       _sceneRevision++;

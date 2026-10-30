@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/widget/effect/magic_celebration.dart';
 import '../00.common/style/theme.dart';
@@ -13,7 +13,7 @@ import 'algorithm.dart';
 import 'base.dart';
 import 'import_page.dart';
 
-class Manager with GameSoundEmitter {
+class Manager with SoundEmitter {
   late final TimerCounter _timer; // 计时器
 
   int boardLevel = 3; // 固定为9x9数独（3x3宫格）
@@ -47,7 +47,7 @@ class Manager with GameSoundEmitter {
 
   /// 初始化游戏
   void _initGame() {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     _initCells();
     _timer.restart();
     isGameOver.value = false;
@@ -140,7 +140,7 @@ class Manager with GameSoundEmitter {
 
   /// 游戏完成处理
   void _handleGameOver() {
-    if (!isGameOver.value) emitSound(GameSound.win);
+    if (!isGameOver.value) emitSound(Sound.win);
     _timer.stop();
     _clearSelectedCell();
 
@@ -217,7 +217,7 @@ class Manager with GameSoundEmitter {
     if (selectedCellIndex.value < 0) return;
     final before = selectedCell.spareDigits.length;
     selectedCell.addDigit(digit);
-    if (selectedCell.spareDigits.length > before) emitSound(GameSound.tap);
+    if (selectedCell.spareDigits.length > before) emitSound(Sound.tap);
     _saveProgress();
   }
 
@@ -238,9 +238,7 @@ class Manager with GameSoundEmitter {
     final canLock = selectedCell.canLock;
     selectedCell.lock();
     if (canLock) {
-      emitSound(
-        isCellCorrect(selectedCell) ? GameSound.success : GameSound.error,
-      );
+      emitSound(isCellCorrect(selectedCell) ? Sound.success : Sound.error);
     }
     _saveProgress();
     checkCompleted();

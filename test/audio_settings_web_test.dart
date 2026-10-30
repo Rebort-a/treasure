@@ -4,7 +4,7 @@ library;
 import 'dart:js_interop';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/service/audio_settings_store.dart';
+import 'package:treasure/00.common/sound/audio_settings_store.dart';
 
 @JS('localStorage')
 external _Storage get _storage;

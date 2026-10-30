@@ -5,7 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
 import 'audio_preferences.dart';
-import 'json_store.dart';
+import '../service/json_store.dart';
 
 /// 音乐独占声道，不与射击、消除等短音效竞争播放器。
 abstract interface class MusicPlayer {

@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
-import '../../config/network_config.dart';
+import '../network_config.dart';
 import '../protocol/tcp_frame_codec.dart';
 
 typedef ServerDataCallback = void Function(List<int> data);

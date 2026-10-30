@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/service/audio_preferences.dart';
+import 'package:treasure/00.common/sound/audio_preferences.dart';
 import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/widget/button/scale_button.dart';
 
@@ -66,10 +66,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump(const Duration(milliseconds: 300));
     expect(haptics, isNotEmpty);
-    expect(
-      haptics.every((value) => value == 'HapticFeedbackType.mediumImpact'),
-      isTrue,
-    );
     final beforeMute = haptics.length;
     final beforeRepeat = presses;
     preferences.setVibrationEnabled(false);

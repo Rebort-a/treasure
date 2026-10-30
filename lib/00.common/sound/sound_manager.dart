@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// 本机表现事件，不写入存档、规则内核或网络协议。
-enum GameSound {
+enum Sound {
   reset,
   tap,
   move,
@@ -21,19 +21,19 @@ enum GameSound {
   String get asset => 'audio/effects/$name.wav';
 }
 
-class GameSoundEvent {
-  final GameSound sound;
+class SoundEvent {
+  final Sound sound;
 
-  const GameSoundEvent(this.sound);
+  const SoundEvent(this.sound);
 }
 
 /// Manager 只发布事件；未挂载游戏页面时不会创建播放器或发声。
-mixin GameSoundEmitter {
-  final audioEvents = ValueNotifier<GameSoundEvent?>(null);
+mixin SoundEmitter {
+  final audioEvents = ValueNotifier<SoundEvent?>(null);
   bool _audioDisposed = false;
 
-  void emitSound(GameSound sound) {
-    if (!_audioDisposed) audioEvents.value = GameSoundEvent(sound);
+  void emitSound(Sound sound) {
+    if (!_audioDisposed) audioEvents.value = SoundEvent(sound);
   }
 
   void disposeAudioEvents() {

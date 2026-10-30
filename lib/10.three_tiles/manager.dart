@@ -2,14 +2,14 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
-class Manager with GameSoundEmitter {
+class Manager with SoundEmitter {
   /// 虚拟棋盘和卡片尺寸，用来做层级判断
   /// 在显示时会根据真实尺寸动态映射
   static const double boardVirtualWidth = 600;
@@ -42,7 +42,7 @@ class Manager with GameSoundEmitter {
   }
 
   void _initGame() {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     // 初始化道具区
     props
       ..clear()
@@ -203,7 +203,7 @@ class Manager with GameSoundEmitter {
 
   void selectCard(CardNotifier card) {
     if (_isGameOver || !card.enable) return;
-    emitSound(GameSound.tap);
+    emitSound(Sound.tap);
     selectedCards.add(card);
     cards.remove(card);
     _updateCardVisibility();
@@ -220,7 +220,7 @@ class Manager with GameSoundEmitter {
     }
     for (final group in groups.values) {
       if (group.length >= 3) {
-        emitSound(GameSound.success);
+        emitSound(Sound.success);
         for (final c in group.take(3).toList()) {
           selectedCards.remove(c);
         }
@@ -231,7 +231,7 @@ class Manager with GameSoundEmitter {
 
   void useProp(PropType prop) {
     if (_isGameOver) return;
-    emitSound(GameSound.cast);
+    emitSound(Sound.cast);
     switch (prop) {
       case PropType.removeThree:
         _removeThreeRandomCards();
@@ -287,7 +287,7 @@ class Manager with GameSoundEmitter {
   }
 
   void _handleGameOver(bool victory) {
-    if (!_isGameOver) emitSound(victory ? GameSound.win : GameSound.lose);
+    if (!_isGameOver) emitSound(victory ? Sound.win : Sound.lose);
     _timer.stop();
     _isGameOver = true;
     _showGameOverDialog(victory);

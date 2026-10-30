@@ -210,9 +210,9 @@ lib/
 
 ## 🌐 Network Architecture | 网络架构
 
-Dual network mode, switchable via one line in `lib/00.common/config/network_config.dart`:
+Dual network mode, switchable via one line in `lib/00.common/network/network_config.dart`:
 
-双网络方案，通过 `lib/00.common/config/network_config.dart` 一行切换：
+双网络方案，通过 `lib/00.common/network/network_config.dart` 一行切换：
 
 ```dart
 const NetworkMode networkMode = NetworkMode.socket;     // TCP + UDP，原生平台
@@ -250,7 +250,7 @@ const NetworkMode networkMode = NetworkMode.webSocket;   // WebSocket，含 Web 
 
 | 依赖 Dependency | 引入原因 Reason | 涉及文件 Files | 删除方法 Removal | 删除后影响 Impact |
 |------|---------|---------|---------|----------|
-| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/base/client_abstract.dart` | 在 `lib/00.common/config/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
+| `web_socket_channel` | 兼容 Web 端联机通信<br/>WebSocket support for Web | `00.common/network/client/base/client_abstract.dart` | 在 `lib/00.common/network/network_config.dart` 改为 `NetworkMode.socket`，删除 WebSocket 分支代码<br/>Switch to `NetworkMode.socket`, delete WebSocket branch | Web 端无法联机，原生平台不受影响<br/>Web loses LAN, native platforms unaffected |
 | `image_picker` | 聊天发送图片<br/>Send images in chat | `02.lan_chat/attachment_menu.dart` | 删除图片选择适配代码并隐藏相册选项<br/>Remove the image-picker adapter and hide the album option | 聊天无法发送图片<br/>Cannot send images |
 | `file_picker` | 聊天发送/保存文件<br/>Send & save files in chat | `02.lan_chat/attachment_menu.dart`、`00.common/widget/component/chat_component.dart` | 删除文件选择/保存适配代码<br/>Remove the file-picker adapter | 聊天无法发送和保存文件<br/>Cannot send and save files |
 | `path_provider` | 获取应用专属存储目录<br/>App-specific storage directory | `00.common/service/storage_service.dart` | 删除 `StorageService` 中相关代码，改用 `Directory.current`<br/>Remove related code, use `Directory.current` | Android/iOS 无法持久化设置和进度，桌面端不受影响<br/>Android/iOS lose persistence, desktop unaffected |

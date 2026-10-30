@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/game/game_sound.dart';
-import 'package:treasure/00.common/service/audio_preferences.dart';
+import 'package:treasure/00.common/sound/sound_manager.dart';
+import 'package:treasure/00.common/sound/audio_preferences.dart';
 import 'package:treasure/00.common/service/json_store.dart';
-import 'package:treasure/00.common/service/music_service.dart';
-import 'package:treasure/00.common/service/sound_service.dart';
+import 'package:treasure/00.common/sound/music_service.dart';
+import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/00.common/widget/component/game_audio_scope.dart';
 
-class _Events with GameSoundEmitter {}
+class _Events with SoundEmitter {}
 
-class _Effects implements SoundPlayer<GameSound> {
+class _Effects implements SoundPlayer<Sound> {
   @override
   Future<void> preload() async {}
   @override
-  Future<void> play(GameSound sound) async {}
+  Future<void> play(Sound sound) async {}
   @override
   Future<void> stop() async {}
   @override

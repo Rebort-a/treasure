@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/game/gamer.dart';
 import 'foundation_manager.dart';
@@ -10,9 +10,8 @@ import 'intelligence.dart';
 /// 本地对局管理器。AI 接入收归于此（middle 层），UI 层只做 toggle / 难度选择。
 class LocalManager extends FoundationalManager {
   @override
-  GameSound get resultSound => _ai != null && board.lastWinner == _ai!.faction
-      ? GameSound.lose
-      : GameSound.win;
+  Sound get resultSound =>
+      _ai != null && board.lastWinner == _ai!.faction ? Sound.lose : Sound.win;
   AiController? _ai;
   AiDifficulty _difficulty = AiDifficulty.normal;
   bool _aiMoving = false;

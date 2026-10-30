@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../../00.common/game/game_sound.dart';
+import '../../00.common/sound/sound_manager.dart';
 import '../../00.common/network/client/net_turn_engine.dart';
 import '../../00.common/game/step.dart';
 import '../../00.common/game/gamer.dart';
@@ -18,8 +18,8 @@ import '../base/energy.dart';
 import '../middle/common.dart';
 import '../base/skill.dart';
 
-import '../upper/cast_page.dart';
-import '../upper/status_page.dart';
+import 'cast_page.dart';
+import 'status_page.dart';
 
 class NetCombatManager extends FoundationalCombatManager {
   late final NetTurnEngine turnEngine;
@@ -201,8 +201,8 @@ class NetCombatManager extends FoundationalCombatManager {
     } else {
       combatResult =
           FoundationalCombatManager.stepResultMapping[result]![isSelf]!;
-      if (combatResult == ResultType.victory) emitSound(GameSound.win);
-      if (combatResult == ResultType.defeat) emitSound(GameSound.lose);
+      if (combatResult == ResultType.victory) emitSound(Sound.win);
+      if (combatResult == ResultType.defeat) emitSound(Sound.lose);
       turnEngine.completeRound();
     }
   }

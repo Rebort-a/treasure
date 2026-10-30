@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/game/gamer.dart';
 import 'foundation_manager.dart';
@@ -11,9 +11,7 @@ class LocalManager extends FoundationalManager {
   void handleGameOver(TurnGamerType winner) {
     if (this.winner.value != null) return;
     this.winner.value = winner;
-    emitSound(
-      _aiController?.faction == winner ? GameSound.lose : GameSound.win,
-    );
+    emitSound(_aiController?.faction == winner ? Sound.lose : Sound.win);
   }
 
   /// AI控制器实例

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
-import '../../../00.common/config/network_config.dart';
+import '../../../00.common/network/network_config.dart';
 import '../../../00.common/l10n/strings.dart';
 import '../../../00.common/model/app_item_type.dart';
 import '../../../00.common/network/protocol/network_room.dart';

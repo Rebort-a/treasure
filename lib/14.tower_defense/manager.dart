@@ -3,14 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/model/notifiers.dart';
 import 'base.dart';
 
 /// 塔防游戏核心管理器（飞船范式：Manager 自持 Ticker + ChangeNotifier，
 /// painter 通过 super(repaint: manager) 自动重绘，无需 page 级 setState）
-class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
+class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   Manager() {
     _initTicker();
   }
@@ -84,7 +84,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   }
 
   void initGame({int? width, int? height}) {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     map = GameMapData.generate(
       width: width ?? 20,
       height: height ?? 12,
@@ -246,7 +246,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
     _waveActive = false;
     gold.value += 20 + waveNumber.value * 5;
-    emitSound(GameSound.success);
+    emitSound(Sound.success);
     // 无波次上限，玩家可一直玩（仅 lives 归零才 lost）
     state.value = GameState.preparing;
   }
@@ -380,7 +380,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
         _enemyMap.remove(enemy.id);
         enemy.escaped = true;
         lives.value--;
-        emitSound(GameSound.hit);
+        emitSound(Sound.hit);
         escaped.value++;
       }
     }
@@ -467,7 +467,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   }
 
   void _fire(Tower tower, Enemy target) {
-    emitSound(GameSound.shoot);
+    emitSound(Sound.shoot);
     projectiles.add(
       Bullet(
         from: tower.pos,
@@ -538,7 +538,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
   /// 敌人死亡：标记、移出反查表、触发击杀特效、给奖励
   void _killEnemy(Enemy enemy) {
-    emitSound(GameSound.capture);
+    emitSound(Sound.capture);
     _enemyMap.remove(enemy.id); // 飞弹不再锁定
     enemy.dying = true;
     enemy.deathTime = animTime;
@@ -569,7 +569,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
     final cost = TowerConfigs.getConfig(toType).cost;
     if (gold.value < cost) return false;
     gold.value -= cost;
-    emitSound(GameSound.cast);
+    emitSound(Sound.cast);
     final newTower = Tower(type: toType, pos: tower.pos);
     towers.remove(tower);
     towers.add(newTower);
@@ -592,7 +592,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   void _checkGameOver() {
     if (lives.value <= 0 && state.value != GameState.lost) {
       state.value = GameState.lost;
-      emitSound(GameSound.lose);
+      emitSound(Sound.lose);
     }
   }
 

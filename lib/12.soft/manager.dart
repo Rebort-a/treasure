@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 
 import 'base.dart';
 
@@ -127,7 +127,7 @@ class Constant {
   }
 }
 
-class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
+class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   late Ticker _ticker;
   double _lastElapsed = 0; // 上次更新时间
   final FocusNode focusNode = FocusNode();
@@ -187,8 +187,8 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
 
   /// 立即重置
   void resetImmediate() {
-    emitSound(GameSound.reset);
-    emitSound(GameSound.move);
+    emitSound(Sound.reset);
+    emitSound(Sound.move);
     _externalForce = Vector3.zero();
     _lastScale = 1.0;
     _soft = SoftTube(center: Constant.focus);
@@ -210,7 +210,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
           LogicalKeyboardKey.keyO,
           LogicalKeyboardKey.keyI,
         }.contains(event.logicalKey)) {
-      emitSound(GameSound.move);
+      emitSound(Sound.move);
     }
     const double keyForceStep = 0.1;
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
@@ -251,7 +251,7 @@ class Manager with ChangeNotifier, GameSoundEmitter implements TickerProvider {
   void handleDrag(ScaleUpdateDetails details) {
     if (details.focalPointDelta.distanceSquared > 0 ||
         details.scale != _lastScale) {
-      emitSound(GameSound.move);
+      emitSound(Sound.move);
     }
     const double dragSensitivity = 0.01;
     const double scaleSensitivity = 0.8;

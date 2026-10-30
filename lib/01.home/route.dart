@@ -1,33 +1,33 @@
 import 'package:flutter/material.dart';
 
-import '../../00.common/model/app_item_type.dart';
-import '../../00.common/network/client/socket_client.dart';
-import '../../02.lan_chat/net_page.dart';
-import '../../03.animal_chess/local_page.dart';
-import '../../03.animal_chess/net_page.dart';
-import '../../04.elemental_battle/upper/maze_page.dart';
-import '../../04.elemental_battle/upper/net_page.dart';
-import '../../05.gobang/local_page.dart';
-import '../../05.gobang/net_page.dart';
-import '../../06.greedy_snake/local_page.dart';
-import '../../06.greedy_snake/net_page.dart';
-import '../../07.weiqi/local_page.dart';
-import '../../07.weiqi/net_page.dart';
-import '../../08.sudoku/page.dart';
-import '../../09.guess/page.dart';
-import '../../10.three_tiles/page.dart';
-import '../../11.spaceship/page.dart';
-import '../../12.soft/page.dart';
-import '../../13.minecraft/upper/page.dart';
-import '../../14.tower_defense/page.dart';
-import '../../15.memory_card/page.dart';
-import '../../16.schulte/page.dart';
-import '../../17.tank/local_page.dart';
-import '../../17.tank/net_page.dart';
-import '../../18.match_three/upper/local_page.dart';
-import '../../18.match_three/upper/net_page.dart';
+import '../00.common/model/app_item_type.dart';
+import '../00.common/network/client/socket_client.dart';
+import '../02.lan_chat/net_page.dart';
+import '../03.animal_chess/local_page.dart';
+import '../03.animal_chess/net_page.dart';
+import '../04.elemental_battle/upper/maze_page.dart';
+import '../04.elemental_battle/upper/net_page.dart';
+import '../05.gobang/local_page.dart';
+import '../05.gobang/net_page.dart';
+import '../06.greedy_snake/local_page.dart';
+import '../06.greedy_snake/net_page.dart';
+import '../07.weiqi/local_page.dart';
+import '../07.weiqi/net_page.dart';
+import '../08.sudoku/page.dart';
+import '../09.guess/page.dart';
+import '../10.three_tiles/page.dart';
+import '../11.spaceship/page.dart';
+import '../12.soft/page.dart';
+import '../13.minecraft/upper/page.dart';
+import '../14.tower_defense/page.dart';
+import '../15.memory_card/page.dart';
+import '../16.schulte/page.dart';
+import '../17.tank/local_page.dart';
+import '../17.tank/net_page.dart';
+import '../18.match_three/upper/local_page.dart';
+import '../18.match_three/upper/net_page.dart';
 
-export '../../00.common/model/app_item_type.dart';
+export '../00.common/model/app_item_type.dart';
 
 extension AppItemTypeRoute on AppItemType {
   Widget get page {

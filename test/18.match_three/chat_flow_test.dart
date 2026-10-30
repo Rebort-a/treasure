@@ -7,7 +7,7 @@ import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/model/app_item_type.dart';
 import 'package:treasure/00.common/network/client/net_multi_turn_engine.dart';
 import 'package:treasure/00.common/network/client/room_chat_engine.dart';
-import 'package:treasure/01.home/upper/route.dart';
+import 'package:treasure/01.home/route.dart';
 import 'package:treasure/02.lan_chat/net_page.dart';
 import 'package:treasure/18.match_three/middle/net_manager.dart';
 import 'package:treasure/18.match_three/upper/net_page.dart';

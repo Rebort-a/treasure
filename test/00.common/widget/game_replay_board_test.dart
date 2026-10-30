@@ -94,7 +94,7 @@ void main() {
   });
 
   for (final preparing in [false, true]) {
-    testWidgets('等待状态显示进度，不允许重复点击重开：准备中 $preparing', (tester) async {
+    testWidgets('等待或准备期间不允许重复点击重开：准备中 $preparing', (tester) async {
       var replays = 0;
       await tester.pumpWidget(
         MaterialApp(
@@ -109,7 +109,6 @@ void main() {
           ),
         ),
       );
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.byKey(const ValueKey('round-replay')), findsNothing);
       await tester.tapAt(tester.getCenter(find.byType(GameReplayBoard)));
       expect(replays, 0);

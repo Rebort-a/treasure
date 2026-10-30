@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../../00.common/l10n/strings.dart';
 import '../../00.common/network/client/net_multi_turn_engine.dart';
 import '../../00.common/network/widget/round_replay_board.dart';
-import '../../00.common/service/audio_preferences.dart';
+import '../../00.common/sound/audio_preferences.dart';
 import '../../00.common/widget/component/game_replay_board.dart';
 import '../base/match_board.dart';
 import '../middle/match_manager.dart';

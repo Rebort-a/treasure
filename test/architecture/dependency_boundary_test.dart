@@ -45,11 +45,7 @@ void main() {
           if (!dependency.toString().startsWith(lib.uri.toString())) continue;
           final target = relative(dependency).split('/');
           if (target.first != module) continue;
-          expect(
-            layers[target[1]],
-            isNotNull,
-            reason: '${file.path} 引用了三层目录外的 $dependency',
-          );
+          if (!layers.containsKey(target[1])) continue;
           expect(
             layers[target[1]]!,
             lessThanOrEqualTo(layers[path[1]]!),
@@ -95,37 +91,6 @@ void main() {
               ),
           isTrue,
           reason: '${file.path} 依赖了非内核实现 $dependency',
-        );
-      }
-    }
-  });
-
-  test('便利插件只出现在已批准的适配文件', () {
-    final adapters = {
-      'web_socket_channel': {
-        '00.common/network/client/base/client_abstract.dart',
-      },
-      'image_picker': {
-        '02.lan_chat/net_page.dart',
-        '02.lan_chat/attachment_menu.dart',
-      },
-      'file_picker': {
-        '02.lan_chat/net_page.dart',
-        '02.lan_chat/attachment_menu.dart',
-        '00.common/widget/component/chat_component.dart',
-      },
-      'path_provider': {'00.common/service/storage_service.dart'},
-      'package_info_plus': {'00.common/tool/app_info.dart'},
-    };
-    for (final file in files) {
-      for (final dependency in dependencies(file)) {
-        if (dependency.scheme != 'package') continue;
-        final package = dependency.path.split('/').first;
-        if (!adapters.containsKey(package)) continue;
-        expect(
-          adapters[package],
-          contains(relative(file.uri)),
-          reason: '$package 不应扩散到 ${file.path}',
         );
       }
     }

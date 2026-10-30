@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/game/game_sound.dart';
+import 'package:treasure/00.common/sound/sound_manager.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
-import 'package:treasure/00.common/service/audio_preferences.dart';
+import 'package:treasure/00.common/sound/audio_preferences.dart';
 import 'package:treasure/00.common/service/json_store.dart';
-import 'package:treasure/00.common/service/music_service.dart';
-import 'package:treasure/00.common/service/sound_service.dart';
+import 'package:treasure/00.common/sound/music_service.dart';
+import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/01.home/middle/home_state.dart';
 import 'package:treasure/01.home/upper/pages/settings_page.dart';
 import 'package:treasure/18.match_three/middle/combo_praise.dart';
@@ -13,7 +13,7 @@ import 'package:treasure/18.match_three/middle/match_audio.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
 import 'package:treasure/18.match_three/middle/match_sound.dart';
 
-class _Events with GameSoundEmitter {}
+class _Events with SoundEmitter {}
 
 class _Player<T> implements SoundPlayer<T> {
   final played = <T>[];
@@ -65,8 +65,8 @@ void main() {
     final store = _Store();
     final preferences = AudioPreferences(store: store);
     final events = _Events();
-    final sound = _Player<GameSound>();
-    final effects = SoundController<GameSound>(
+    final sound = _Player<Sound>();
+    final effects = SoundController<Sound>(
       events: events.audioEvents,
       currentSound: () => events.audioEvents.value?.sound,
       player: sound,
@@ -107,10 +107,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    events.emitSound(GameSound.shoot);
+    events.emitSound(Sound.shoot);
     match.sound.value = const MatchSoundEvent(MatchSound.swap);
     match.praiseVoice.value = const ComboPraiseEvent(ComboPraise.amazing);
-    expect(sound.played, [GameSound.shoot]);
+    expect(sound.played, [Sound.shoot]);
     expect(matchPlayer.played, [MatchSound.swap]);
     expect(voice.played, [ComboPraise.amazing]);
     match.bonusTime.value = true;
@@ -120,7 +120,7 @@ void main() {
     await tester.ensureVisible(soundSwitch);
     await tester.tap(soundSwitch);
     await tester.pump();
-    events.emitSound(GameSound.explosion);
+    events.emitSound(Sound.explosion);
     match.sound.value = const MatchSoundEvent(MatchSound.bomb);
     match.praiseVoice.value = const ComboPraiseEvent(ComboPraise.unbelievable);
     expect(sound.played, hasLength(1));
@@ -151,9 +151,9 @@ void main() {
     await tester.ensureVisible(soundSwitch);
     await tester.tap(soundSwitch);
     await tester.pump();
-    events.emitSound(GameSound.hit);
+    events.emitSound(Sound.hit);
     match.sound.value = const MatchSoundEvent(MatchSound.line);
-    expect(sound.played, [GameSound.shoot, GameSound.hit]);
+    expect(sound.played, [Sound.shoot, Sound.hit]);
     expect(matchPlayer.played, [MatchSound.swap, MatchSound.line]);
     match.bonusTime.value = false;
     match.praiseVoice.value = const ComboPraiseEvent(ComboPraise.great);
@@ -194,8 +194,8 @@ void main() {
       matchAudio.dispose(),
       for (final controller in music) controller.dispose(),
     ]);
-    final nextPlayer = _Player<GameSound>();
-    final next = SoundController<GameSound>(
+    final nextPlayer = _Player<Sound>();
+    final next = SoundController<Sound>(
       events: events.audioEvents,
       currentSound: () => events.audioEvents.value?.sound,
       player: nextPlayer,
@@ -203,7 +203,7 @@ void main() {
       preferences: preferences,
     );
     await next.ready;
-    events.emitSound(GameSound.move);
+    events.emitSound(Sound.move);
     expect(nextPlayer.played, isEmpty);
     await next.dispose();
     expect(store.data['00.common/audio'], {'enabled': false});

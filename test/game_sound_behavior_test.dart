@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/game/game_sound.dart';
+import 'package:treasure/00.common/sound/sound_manager.dart';
 import 'package:treasure/05.gobang/local_manager.dart' as gomoku;
 import 'package:treasure/07.weiqi/local_manager.dart' as go;
 import 'package:treasure/08.sudoku/base.dart' as sudoku;
@@ -8,8 +8,8 @@ import 'package:treasure/15.memory_card/manager.dart';
 import 'package:treasure/16.schulte/manager.dart';
 import 'package:treasure/17.tank/local_manager.dart';
 
-List<GameSound> _listen(GameSoundEmitter source) {
-  final events = <GameSound>[];
+List<Sound> _listen(SoundEmitter source) {
+  final events = <Sound>[];
   source.audioEvents.addListener(
     () => events.add(source.audioEvents.value!.sound),
   );
@@ -22,12 +22,12 @@ void main() {
     final events = _listen(manager);
     manager.placePiece(0);
     manager.placePiece(0);
-    expect(events, [GameSound.move]);
+    expect(events, [Sound.move]);
     manager.undo();
     manager.restart();
-    expect(events, [GameSound.move, GameSound.reset]);
+    expect(events, [Sound.move, Sound.reset]);
     manager.dispose();
-    manager.emitSound(GameSound.win);
+    manager.emitSound(Sound.win);
     expect(events, hasLength(2));
   });
 
@@ -36,9 +36,9 @@ void main() {
     final events = _listen(manager);
     manager.placePiece(0);
     manager.placePiece(0);
-    expect(events, [GameSound.move]);
+    expect(events, [Sound.move]);
     manager.restart();
-    expect(events.last, GameSound.reset);
+    expect(events.last, Sound.reset);
     manager.dispose();
   });
 
@@ -52,9 +52,9 @@ void main() {
     manager.selectCell(index);
     manager.addDigit(1);
     manager.addDigit(1);
-    expect(events, [GameSound.tap]);
+    expect(events, [Sound.tap]);
     manager.lockCell();
-    expect(events.last, anyOf(GameSound.success, GameSound.error));
+    expect(events.last, anyOf(Sound.success, Sound.error));
     final count = events.length;
     manager.lockCell();
     expect(events, hasLength(count));
@@ -75,7 +75,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 50));
     await matching;
-    expect(events, [GameSound.flip, GameSound.flip, GameSound.success]);
+    expect(events, [Sound.flip, Sound.flip, Sound.success]);
     final first = manager.cards.value.indexWhere(
       (card) => card.pattern != pattern,
     );
@@ -90,7 +90,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await pending;
     expect(events, hasLength(count));
-    expect(events.last, GameSound.reset);
+    expect(events.last, Sound.reset);
     manager.leavePage();
     manager.disposeAudioEvents();
   });
@@ -100,13 +100,13 @@ void main() {
     final events = _listen(manager);
     final regions = manager.board.value.regions;
     manager.onTapRegion(regions.indexWhere((region) => region.number != 1));
-    expect(events.last, GameSound.error);
+    expect(events.last, Sound.error);
     for (var number = 1; number <= regions.length; number++) {
       manager.onTapRegion(
         regions.indexWhere((region) => region.number == number),
       );
     }
-    expect(events.where((event) => event == GameSound.win), hasLength(1));
+    expect(events.where((event) => event == Sound.win), hasLength(1));
     final count = events.length;
     manager.onTapRegion(0);
     expect(events, hasLength(count));
@@ -119,11 +119,11 @@ void main() {
     final events = _listen(manager);
     manager.updatePlayerFire();
     manager.updatePlayerFire();
-    expect(events, [GameSound.shoot]);
+    expect(events, [Sound.shoot]);
     manager.fromJson(manager.toJson());
-    expect(events, [GameSound.shoot]);
+    expect(events, [Sound.shoot]);
     await tester.pump(const Duration(milliseconds: 100));
-    expect(events, [GameSound.shoot]);
+    expect(events, [Sound.shoot]);
     manager.dispose();
   });
 }

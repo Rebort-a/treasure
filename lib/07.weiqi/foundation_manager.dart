@@ -1,7 +1,7 @@
-import '../00.common/game/game_sound.dart';
+import '../00.common/sound/sound_manager.dart';
 import 'base.dart';
 
-abstract class GoFoundationalManager with GameSoundEmitter {
+abstract class GoFoundationalManager with SoundEmitter {
   final GoBoard board = GoBoard(size: 19);
 
   void placePiece(int index);
@@ -9,11 +9,11 @@ abstract class GoFoundationalManager with GameSoundEmitter {
   void applyBoardMove(int index) {
     if (!board.placeStone(index)) return;
     final captured = board.moveHistory.last['captured'] as List;
-    emitSound(captured.isEmpty ? GameSound.move : GameSound.capture);
+    emitSound(captured.isEmpty ? Sound.move : Sound.capture);
   }
 
   void restart() {
-    emitSound(GameSound.reset);
+    emitSound(Sound.reset);
     board.restart();
   }
 
@@ -24,6 +24,6 @@ abstract class GoFoundationalManager with GameSoundEmitter {
   void resign() {
     if (board.gameOver) return;
     board.resign();
-    emitSound(GameSound.lose);
+    emitSound(Sound.lose);
   }
 }

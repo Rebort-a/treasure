@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../service/audio_preferences.dart';
+import '../../sound/audio_preferences.dart';
 
 class ScaleButton extends StatefulWidget {
   final Size size;

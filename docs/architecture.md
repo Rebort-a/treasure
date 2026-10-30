@@ -17,9 +17,13 @@ Treasure 是面向开发者的 Flutter 游戏实验室。优先保持规则可�
 以上模块 → 00.common         共享协议、网络、存储契约与组件
 ```
 
+`01.home/route.dart` 是应用登记与路由装配点，仍属于界面入口层；首页的 `base`、`middle` 不得反向引用它。首页标签页位于 `upper/pages`，房间弹窗位于 `upper/dialogs`，首页专属展示组件位于 `upper/widgets`。
+
+共享目录按职责分类：`sound` 集中声音事件、音效与音乐播放、音频偏好及其平台存储适配；`service` 保留通用存储和玩家资料设置；`image` 集中图片处理工具；网络方案配置位于 `network/network_config.dart`。通用悬浮导航栏位于 `widget/navigator`，音频页面生命周期容器仍位于 `widget/component`。
+
 - 游戏只能依赖自身和 `00.common`，不能反向引用首页、聊天页面或另一个游戏。
 - `04.elemental_battle`、`13.minecraft`、`18.match_three` 的目录分层只允许同层或向下依赖。
-- 简单游戏继续采用 `base / manager / page` 文件组织；不进行全仓目录重命名。
+- 简单游戏采用 `base / manager / page` 文件组织。
 - 新增类型优先使用职责明确的名称，避免继续增加不带领域名称的 `Manager`。
 - 三消 `base` 是纯 Dart 内核，不引用 Flutter、网络或存储。
 - 体素引擎的数据中仍包含 `dart:ui` 颜色类型，渲染依赖 Flutter Canvas；“Dart 自研”不等于整个引擎可脱离 Flutter 运行。数学部分可以单独使用。
@@ -48,35 +52,28 @@ Treasure 是面向开发者的 Flutter 游戏实验室。优先保持规则可�
 
 ## 存储接口与注入
 
-`JsonStore` 仅定义 JSON 对象读写；`StorageService` 提供默认文件实现。插件仍只由原有适配文件导入。
+`JsonStore` 定义 JSON 对象读写，`StorageService` 提供默认文件实现。
 
 三消只保留本局分数，不读写历史最高分；`MatchManager` 和 `NetMatchManager` 不依赖存储接口。
 文件读写行为由 `test/00.common/tool/storage_service_test.dart` 验证。
 
-当前 Web 存储实现是空操作；这是明确的功能限制，不以接口抽象冒充已经支持浏览器持久化。
+`StorageService` 在 Web 上不读写数据；音频偏好通过 `AudioSettingsStore` 使用浏览器 localStorage。
 
-## 五行之战的职责整理
+## 五行之战的职责
 
 - `MapProp` 保留库存、道具效果和应用规则，不持有 `BuildContext`、Material 图标或导航闭包。
 - 弹窗、战斗控件和含导航职责的战斗协调器放入 `upper`。
 - `prop_icon.dart` 在 UI 层将规则映射到图标。
-- 回城卷轴通过背包页面的 `onReturnHome` 回调执行；不再把 MazeManager 的闭包写入共享道具模型。
+- 回城卷轴通过背包页面的 `onReturnHome` 回调执行，共享道具模型不持有导航闭包。
 - 页面捕获被使用的道具，选择完成后检查 `mounted`，避免已卸载页面更新状态。
 - `base` 和 `middle` 不直接依赖 Material、Widgets 或公共界面组件，该边界由测试约束。
 
-这一步消除了下层对弹窗的依赖，但没有声称完成所有战斗算法的独立化：`upper` 中的战斗协调器仍同时组织交互与战斗时序。后续可逐步提取纯动作结算，而不一次性改写所有模块。
+`upper` 中的战斗协调器同时组织交互与战斗时序。
 
 ## 第三方依赖隔离
 
-第三方插件应留在现有适配文件。自动化测试维护允许列表，避免新增游戏为了便利直接导入文件选择、路径或版本插件。
+第三方插件集中在文件选择、存储、版本和网络等适配入口，游戏规则与算法不依赖插件。
 
 ValueNotifier / ValueListenableBuilder 继续作为状态管理方案，不引入 Provider、Riverpod 或新的依赖注入容器。
-
-## 后续重构顺序
-
-1. 为战机、塔防和软体模拟补充可重复的核心行为测试。
-2. 用明确的动作或结果数据分离旧 Manager 的核心规则与弹窗、输入和导航。
-3. 再根据实测热点拆分大文件，不仅为了行数把紧密相关算法打散。
-4. 为公共能力补充最小接入示例；达到接口稳定性要求后，再考虑独立包。
 
 质量检查、性能度量和实机验收见 [quality.md](quality.md)。

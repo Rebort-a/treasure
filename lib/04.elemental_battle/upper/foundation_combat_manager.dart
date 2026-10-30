@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../00.common/game/game_sound.dart';
+import '../../00.common/sound/sound_manager.dart';
 
 import '../base/energy.dart';
 
@@ -14,7 +14,7 @@ import '../middle/common.dart';
 import 'dialog.dart';
 
 /// 战斗界面协调器，包含弹窗与导航职责，因此放在界面层。
-abstract class FoundationalCombatManager with GameSoundEmitter {
+abstract class FoundationalCombatManager with SoundEmitter {
   static final conationNames = {
     ConationType.attack: S.attack,
     ConationType.parry: S.parry,
@@ -94,7 +94,7 @@ abstract class FoundationalCombatManager with GameSoundEmitter {
   void handlePlayerAction(ConationType action);
 
   void handleAttack(bool isSelf) {
-    emitSound(GameSound.hit);
+    emitSound(Sound.hit);
     final attacker = isSelf ? player : enemy;
     final defender = isSelf ? enemy : player;
 
@@ -145,7 +145,7 @@ abstract class FoundationalCombatManager with GameSoundEmitter {
   }
 
   void handleSkill(bool isSelf, GameAction action) {
-    emitSound(GameSound.cast);
+    emitSound(Sound.cast);
     Elemental source = isSelf ? player : enemy;
     final skillIndex = action.actionIndex - ConationType.skill.index;
     CombatSkill skill = (skillIndex == -1)
@@ -254,8 +254,8 @@ abstract class FoundationalCombatManager with GameSoundEmitter {
   void handleEnemyAction();
 
   void _showGameResult() {
-    if (combatResult == ResultType.victory) emitSound(GameSound.win);
-    if (combatResult == ResultType.defeat) emitSound(GameSound.lose);
+    if (combatResult == ResultType.victory) emitSound(Sound.win);
+    if (combatResult == ResultType.defeat) emitSound(Sound.lose);
     pageNavigator.value = (BuildContext context) {
       DialogTemplate.promptDialog(
         context: context,

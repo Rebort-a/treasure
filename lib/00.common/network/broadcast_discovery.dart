@@ -10,8 +10,7 @@ const String netmask16 = '255.255.0.0';
 class Broadcast {
   static bool get _enabled => !kIsWeb;
 
-  // 复用长生命周期发送 socket，避免每次 sendMessage 都新建+关闭
-  // （发现广播每秒一次，原来 60 socket/分钟 churn）
+  // 复用长生命周期发送 socket，避免每次广播都创建和关闭 socket。
   static RawDatagramSocket? _sendSocket;
 
   static Future<RawDatagramSocket> initSocket() async {

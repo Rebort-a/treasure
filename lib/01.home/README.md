@@ -6,16 +6,18 @@
 - `middle/home_state.dart`：首页响应式状态、最近使用记录的读取与保存，不依赖界面上下文。
 - `middle/room_manager.dart`：房间发现、房间列表维护、本地房间创建与停止、服务端成员监听及资源释放。
 - `middle/background_settings.dart`：背景校验、持久化和响应式状态。
-- `middle/player_settings.dart`：玩家资料的读取、保存和响应式状态。
+- `../00.common/service/player_settings.dart`：共用玩家资料的读取、保存和响应式状态，由首页设置和入房流程使用。
 - `upper/home_page.dart`：首页入口，组合标签页、同步滑动与导航选择，管理首页资源的生命周期。
 - `upper/home_manager.dart`：联机界面协调器，只负责入房弹窗、路由和连接交接；通过组合 `HomeRoomManager` 使用房间业务能力。
 - `upper/pages/`：应用、联机、设置三个无状态标签页。
 - 设置页的“通用”保留名称与语言，名称卡片用于设置联机默认昵称；“外观”集中管理主题和背景。
 - 设置页的“声音和震动”依次提供音效、播报、音乐和震动四张独立卡片，音量滑块仅影响背景音乐并放在音乐卡片内；偏好由共享层 `AudioPreferences` 持久化。三消赞美与 Bonus Time 归播报控制，`ScaleButton` 长按连发的触感归震动控制；播放器仍随游戏页面创建与释放。
-- `upper/widgets/`：导航栏、背景、保活包装、标题及房间弹窗等组件。
-- `upper/route.dart`：本地应用与联机聊天室的路由装配。
+- `upper/widgets/`：首页背景、标签保活包装和分区标题等首页专属组件。
+- `upper/dialogs/`：创建房间、加入房间和房间类型选择弹窗。
+- `../00.common/widget/navigator/floating_navigation_bar.dart`：与首页业务无关的通用悬浮导航栏。
+- `route.dart`：本地应用与联机聊天室的路由装配，作为首页模块的应用入口装配点保留在根目录。
 
-依赖方向为 `upper → middle → base`，上层也可以直接读取数据模型；下层不得依赖上层。`middle` 不导入界面组件，不持有 `BuildContext`，也不承担弹窗或路由职责。不要按文件数量平均分层，按实际职责划分。
+依赖方向为 `upper → middle → base`，上层也可以直接读取数据模型；下层不得依赖上层。根目录的 `route.dart` 属于界面入口装配层，`base` 和 `middle` 不得导入它。`middle` 不导入界面组件，不持有 `BuildContext`，也不承担弹窗或路由职责。不要按文件数量平均分层，按实际职责划分。
 
 ## 状态与生命周期
 
