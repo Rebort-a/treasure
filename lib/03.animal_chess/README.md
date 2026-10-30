@@ -150,11 +150,12 @@ AI 开关:
 ### 联机对战流程 (`NetManager`)
 
 ```
-搜索对手 → _onSearch() → initGame() → 发送棋盘数据
-连接成功 → _onResource() → 接收棋盘 → resetGameState()
-对战中   → onCellClick() → 发送 action 消息
-         → _onAction() → 接收对手 action → autoProcess()
-投降/断线 → _onExit() → 显示对话框
+聊天室匹配完成 → 模块创建 Manager → 配置已有 NetTurnEngine
+先手资源阶段 → _onSearch() → 独立临时 Manager 生成并发布棋盘，释放后等待资源回环
+资源到达 → _onResource() → 接收棋盘 → resetGameState()
+对战中   → onCellClick() → 定向发送 action → _onAction() → autoProcess()
+投降/胜负 → completeRound() → 保留棋盘与局内聊天，等待重开
+退出/断线 → 单局会话结束 → OnlineGameHost 返回聊天室并释放 Manager
 ```
 
 

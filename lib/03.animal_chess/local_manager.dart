@@ -58,6 +58,7 @@ class LocalManager extends FoundationalManager {
 
   @override
   void initGame() {
+    if (_disposed) return;
     super.initGame();
     if (aiEnabled) {
       _disposeAiController();
@@ -124,6 +125,7 @@ class LocalManager extends FoundationalManager {
   }
 
   void toggleAiSwitch() {
+    if (_disposed) return;
     if (aiEnabled) {
       _disposeAiController();
     } else {
@@ -131,11 +133,11 @@ class LocalManager extends FoundationalManager {
     }
   }
 
+  @override
   void dispose() {
-    disposeAudioEvents();
     if (_disposed) return;
     _disposed = true;
     _disposeAiController();
-    winner.dispose();
+    super.dispose();
   }
 }

@@ -78,9 +78,9 @@ class NetManager extends FoundationalManager {
       final state = envelope['state'];
       if (state is! Map<String, dynamic>) return;
 
+      _fromJson(state);
       suspendGame();
       _syncId = incomingSyncId;
-      _fromJson(state);
       _pendingSyncIds
         ..clear()
         ..addAll(snakes.keys);
@@ -108,17 +108,22 @@ class NetManager extends FoundationalManager {
       throw const FormatException('invalid snake resource');
     }
 
-    snakes.clear();
+    final parsedSnakes = <int, Snake>{};
     rawSnakes.forEach((key, value) {
       if (value is! Map<String, dynamic>) {
         throw const FormatException('invalid snake entry');
       }
-      snakes[int.parse(key)] = Snake.fromJson(value);
+      parsedSnakes[int.parse(key)] = Snake.fromJson(value);
     });
+    final parsedFoods = SpatialGrid()..fromJson(rawFoods);
 
-    foodGrid
+    // 全部解码成功后再替换，避免损坏资源清空仍可用的局面。
+    snakes
       ..clear()
-      ..fromJson(rawFoods);
+      ..addAll(parsedSnakes);
+    foodGrid.grid
+      ..clear()
+      ..addAll(parsedFoods.grid);
   }
 
   void _handleSync(NetworkMessage message) {

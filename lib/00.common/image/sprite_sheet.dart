@@ -28,14 +28,21 @@ class SpriteSheet {
     );
   }
 
-  /// 从 assets 加载并按行列切割
+  /// 释放独占图片；调用方须确保绘制已停止且没有其他使用者。
+  void dispose() => image.dispose();
+
+  /// 从 assets 加载并按行列切割，返回的图片由调用方负责释放。
   static Future<SpriteSheet> load(String asset, int columns, int rows) async {
     final data = await rootBundle.load(asset);
     final buffer = await ui.ImmutableBuffer.fromUint8List(
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
     );
     final codec = await ui.instantiateImageCodecFromBuffer(buffer);
-    final frame = await codec.getNextFrame();
-    return SpriteSheet(frame.image, columns, rows);
+    try {
+      final frame = await codec.getNextFrame();
+      return SpriteSheet(frame.image, columns, rows);
+    } finally {
+      codec.dispose();
+    }
   }
 }

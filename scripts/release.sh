@@ -24,7 +24,7 @@ usage() {
       由 flutter.yml 处理（push main → CI + 部署 GitHub Pages），不要用本脚本发布。
 
 选项:
-  -m, --message MSG       提交信息正文（标题「前缀 vX.Y.Z」之后的内容），不指定则无正文
+  -m, --message MSG       英文提交正文，每个非空行以「- 」开头；不指定则生成默认发布条目
   -v, --version VERSION   指定版本号 (例: 2.0.0)，覆盖版本递增；标题仍由 --major/--minor/--patch（默认 patch）决定
   -n, --dry-run           预览模式，不实际执行
   -y, --yes               跳过确认提示
@@ -35,11 +35,11 @@ usage() {
 实际发布需要已安装并登录 GitHub CLI（gh）；预览模式不要求登录。
 
 示例（标题格式固定为「前缀 vX.Y.Z」，-m 内容进正文，不可篡改标题）:
-  ./scripts/release.sh -m "修复联机断线"            # patch: 标题 release: vX.Y.Z，正文「修复联机断线」
-  ./scripts/release.sh --minor -m "新增贪吃蛇"     # 标题 Release: vX.Y.Z，正文「新增贪吃蛇」
-  ./scripts/release.sh --major -m "重构网络层"     # 标题 RELEASE: vX.Y.Z，正文「重构网络层」
-  ./scripts/release.sh                               # patch: 标题 release: vX.Y.Z，无正文
-  ./scripts/release.sh --major -v 2.0.0 -m "2.0"   # RELEASE: v2.0.0，正文「2.0」（-v 指定版本号）
+  ./scripts/release.sh -m "- Fix LAN reconnection"
+  ./scripts/release.sh --minor -m "- Add a new game"
+  ./scripts/release.sh --major -m "- Refactor networking"
+  ./scripts/release.sh                               # 使用默认英文发布条目
+  ./scripts/release.sh --major -v 2.0.0 -m "- Prepare version 2.0.0"
   ./scripts/release.sh --skip-changelog             # 不更新 CHANGELOG
   ./scripts/release.sh -n                           # 预览，不执行
 EOF
@@ -334,8 +334,13 @@ calc_version
 TAG="v$NEW_VERSION"
 # 标题由脚本固定生成「前缀 + 版本号」，-m 内容仅作为正文，不可篡改标题
 TITLE="$PREFIX $TAG"
-# 正文：-m 内容（未指定则无正文）
-BODY="$COMMIT_MSG"
+# 正文必须是英文无序列表；脚本验证列表结构，不以字符范围猜测自然语言。
+BODY="${COMMIT_MSG:-- Prepare release $TAG}"
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" ]] && continue
+  [[ "$line" == '- '* && "${line#- }" =~ [^[:space:]] ]] ||
+    error "发布正文每个非空行须以 '- ' 开头，并使用英文描述改动"
+done <<< "$BODY"
 # 完整 commit message：标题 + 空行 + 正文
 if [[ -n "$BODY" ]]; then
   COMMIT_MSG="$TITLE"$'\n\n'"$BODY"

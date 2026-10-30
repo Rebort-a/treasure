@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../00.common/widget/component/game_audio_scope.dart';
+import '../00.common/widget/component/game_replay_board.dart';
 
 import '../00.common/game/map.dart';
 import '../00.common/l10n/strings.dart';
@@ -38,6 +39,7 @@ class _TankGameScreenState extends State<TankGameScreen> {
   void initState() {
     super.initState();
     manager.gameResult.addListener(_handleGameResult);
+    _handleGameResult();
   }
 
   @override
@@ -58,6 +60,8 @@ class _TankGameScreenState extends State<TankGameScreen> {
   void _handleGameResult() {
     final result = manager.gameResult.value;
     if (result == null || identical(result, _shownResult)) return;
+    _pressed.clear();
+    if (widget.onRestart != null) return;
     _shownResult = result;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || manager.gameResult.value != result) return;
@@ -96,6 +100,7 @@ class _TankGameScreenState extends State<TankGameScreen> {
   }
 
   KeyEventResult _handleKeyEvent(KeyEvent event) {
+    if (manager.gameResult.value != null) return KeyEventResult.ignored;
     final isDown = event is KeyDownEvent;
     final isUp = event is KeyUpEvent;
     if (!isDown && !isUp) return KeyEventResult.ignored;
@@ -165,72 +170,103 @@ class _TankGameScreenState extends State<TankGameScreen> {
             _pressed.clear();
             manager.updatePlayerStop();
           },
-          child: Stack(
-            children: [
-              NotifierNavigator(navigatorHandler: manager.pageNavigator),
-              SizedBox.expand(
-                child: CustomPaint(painter: TankPainter(manager: manager)),
-              ),
-              Positioned(
-                top: 16,
-                left: 16,
-                child: _buildIconButton(
-                  icon: Icons.arrow_back,
-                  onPressed: manager.leavePage,
+          child: ValueListenableBuilder<TankGameResult?>(
+            valueListenable: manager.gameResult,
+            builder: (_, result, __) => Stack(
+              children: [
+                Positioned.fill(
+                  child: widget.onRestart != null
+                      ? GameReplayBoard(
+                          finished: result != null,
+                          onReplay: widget.onRestart!,
+                          child: _buildPlayfield(),
+                        )
+                      : AbsorbPointer(
+                          absorbing: result != null,
+                          child: _buildPlayfield(),
+                        ),
                 ),
-              ),
-              if (widget.showStateButton)
-                ValueListenableBuilder(
-                  valueListenable: manager.isRunning,
-                  builder: (context, state, child) => Positioned(
+                if (widget.onRestart != null && result != null)
+                  Positioned(
                     top: 16,
-                    right: 16,
-                    child: _buildIconButton(
-                      icon: state ? Icons.pause : Icons.play_arrow,
-                      onPressed: manager.toggleState,
+                    left: 80,
+                    right: 80,
+                    child: Text(
+                      '${result.victory ? S.victory : S.defeat}  ${result.score}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: _buildIconButton(
+                    icon: Icons.arrow_back,
+                    onPressed: manager.leavePage,
+                  ),
                 ),
-              Positioned(
-                top: 64,
-                left: 12,
-                child: AnimatedBuilder(
-                  animation: manager,
-                  builder: (_, _) => _buildHud(),
-                ),
-              ),
-              // 左摇杆：移动（无极方向）
-              Positioned(
-                left: 24,
-                bottom: 32,
-                child: Joystick(
-                  onDrag: (radians) => manager.updatePlayerMove(radians),
-                  onRelease: () {
-                    if (_pressed.isEmpty) {
-                      manager.updatePlayerStop();
-                    } else {
-                      _applyMove();
-                    }
-                  },
-                ),
-              ),
-              // 右摇杆：瞄准 + 按住持续开火（无极方向）
-              Positioned(
-                right: 24,
-                bottom: 32,
-                child: Joystick(
-                  icon: Icons.local_fire_department,
-                  color: Colors.deepOrange.withValues(alpha: 0.85),
-                  onDrag: (radians) => manager.updatePlayerAim(radians),
-                  onRelease: () => manager.updatePlayerAimStop(),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _buildPlayfield() => Stack(
+    children: [
+      NotifierNavigator(navigatorHandler: manager.pageNavigator),
+      SizedBox.expand(
+        child: CustomPaint(painter: TankPainter(manager: manager)),
+      ),
+      if (widget.showStateButton)
+        ValueListenableBuilder(
+          valueListenable: manager.isRunning,
+          builder: (context, state, child) => Positioned(
+            top: 16,
+            right: 16,
+            child: _buildIconButton(
+              icon: state ? Icons.pause : Icons.play_arrow,
+              onPressed: manager.toggleState,
+            ),
+          ),
+        ),
+      Positioned(
+        top: 64,
+        left: 12,
+        child: AnimatedBuilder(
+          animation: manager,
+          builder: (_, _) => _buildHud(),
+        ),
+      ),
+      // 左摇杆：移动（无极方向）
+      Positioned(
+        left: 24,
+        bottom: 32,
+        child: Joystick(
+          onDrag: (radians) => manager.updatePlayerMove(radians),
+          onRelease: () {
+            if (_pressed.isEmpty) {
+              manager.updatePlayerStop();
+            } else {
+              _applyMove();
+            }
+          },
+        ),
+      ),
+      // 右摇杆：瞄准 + 按住持续开火（无极方向）
+      Positioned(
+        right: 24,
+        bottom: 32,
+        child: Joystick(
+          icon: Icons.local_fire_department,
+          color: Colors.deepOrange.withValues(alpha: 0.85),
+          onDrag: (radians) => manager.updatePlayerAim(radians),
+          onRelease: () => manager.updatePlayerAimStop(),
+        ),
+      ),
+    ],
+  );
 
   Widget _buildIconButton({
     required IconData icon,

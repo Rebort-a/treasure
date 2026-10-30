@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../00.common/widget/component/game_audio_scope.dart';
+import '../00.common/widget/component/game_replay_board.dart';
 
 import '../00.common/image/sprite_sheet.dart';
 import '../00.common/l10n/strings.dart';
@@ -35,30 +36,56 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
 
   /// 预加载四种怪物 + 击杀特效 spritesheet（加载完成前绘制回退色圆）
   Future<void> _loadSprites() async {
-    final entries = await Future.wait(
-      EnemySprites.all.entries.map(
-        (e) => SpriteSheet.load(
-          e.value.asset,
-          e.value.columns,
-          e.value.rows,
-        ).then((sheet) => MapEntry(e.key, sheet)),
-      ),
-    );
-    final slash = await SpriteSheet.load(
-      SlashSprites.asset,
-      SlashSprites.columns,
-      SlashSprites.rows,
-    );
-    if (!mounted) return;
-    setState(() {
-      _sheets.addEntries(entries);
-      _slashSheet = slash;
-    });
+    final loaded = <SpriteSheet>[];
+    var transferred = false;
+    Future<SpriteSheet> load(String asset, int columns, int rows) async {
+      final sheet = await SpriteSheet.load(asset, columns, rows);
+      loaded.add(sheet);
+      return sheet;
+    }
+
+    try {
+      final entries = await Future.wait(
+        EnemySprites.all.entries.map(
+          (e) => load(
+            e.value.asset,
+            e.value.columns,
+            e.value.rows,
+          ).then((sheet) => MapEntry(e.key, sheet)),
+        ),
+      );
+      final slash = await load(
+        SlashSprites.asset,
+        SlashSprites.columns,
+        SlashSprites.rows,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sheets.addEntries(entries);
+        _slashSheet = slash;
+      });
+      transferred = true;
+    } catch (error) {
+      debugPrint('[TowerDefense] Sprite loading failed: $error');
+    } finally {
+      // 完整加载后才交给页面；失败和卸载后的迟到结果由本次请求回收。
+      if (!transferred) {
+        for (final sheet in loaded) {
+          sheet.dispose();
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
     _manager.dispose();
+    for (final sheet in _sheets.values) {
+      sheet.dispose();
+    }
+    _sheets.clear();
+    _slashSheet?.dispose();
+    _slashSheet = null;
     super.dispose();
   }
 
@@ -75,7 +102,15 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
         ),
         body: Column(
           children: [
-            _buildHud(),
+            ValueListenableBuilder<GameState>(
+              valueListenable: _manager.state,
+              builder: (_, state, __) => Column(
+                children: [
+                  _buildHud(),
+                  if (state == GameState.lost) Text(S.defeat),
+                ],
+              ),
+            ),
             Expanded(child: RepaintBoundary(child: _buildGameArea())),
           ],
         ),
@@ -193,30 +228,39 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
         }
         final mapW = _manager.map.width * cellSize;
         final mapH = _manager.map.height * cellSize;
-        return Stack(
-          children: [
-            Align(
-              alignment: Alignment.topCenter,
-              child: GestureDetector(
-                onTapUp: (details) => _handleTap(details),
-                child: CustomPaint(
-                  size: Size(mapW, mapH),
-                  painter: _GamePainter(_manager, _sheets, _slashSheet),
+        return ValueListenableBuilder<GameState>(
+          valueListenable: _manager.state,
+          builder: (_, state, __) => GameReplayBoard(
+            finished: state == GameState.lost,
+            onReplay: _restart,
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: GestureDetector(
+                    onTapUp: (details) => _handleTap(details),
+                    child: CustomPaint(
+                      size: Size(mapW, mapH),
+                      painter: _GamePainter(_manager, _sheets, _slashSheet),
+                    ),
+                  ),
                 ),
-              ),
+                ValueListenableBuilder<GameState>(
+                  valueListenable: _manager.state,
+                  builder: (_, state, __) {
+                    if (state == GameState.preparing) return _buildStartFloat();
+                    return const SizedBox.shrink();
+                  },
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _buildBuildPanel(),
+                ),
+              ],
             ),
-            ValueListenableBuilder<GameState>(
-              valueListenable: _manager.state,
-              builder: (_, state, __) {
-                if (state == GameState.preparing) return _buildStartFloat();
-                if (state == GameState.lost) {
-                  return _buildResultFloat();
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            Positioned(left: 0, right: 0, bottom: 0, child: _buildBuildPanel()),
-          ],
+          ),
         );
       },
     );
@@ -255,30 +299,6 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
     );
   }
 
-  Widget _buildResultFloat() {
-    return Positioned.fill(
-      child: Center(
-        child: GlassContainer(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                S.defeat,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(onPressed: _restart, child: Text(S.startNewGame)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   /// 重开：重置 _mapInitialized 让 _buildGameArea 的 LayoutBuilder 按当前可用尺寸
   /// 重新计算 w/h 并 initGame（支持竖屏↔横屏切换后重开重新规划战场）
   void _restart() {
@@ -290,6 +310,7 @@ class _TowerDefensePageState extends State<TowerDefensePage> {
   // ==================== 点击交互 ====================
 
   void _handleTap(TapUpDetails details) {
+    if (_manager.state.value == GameState.lost) return;
     final cellSize = Manager.cellSize;
     final x = (details.localPosition.dx / cellSize).floor();
     final y = (details.localPosition.dy / cellSize).floor();

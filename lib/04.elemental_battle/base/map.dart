@@ -1,5 +1,4 @@
-import '../../00.common/game/map.dart';
-import '../../00.common/game/entity.dart';
+import 'entity.dart';
 
 const int mapLevel = 6; // 地图级数
 

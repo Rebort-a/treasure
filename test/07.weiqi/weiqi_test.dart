@@ -18,6 +18,22 @@ void main() {
         expect(board.grids.value[idx(4, 4)].value.state, StoneState.black);
       });
 
+      test('负数和越界落子不改变局面或回合', () {
+        board.placeStone(idx(4, 4));
+        final cells = board.grids.value
+            .map((cell) => cell.value.state)
+            .toList();
+        final player = board.currentPlayer.value;
+        final history = List.of(board.moveHistory);
+        for (final index in [-1, board.grids.value.length, 1000000]) {
+          expect(board.placeStone(index), isFalse);
+          expect(board.grids.value.map((cell) => cell.value.state), cells);
+          expect(board.currentPlayer.value, player);
+          expect(board.moveHistory, history);
+        }
+        expect(board.placeStone(idx(0, 0)), isTrue);
+      });
+
       test('已有棋子位置落子失败', () {
         board.placeStone(idx(4, 4));
         expect(board.placeStone(idx(4, 4)), isFalse);

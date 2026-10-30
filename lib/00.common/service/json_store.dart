@@ -5,6 +5,7 @@ abstract interface class JsonStore {
     String project = '00.common',
   });
 
+  /// 写入失败须通过 Future 传播；不支持持久化的平台允许明确的空操作。
   Future<void> write(
     String name,
     Map<String, dynamic> data, {

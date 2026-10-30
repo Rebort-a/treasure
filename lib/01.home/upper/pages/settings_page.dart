@@ -8,8 +8,7 @@ import '../../../00.common/l10n/strings.dart';
 import '../../../00.common/sound/audio_preferences.dart';
 import '../../../00.common/style/theme.dart';
 import '../../../00.common/tool/app_info.dart';
-import '../../../00.common/widget/component/chat_component.dart'
-    show MediaFilePicker;
+import '../../../00.common/service/media_file_picker.dart';
 import '../../middle/background_settings.dart';
 import '../../../00.common/service/player_settings.dart';
 import '../../middle/home_state.dart';

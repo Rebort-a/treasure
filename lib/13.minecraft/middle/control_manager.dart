@@ -25,8 +25,22 @@ class ControlManager {
   bool _isDestroying = false;
   bool _destroyConsumed = false; // 本次长按已摧毁过，需松开再按
 
-  ControlManager(this.player, this.manager)
-    : focusNode = FocusNode()..requestFocus();
+  ControlManager(this.player, this.manager) : focusNode = FocusNode() {
+    focusNode.addListener(_focusChanged);
+  }
+
+  void _focusChanged() {
+    if (!focusNode.hasFocus) resetInput();
+  }
+
+  /// 失焦后不能等待可能丢失的松键、松手事件来结束持续动作。
+  void resetInput() {
+    _pressedKeys.clear();
+    _moveInput = Vector2.zero;
+    _jumpRequested = false;
+    _lastTouchPos.clear();
+    stopDestroy();
+  }
 
   // ==================== 更新循环 ====================
 
@@ -174,6 +188,8 @@ class ControlManager {
   }
 
   void dispose() {
+    focusNode.removeListener(_focusChanged);
+    resetInput();
     focusNode.dispose();
   }
 }

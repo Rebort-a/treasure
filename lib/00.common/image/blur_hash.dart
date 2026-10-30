@@ -210,43 +210,58 @@ class BlurHash {
     int maxSize = 64,
   }) async {
     final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final image = frame.image;
+    ui.Image? image;
+    ui.Picture? picture;
+    ui.Image? scaled;
+    try {
+      image = (await codec.getNextFrame()).image;
 
-    // 缩放以加速计算
-    final int w, h;
-    if (image.width > maxSize || image.height > maxSize) {
-      final ratio = image.width / image.height;
-      if (ratio > 1) {
-        w = maxSize;
-        h = (maxSize / ratio).round();
+      // 缩放以加速计算
+      final int w, h;
+      if (image.width > maxSize || image.height > maxSize) {
+        final ratio = image.width / image.height;
+        if (ratio > 1) {
+          w = maxSize;
+          h = (maxSize / ratio).round();
+        } else {
+          h = maxSize;
+          w = (maxSize * ratio).round();
+        }
       } else {
-        h = maxSize;
-        w = (maxSize * ratio).round();
+        w = image.width;
+        h = image.height;
       }
-    } else {
-      w = image.width;
-      h = image.height;
+
+      // 用 PictureRecorder 绘制缩放后的图像
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      canvas.drawImageRect(
+        image,
+        ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+        ui.Paint()..filterQuality = ui.FilterQuality.low,
+      );
+      picture = recorder.endRecording();
+      scaled = await picture.toImage(w, h);
+      final byteData = await scaled.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      if (byteData == null) {
+        throw const FormatException('Image pixels are unavailable');
+      }
+      return (
+        byteData.buffer.asUint8List(
+          byteData.offsetInBytes,
+          byteData.lengthInBytes,
+        ),
+        w,
+        h,
+      );
+    } finally {
+      scaled?.dispose();
+      picture?.dispose();
+      image?.dispose();
+      codec.dispose();
     }
-
-    // 用 PictureRecorder 绘制缩放后的图像
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-    canvas.drawImageRect(
-      image,
-      ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-      ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
-      ui.Paint()..filterQuality = ui.FilterQuality.low,
-    );
-    final picture = recorder.endRecording();
-    final scaled = await picture.toImage(w, h);
-    final byteData = await scaled.toByteData(
-      format: ui.ImageByteFormat.rawRgba,
-    );
-
-    image.dispose();
-    scaled.dispose();
-
-    return (byteData!.buffer.asUint8List(), w, h);
   }
 }

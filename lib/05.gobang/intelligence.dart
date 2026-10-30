@@ -346,6 +346,7 @@ class AiController {
   final AiDifficulty difficulty;
   final int size;
   final ValueNotifier<bool> thinking = ValueNotifier(false);
+  bool _disposed = false;
 
   AiController({
     required this.size,
@@ -359,6 +360,7 @@ class AiController {
     List<int>? blackOrder,
     List<int>? whiteOrder,
   }) async {
+    if (_disposed) return null;
     thinking.value = true;
     try {
       return await compute(
@@ -381,10 +383,7 @@ class AiController {
       _AiLog.d('搜索异常 $e');
       return null;
     } finally {
-      // 控制器可能已被替换/释放（重开、切难度、关 AI），设值容错
-      try {
-        thinking.value = false;
-      } catch (_) {}
+      if (!_disposed) thinking.value = false;
     }
   }
 
@@ -394,7 +393,11 @@ class AiController {
     return [for (final v in raw) v == 0 ? 0 : (v == selfRaw ? 1 : 2)];
   }
 
-  void dispose() => thinking.dispose();
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    thinking.dispose();
+  }
 }
 
 /// compute 入口参数（须可跨 isolate 序列化）

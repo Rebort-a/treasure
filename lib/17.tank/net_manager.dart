@@ -130,12 +130,12 @@ class NetTankManager extends TankGameManager {
       final state = envelope['state'];
       if (state is! Map<String, dynamic>) return;
 
+      fromJson(state);
       suspendGame();
       _matchId = incomingMatch;
       _syncId = incomingSync;
       _fireRequestPending = false;
       _clearPendingWorldEvents();
-      fromJson(state);
       _pendingSyncIds
         ..clear()
         ..addAll(

@@ -6,10 +6,27 @@ import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'manager.dart';
 
-class GuessPage extends StatelessWidget {
-  final GuessManager _manager = GuessManager();
+class GuessPage extends StatefulWidget {
+  const GuessPage({super.key});
 
-  GuessPage({super.key});
+  @override
+  State<GuessPage> createState() => _GuessPageState();
+}
+
+class _GuessPageState extends State<GuessPage> {
+  late final GuessManager _manager;
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = GuessManager();
+  }
+
+  @override
+  void dispose() {
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => GameAudioScope(

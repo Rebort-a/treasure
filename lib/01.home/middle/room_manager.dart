@@ -169,7 +169,11 @@ class HomeRoomManager {
       _detachServer(server);
     }
     for (final room in createdRooms.value) {
-      unawaited(room.server.stop());
+      unawaited(
+        room.server.stop().catchError((Object error) {
+          debugPrint('[Home] Room shutdown failed: $error');
+        }),
+      );
     }
     createdRooms.dispose();
     othersRooms.dispose();

@@ -60,6 +60,21 @@ void main() {
     expect(settings.image.value, imageBytes);
   });
 
+  test('保存失败保留当前背景，修复存储后可以重新保存', () async {
+    final blocker = File('${directory.path}/01.home');
+    await blocker.writeAsString('blocked');
+    settings.image.value = imageBytes;
+    await expectLater(
+      settings.setImage(null),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(settings.image.value, imageBytes);
+    await blocker.delete();
+    await settings.setImage(null);
+    expect(settings.image.value, isNull);
+    expect(await storage.read('background', project: '01.home'), isEmpty);
+  });
+
   test('损坏的持久化数据回退到默认背景', () async {
     await storage.write('background', {
       'image': 'not base64',

@@ -134,6 +134,74 @@ void main() {
       });
     });
 
+    group('串行更新与失败恢复', () {
+      test('并发更新同一文档保留各字段，按调用顺序执行写入和删除', () async {
+        final store = StorageService.instance;
+        await store.init();
+        await Future.wait([
+          store.update('settings', (data) => data['language'] = 1),
+          store.update('settings', (data) => data['themeMode'] = 2),
+          store.update('settings', (data) => data['defaultName'] = 'Alice'),
+        ]);
+        expect(await store.read('settings'), {
+          'language': 1,
+          'themeMode': 2,
+          'defaultName': 'Alice',
+        });
+        await Future.wait([
+          store.write('settings', {'old': true}),
+          store.delete('settings'),
+          store.update('settings', (data) => data['fresh'] = true),
+        ]);
+        expect(await store.read('settings'), {'fresh': true});
+      });
+
+      test('同一文档的读取与替换按调用顺序完成，不竞争文件句柄', () async {
+        final store = StorageService.instance;
+        await store.init();
+        await store.write('concurrent', {'value': 0});
+        for (var value = 1; value <= 12; value++) {
+          final before = store.read('concurrent');
+          final writing = store.write('concurrent', {'value': value});
+          final after = store.read('concurrent');
+          expect(await before, {'value': value - 1});
+          await writing;
+          expect(await after, {'value': value});
+        }
+      });
+
+      test('写入失败可感知，之后修复路径仍可保存', () async {
+        final store = StorageService.instance;
+        await store.init();
+        final blocker = File('${store.overrideBaseDir!.path}/blocked');
+        await blocker.writeAsString('not a directory');
+        await expectLater(
+          store.write('settings', {'value': 1}, project: 'blocked'),
+          throwsA(isA<FileSystemException>()),
+        );
+        await blocker.delete();
+        await store.write('settings', {'value': 2}, project: 'blocked');
+        expect(await store.read('settings', project: 'blocked'), {'value': 2});
+      });
+
+      test('损坏文档更新失败不覆盖原文件，失败队列仍可继续', () async {
+        final store = StorageService.instance;
+        await store.init();
+        await store.write('settings', {'value': 1});
+        final file = File(
+          '${store.overrideBaseDir!.path}/00.common/settings.json',
+        );
+        await file.writeAsString('broken');
+        await expectLater(
+          store.update('settings', (data) => data['other'] = 2),
+          throwsFormatException,
+        );
+        expect(await file.readAsString(), 'broken');
+        await store.write('settings', {'value': 3});
+        expect(await store.read('settings'), {'value': 3});
+      });
+    });
+
     group('delete', () {
       test('delete removes file — subsequent read returns empty', () async {
         await StorageService.instance.init();

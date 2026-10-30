@@ -10,7 +10,7 @@ import '../../00.common/widget/banner/banner_template.dart';
 import '../../00.common/game/gamer.dart';
 import '../../00.common/widget/dialog/template_dialog.dart';
 import '../../00.common/model/notifiers.dart';
-import '../../00.common/game/entity.dart';
+import '../base/entity.dart';
 import '../../00.common/game/map.dart';
 import '../../00.common/l10n/strings.dart';
 
@@ -65,7 +65,9 @@ class MazeManager with SoundEmitter {
     x: mapLevel,
   ); // 创建并初始化玩家
 
-  late Timer _activeTimer; // 活动定时器
+  bool _disposed = false;
+  bool _active = false;
+  Timer? _activeTimer; // 活动定时器
 
   final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
       AlwaysNotifier((_) {}); // 供弹出界面区域监听
@@ -81,12 +83,14 @@ class MazeManager with SoundEmitter {
   }
 
   void _generateMap() {
-    displayMap.value = List.generate(
-      mapSize * mapSize,
-      (index) => CellNotifier(
-        _mapData.parent == null
-            ? CellData(id: EntityType.road, fogFlag: false)
-            : CellData(id: EntityType.wall, fogFlag: true),
+    _replaceDisplayMap(
+      List.generate(
+        mapSize * mapSize,
+        (index) => CellNotifier(
+          _mapData.parent == null
+              ? CellData(id: EntityType.road, fogFlag: false)
+              : CellData(id: EntityType.wall, fogFlag: true),
+        ),
       ),
     );
 
@@ -208,7 +212,7 @@ class MazeManager with SoundEmitter {
   }
 
   bool _handleHardwareKeyboardEvent(KeyEvent event) {
-    if (event is KeyDownEvent) {
+    if (!_disposed && _active && event is KeyDownEvent) {
       switch (event.logicalKey) {
         case LogicalKeyboardKey.arrowUp:
           movePlayerUp();
@@ -233,27 +237,29 @@ class MazeManager with SoundEmitter {
   void _startTimer() {
     // 启动定时器
     _activeTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      _moveEntities();
+      if (!_disposed && _active) _moveEntities();
     });
   }
 
   void _stopTimer() {
-    if (_activeTimer.isActive) {
-      _activeTimer.cancel();
-    }
+    _activeTimer?.cancel();
+    _activeTimer = null;
   }
 
   void _startActive() {
+    if (_disposed || _active) return;
+    _active = true;
     _canNavigator = true;
     _startKeyboard();
     _startTimer();
   }
 
   bool _stopActive() {
-    if (!_canNavigator) {
+    if (_disposed || !_canNavigator) {
       return false;
     } else {
       _canNavigator = false;
+      _active = false;
       _stopKeyboard();
       _stopTimer();
       return true;
@@ -261,7 +267,10 @@ class MazeManager with SoundEmitter {
   }
 
   // 玩家操作
-  void switchPlayerNext() => player.switchNextAlive();
+  void switchPlayerNext() {
+    if (!_disposed && _active) player.switchNextAlive();
+  }
+
   void movePlayerUp() => _movePlayer(Direction.up);
   void movePlayerDown() => _movePlayer(Direction.down);
   void movePlayerLeft() => _movePlayer(Direction.left);
@@ -292,6 +301,7 @@ class MazeManager with SoundEmitter {
         context,
         MaterialPageRoute(builder: (context) => page),
       ).then((_) {
+        if (_disposed) return;
         // 当页面弹出（即返回）时，这个回调会被执行
         _startActive(); // 重新启动定时器
       });
@@ -304,6 +314,7 @@ class MazeManager with SoundEmitter {
         context,
         MaterialPageRoute(builder: (context) => CastPage(totalPoints: 30)),
       ).then((result) {
+        if (_disposed) return;
         // 当页面弹出（即返回）时，这个回调会被执行
         if (result != null) {
           final configs = result as EnergyConfigs;
@@ -320,6 +331,7 @@ class MazeManager with SoundEmitter {
   }
 
   void navigateToPracticePage(BuildContext context, Elemental enemy) {
+    if (_disposed) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -330,6 +342,7 @@ class MazeManager with SoundEmitter {
         ),
       ),
     ).then((_) {
+      if (_disposed) return;
       player.restoreAllAttributesAndEffects();
     });
   }
@@ -350,6 +363,7 @@ class MazeManager with SoundEmitter {
           ),
         ),
       ).then((value) {
+        if (_disposed) return;
         // 当页面弹出（即返回）时，这个回调会被执行
         _startActive(); // 重新启动定时器
         if (value != null) {
@@ -370,6 +384,7 @@ class MazeManager with SoundEmitter {
   }
 
   void _backToMain() {
+    if (_disposed) return;
     while (_mapData.parent != null) {
       _backToPrevious();
     }
@@ -419,6 +434,7 @@ class MazeManager with SoundEmitter {
   }
 
   void _movePlayer(Direction direction) {
+    if (_disposed || !_active) return;
     _updatePlayerCell(direction);
 
     int newY = player.y;
@@ -552,9 +568,9 @@ class MazeManager with SoundEmitter {
 
       _mapData = parent; // 回退到上一层
 
-      displayMap.value = _mapData.leaveMap
-          .map((data) => CellNotifier(data))
-          .toList(); // 从当前地图数据中恢复
+      _replaceDisplayMap(
+        _mapData.leaveMap.map((data) => CellNotifier(data)).toList(),
+      ); // 从当前地图数据中恢复
 
       _setCellToPlayer(playerY, playerX, EntityType.enter); // 更新位置
     }
@@ -579,9 +595,9 @@ class MazeManager with SoundEmitter {
     for (MapDataStack child in _mapData.children) {
       if (child.y == newY && child.x == newX) {
         _mapData = child;
-        displayMap.value = _mapData.leaveMap
-            .map((data) => CellNotifier(data))
-            .toList(); // 从当前地图数据中恢复
+        _replaceDisplayMap(
+          _mapData.leaveMap.map((data) => CellNotifier(data)).toList(),
+        ); // 从当前地图数据中恢复
         _setCellToPlayer(mapLevel, mapLevel, EntityType.exit);
         return;
       }
@@ -605,6 +621,7 @@ class MazeManager with SoundEmitter {
   }
 
   void _upgradePlayer(int index, AttributeType attribute) {
+    if (_disposed) return;
     if (player.experience >= 30) {
       player.experience -= 30;
       player.upgradeAppointAttribute(EnergyType.values[index], attribute);
@@ -661,5 +678,29 @@ class MazeManager with SoundEmitter {
 
   bool _checkInMap(int y, int x) {
     return (y >= 0) && (y < mapSize) && (x >= 0) && (x < mapSize);
+  }
+
+  void _replaceDisplayMap(List<CellNotifier> next) {
+    final previous = displayMap.value;
+    displayMap.value = next;
+    for (final cell in previous) {
+      cell.dispose();
+    }
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _active = false;
+    _canNavigator = false;
+    _stopKeyboard();
+    _stopTimer();
+    disposeAudioEvents();
+    for (final cell in displayMap.value) {
+      cell.dispose();
+    }
+    displayMap.dispose();
+    floorNum.dispose();
+    pageNavigator.dispose();
   }
 }

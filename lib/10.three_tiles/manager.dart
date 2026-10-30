@@ -1,12 +1,11 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 class Manager with SoundEmitter {
@@ -15,6 +14,24 @@ class Manager with SoundEmitter {
   static const double boardVirtualWidth = 600;
   static const double boardVirtualHeight = 800;
   static const double cardVirtualSize = 80;
+
+  bool _disposed = false;
+  bool _leaving = false;
+  final AlwaysNotifier<bool?> result = AlwaysNotifier(null);
+  Difficulty get difficulty => _difficulty;
+  final Set<CardNotifier> _retiredCards = {};
+
+  // 列表更新后，等旧界面解绑监听再释放子状态。
+  void _retireCards(Iterable<CardNotifier> oldCards) {
+    _retiredCards.addAll(oldCards);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      for (final card in _retiredCards) {
+        card.dispose();
+      }
+      _retiredCards.clear();
+    });
+  }
 
   final Random _random = Random(); // 随机数生成器
   late final TimerCounter _timer; // 计时器
@@ -26,9 +43,6 @@ class Manager with SoundEmitter {
   final ListNotifier<CardNotifier> selectedCards = ListNotifier([]); // 选中的卡片
   final ListNotifier<PropType> props = ListNotifier([]); //道具袋
   final ValueNotifier<int> elapsed = ValueNotifier(0); // 秒数
-
-  final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
-      AlwaysNotifier((_) {}); // 弹窗器
 
   Manager() {
     _initTimer();
@@ -56,6 +70,7 @@ class Manager with SoundEmitter {
 
     // 更新进展
     _isGameOver = false;
+    result.value = null;
   }
 
   void _generateCards(int count) {
@@ -202,7 +217,7 @@ class Manager with SoundEmitter {
   }
 
   void selectCard(CardNotifier card) {
-    if (_isGameOver || !card.enable) return;
+    if (_disposed || _leaving || _isGameOver || !card.enable) return;
     emitSound(Sound.tap);
     selectedCards.add(card);
     cards.remove(card);
@@ -223,6 +238,7 @@ class Manager with SoundEmitter {
         emitSound(Sound.success);
         for (final c in group.take(3).toList()) {
           selectedCards.remove(c);
+          _retireCards([c]);
         }
         return;
       }
@@ -230,7 +246,7 @@ class Manager with SoundEmitter {
   }
 
   void useProp(PropType prop) {
-    if (_isGameOver) return;
+    if (_disposed || _leaving || _isGameOver) return;
     emitSound(Sound.cast);
     switch (prop) {
       case PropType.removeThree:
@@ -248,7 +264,7 @@ class Manager with SoundEmitter {
 
   void _removeThreeRandomCards() {
     for (int i = 0; i < 3 && cards.isNotEmpty; i++) {
-      cards.removeLast();
+      _retireCards([cards.removeLast()]);
     }
     _updateCardVisibility();
   }
@@ -290,62 +306,11 @@ class Manager with SoundEmitter {
     if (!_isGameOver) emitSound(victory ? Sound.win : Sound.lose);
     _timer.stop();
     _isGameOver = true;
-    _showGameOverDialog(victory);
+    result.value = victory;
   }
 
-  void _showGameOverDialog(bool victory) {
-    pageNavigator.value = (context) {
-      showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text(S.gameOver),
-          content: Text(
-            victory
-                ? S.difficultyTimeSeconds(_difficulty.label, elapsed.value)
-                : S.youLost,
-          ),
-          actions: [
-            TextButton(
-              child: Text(S.ok),
-              onPressed: () {
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      );
-    };
-  }
-
-  void showDifficultyDialog() {
-    pageNavigator.value = (context) => showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(S.chooseDifficulty),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: Difficulty.values
-              .map((e) => _buildDifficultyTile(context, e))
-              .toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDifficultyTile(BuildContext context, Difficulty difficulty) {
-    return RadioMenuButton<Difficulty>(
-      value: difficulty,
-      groupValue: _difficulty,
-      onChanged: (Difficulty? value) {
-        if (value == null) return;
-        Navigator.pop(context);
-        _changeDifficulty(value);
-      },
-      child: Text(difficulty.label),
-    );
-  }
-
-  void _changeDifficulty(Difficulty d) {
+  void changeDifficulty(Difficulty d) {
+    if (_disposed || _leaving) return;
     if (d != _difficulty) {
       _difficulty = d;
       restartGame();
@@ -353,36 +318,40 @@ class Manager with SoundEmitter {
   }
 
   void restartGame() {
+    if (_disposed || _leaving) return;
     _clearUp();
     _initGame();
   }
 
   void leavePage() {
+    if (_disposed || _leaving) return;
     _clearUp();
-    pageNavigator.value = (context) {
-      Navigator.pop(context);
-    };
+    _leaving = true;
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _timer.dispose();
+    disposeAudioEvents();
+    for (final card in {...cards, ...selectedCards, ..._retiredCards}) {
+      card.dispose();
+    }
+    _retiredCards.clear();
+    cards.dispose();
+    selectedCards.dispose();
+    props.dispose();
+    elapsed.dispose();
+    result.dispose();
   }
 
   void _clearUp() {
     _timer.stop();
+    _retireCards({...cards, ...selectedCards});
     cards.clear();
     props.clear();
     selectedCards.clear();
     _isGameOver = true;
     elapsed.value = 0;
-  }
-}
-
-extension on Difficulty {
-  String get label {
-    switch (this) {
-      case Difficulty.easy:
-        return S.easy;
-      case Difficulty.medium:
-        return S.medium;
-      case Difficulty.hard:
-        return S.hard;
-    }
   }
 }

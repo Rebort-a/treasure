@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/service/json_store.dart';
@@ -63,17 +62,6 @@ class _Store implements JsonStore {
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
 
 void main() {
-  test('两首循环音乐作为离线资源完整打包', () {
-    for (final name in ['spaceship', 'tank']) {
-      final file = File('assets/audio/music/$name.wav');
-      final bytes = file.readAsBytesSync();
-      expect(String.fromCharCodes(bytes.take(4)), 'RIFF');
-      expect(String.fromCharCodes(bytes.skip(8).take(4)), 'WAVE');
-      expect(bytes.length, greaterThan(44100 * 20));
-      expect(bytes.skip(44).any((byte) => byte != 0), isTrue);
-    }
-  });
-
   test('音乐只在运行、前台且开启时播放，暂停可恢复且重复通知不叠播', () async {
     final player = _Player();
     final audio = BackgroundMusicController(

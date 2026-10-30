@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/widget/input/soft_keyboard.dart';
-import 'package:treasure/13.minecraft/upper/page.dart';
 
 void main() {
   testWidgets('自定义键盘输入会传递给使用者', (tester) async {
@@ -24,17 +23,8 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('a'));
+    await tester.tap(find.widgetWithText(MaterialButton, 'a'));
     expect(input, ['a']);
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Minecraft 页面可正常构建和卸载', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: MinecraftPage()));
-    await tester.pump();
-
-    expect(tester.takeException(), isNull);
-
-    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

@@ -126,9 +126,10 @@ class RoomAttachmentPicker {
         maxHeight: 1024,
         imageQuality: 85,
       );
-      if (file == null) return;
+      if (file == null || !context.mounted || !engine.isJoined) return;
       try {
         final bytes = await file.readAsBytes();
+        if (!context.mounted || !engine.isJoined) return;
         String? blurHash;
         try {
           final (pixels, width, height) = await BlurHash.pixelsFromBytes(bytes);
@@ -136,6 +137,7 @@ class RoomAttachmentPicker {
         } catch (_) {
           // 缩略图编码失败时仍可正常发送图片。
         }
+        if (!context.mounted || !engine.isJoined) return;
         engine.sendImageMessage(
           base64Encode(bytes),
           fileName: file.name,
@@ -159,8 +161,9 @@ class RoomAttachmentPicker {
   ) async {
     try {
       final file = await FilePicker.pickFile(type: FileType.any);
-      if (file == null) return;
+      if (file == null || !context.mounted || !engine.isJoined) return;
       final bytes = await file.readAsBytes();
+      if (!context.mounted || !engine.isJoined) return;
       engine.sendFileMessage(file.name, bytes.length, base64Encode(bytes));
     } catch (error) {
       if (context.mounted) {

@@ -13,14 +13,17 @@ class LocalManager extends FoundationalManager {
   Sound get resultSound =>
       _ai != null && board.lastWinner == _ai!.faction ? Sound.lose : Sound.win;
   AiController? _ai;
-  AiDifficulty _difficulty = AiDifficulty.normal;
+  final _difficulty = ValueNotifier(AiDifficulty.normal);
+  final _aiEnabled = ValueNotifier(false);
   bool _aiMoving = false;
 
   /// 单一思考状态 notifier，供 UI 监听（避免 toggle 时 notifier 切换）
   final ValueNotifier<bool> _aiThinking = ValueNotifier(false);
 
-  bool get aiEnabled => _ai != null;
-  AiDifficulty get difficulty => _difficulty;
+  bool get aiEnabled => _aiEnabled.value;
+  ValueListenable<bool> get aiEnabledListenable => _aiEnabled;
+  AiDifficulty get difficulty => _difficulty.value;
+  ValueListenable<AiDifficulty> get difficultyListenable => _difficulty;
   TurnGamerType? get aiFaction => _ai?.faction;
   ValueListenable<bool> get aiThinking => _aiThinking;
 
@@ -32,7 +35,7 @@ class LocalManager extends FoundationalManager {
 
   @override
   void placePiece(int index) {
-    if (board.gameOver) return;
+    if (disposed || board.gameOver) return;
     // 轮到 AI 或 AI 正在思考时，忽略人类点击
     if (_ai != null && (_isAiTurn || _aiMoving)) return;
     applyBoardMove(index);
@@ -41,24 +44,28 @@ class LocalManager extends FoundationalManager {
 
   /// 开关 AI。faction 指定 AI 执方（用于重开时调整先后手）
   void toggleAi(bool on, {TurnGamerType? faction}) {
+    if (disposed) return;
+    final previousFaction = _ai?.faction;
+    _clearAi();
     if (on) {
-      final f = faction ?? board.currentGamer.value;
-      _ai = AiController(size: board.size, faction: f, difficulty: _difficulty);
+      final f = faction ?? previousFaction ?? board.currentGamer.value;
+      _ai = AiController(
+        size: board.size,
+        faction: f,
+        difficulty: _difficulty.value,
+      );
       _maybeAiMove();
-    } else {
-      _ai?.dispose();
-      _ai = null;
-      _aiMoving = false;
-      _aiThinking.value = false;
     }
+    _aiEnabled.value = on;
   }
 
   /// 切换难度（若 AI 已开启则重建控制器）
   void setDifficulty(AiDifficulty d) {
-    _difficulty = d;
+    if (disposed) return;
+    _difficulty.value = d;
     if (_ai != null) {
       final f = _ai!.faction;
-      _ai?.dispose();
+      _clearAi();
       _ai = AiController(size: board.size, faction: f, difficulty: d);
       _maybeAiMove();
     }
@@ -67,7 +74,7 @@ class LocalManager extends FoundationalManager {
   /// 异步触发 AI 走子
   void _maybeAiMove() {
     final ai = _ai;
-    if (ai == null || _aiMoving || board.gameOver) return;
+    if (disposed || ai == null || _aiMoving || board.gameOver) return;
     if (board.currentGamer.value != ai.faction) return;
 
     _aiMoving = true;
@@ -76,13 +83,13 @@ class LocalManager extends FoundationalManager {
       try {
         // 让 UI 先刷新到"思考中"状态再开算
         await Future.delayed(const Duration(milliseconds: 50));
-        if (_ai != ai) return; // 期间控制器被替换（重开/切难度/关 AI）
+        if (disposed || _ai != ai) return; // 期间控制器被替换（重开/切难度/关 AI）
         final move = await ai.getAction(
           board.snapshot(),
           blackOrder: board.pieceOrder(PieceType.black),
           whiteOrder: board.pieceOrder(PieceType.white),
         );
-        if (_ai != ai) return; // 搜索期间控制器被替换
+        if (disposed || _ai != ai) return; // 搜索期间控制器被替换
         if (move != null &&
             !board.gameOver &&
             board.currentGamer.value == ai.faction) {
@@ -90,7 +97,7 @@ class LocalManager extends FoundationalManager {
         }
       } finally {
         // 仅当仍是同一控制器时重置状态，避免干扰新控制器
-        if (_ai == ai) {
+        if (!disposed && _ai == ai) {
           _aiMoving = false;
           _aiThinking.value = false;
         }
@@ -100,15 +107,16 @@ class LocalManager extends FoundationalManager {
 
   @override
   void restart() {
+    if (disposed) return;
     final aiFaction = _ai?.faction;
     final wasAi = _ai != null;
     super.restart();
     if (wasAi && aiFaction != null) {
-      _ai?.dispose();
+      _clearAi();
       _ai = AiController(
         size: board.size,
         faction: aiFaction,
-        difficulty: _difficulty,
+        difficulty: _difficulty.value,
       );
       _maybeAiMove();
     }
@@ -116,15 +124,25 @@ class LocalManager extends FoundationalManager {
 
   @override
   void undo() {
-    if (_aiMoving) return; // 思考中禁悔棋
+    if (disposed || _aiMoving) return; // 思考中禁悔棋
     board.undoMove();
   }
 
-  void dispose() {
-    disposeAudioEvents();
-    _ai?.dispose();
+  void _clearAi() {
+    final ai = _ai;
     _ai = null;
+    ai?.dispose();
     _aiMoving = false;
+    _aiThinking.value = false;
+  }
+
+  @override
+  void dispose() {
+    if (disposed) return;
+    _clearAi();
     _aiThinking.dispose();
+    _aiEnabled.dispose();
+    _difficulty.dispose();
+    super.dispose();
   }
 }

@@ -55,9 +55,11 @@ class NetManager extends FoundationalManager {
   }
 
   void leavePage() => turnEngine.leavePage();
+  @override
   void dispose() {
-    disposeAudioEvents();
+    if (disposed) return;
     turnEngine.releaseGame();
     pageNavigator.dispose();
+    super.dispose();
   }
 }

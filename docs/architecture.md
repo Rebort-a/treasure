@@ -25,6 +25,7 @@ Treasure 是面向开发者的 Flutter 游戏实验室。优先保持规则可�
 - `04.elemental_battle`、`13.minecraft`、`18.match_three` 的目录分层只允许同层或向下依赖。
 - 简单游戏采用 `base / manager / page` 文件组织。
 - 新增类型优先使用职责明确的名称，避免继续增加不带领域名称的 `Manager`。
+- 仅被一个游戏使用的领域类型留在该模块；五行实体与移动规则位于 `04.elemental_battle/base/entity.dart`，实体展示位于 `upper/maze_entity_view.dart`。公共层仅保留可复用的方向、邻接数据和图片切分工具。
 - 三消 `base` 是纯 Dart 内核，不引用 Flutter、网络或存储。
 - 体素引擎的数据中仍包含 `dart:ui` 颜色类型，渲染依赖 Flutter Canvas；“Dart 自研”不等于整个引擎可脱离 Flutter 运行。数学部分可以单独使用。
 
@@ -48,11 +49,15 @@ Treasure 是面向开发者的 Flutter 游戏实验室。优先保持规则可�
 棋盘结束蒙版与悬浮重开按钮由 `widget/component/game_replay_board.dart`
 统一显示，不依赖网络。单机传入结束状态与本地重开回调；
 `network/widget/round_replay_board.dart` 只适配联机结束、等待匹配和准备状态。
-三消奖励结算完毕才显示重开层；五行之战的单机迷宫战斗保留冒险结果回传流程。
+三消奖励结算完毕才显示重开层；塔防与坦克单机也复用该结束层，阻止结束后继续操作旧棋盘。五行之战的单机迷宫战斗保留冒险结果回传流程。
+
+结束展示不等于联机重开协议。坦克实时联机保留结果与返回房间操作，没有本地重开按钮；不能通过重置本机状态冒充双方新一局。
 
 ## 存储接口与注入
 
-`JsonStore` 定义 JSON 对象读写，`StorageService` 提供默认文件实现。
+`JsonStore` 定义 JSON 对象读写，`StorageService` 提供默认文件实现。读取保留安全回退；原生写入、删除失败通过 Future 传播，不能把失败当作保存成功。偏好和自动保存入口捕获并记录失败，背景设置仅在保存成功后更新展示状态。
+
+`StorageService.update` 将同一 `(project, name)` 文档的读取、同步修改、写入串行执行，语言、主题和玩家名称更新同一设置文件时不会互相覆盖。普通读取、整文档写入与删除使用同一队列，避免 Windows 上读取尚未关闭时替换文件失败；一次失败不阻断后续操作。更新遇到损坏文件会失败，不以空对象静默覆盖原文件。
 
 三消只保留本局分数，不读写历史最高分；`MatchManager` 和 `NetMatchManager` 不依赖存储接口。
 文件读写行为由 `test/00.common/tool/storage_service_test.dart` 验证。
@@ -75,5 +80,11 @@ Treasure 是面向开发者的 Flutter 游戏实验室。优先保持规则可�
 第三方插件集中在文件选择、存储、版本和网络等适配入口，游戏规则与算法不依赖插件。
 
 ValueNotifier / ValueListenableBuilder 继续作为状态管理方案，不引入 Provider、Riverpod 或新的依赖注入容器。
+
+离散业务状态保持单一来源，例如棋类的 AI 模式与难度由 Manager 持有，页面不再维护副本。页面创建并释放自身 Manager、导航通知器和控制器；Manager 释放自建通知器与任务，不释放借用对象。重开或退出使旧异步任务失效，旧任务不得修改新局状态。
+
+具体弹窗、庆祝布局和导入路由属于页面；规则 Manager 暴露状态与动作，不持有 `BuildContext`。实时绘制可保留轻量帧级 Listenable：体素将场景、破坏进度、快捷栏分别通知，只重建相应区域，不为每帧重建整页。动画和输入控制器的局部状态不必机械改写为业务通知器。
+
+通用媒体插件适配位于 `service/media_file_picker.dart`，首页与聊天均从此入口使用，不从聊天 UI 导入文件选择能力。聊天日期在展示时使用当前语言，原始网络消息不存储翻译后的日期或通知文本。
 
 质量检查、性能度量和实机验收见 [quality.md](quality.md)。

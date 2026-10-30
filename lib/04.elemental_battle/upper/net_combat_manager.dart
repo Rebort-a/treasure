@@ -212,9 +212,10 @@ class NetCombatManager extends FoundationalCombatManager {
     turnEngine.leavePage();
   }
 
+  @override
   void dispose() {
-    disposeAudioEvents();
+    if (disposed) return;
     turnEngine.releaseGame();
-    pageNavigator.dispose();
+    super.dispose();
   }
 }

@@ -6,16 +6,33 @@ import '../../00.common/widget/component/game_audio_scope.dart';
 
 import '../../00.common/widget/navigator/notifier_navigator.dart';
 import '../../00.common/widget/button/scale_button.dart';
-import '../../00.common/image/image_manager.dart';
+import 'maze_entity_view.dart';
 import '../../00.common/l10n/strings.dart';
 import '../base/energy.dart';
 
 import 'maze_manager.dart';
 
-class MazePage extends StatelessWidget {
-  final MazeManager _manager = MazeManager();
+class MazePage extends StatefulWidget {
+  const MazePage({super.key});
 
-  MazePage({super.key});
+  @override
+  State<MazePage> createState() => _MazePageState();
+}
+
+class _MazePageState extends State<MazePage> {
+  late final MazeManager _manager;
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = MazeManager();
+  }
+
+  @override
+  void dispose() {
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +157,7 @@ class MazePage extends StatelessWidget {
                       return ValueListenableBuilder(
                         valueListenable: map[index],
                         builder: (context, value, child) {
-                          return ImageManager().getImage(
+                          return MazeEntityView().getImage(
                             value.id,
                             value.foreIndex,
                             value.backIndex,

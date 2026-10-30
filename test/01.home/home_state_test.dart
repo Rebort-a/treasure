@@ -68,6 +68,9 @@ void main() {
     final saving = state.rememberApp(AppItemType.guess);
     await Future.wait([loading, saving]);
     expect(state.recentApps.value, [AppItemType.guess]);
+    expect(await storage.readList('recent_apps', project: '01.home'), [
+      AppItemType.guess.name,
+    ]);
   });
 
   test('首页销毁后，待完成的记录加载不再更新已释放状态', () async {

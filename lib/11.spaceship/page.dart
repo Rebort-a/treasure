@@ -12,10 +12,27 @@ import 'base.dart';
 import 'constant.dart';
 import 'manager.dart';
 
-class SpaceShipPage extends StatelessWidget {
-  final _manager = Manager();
+class SpaceShipPage extends StatefulWidget {
+  const SpaceShipPage({super.key});
 
-  SpaceShipPage({super.key});
+  @override
+  State<SpaceShipPage> createState() => _SpaceShipPageState();
+}
+
+class _SpaceShipPageState extends State<SpaceShipPage> {
+  late final Manager _manager;
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = Manager();
+  }
+
+  @override
+  void dispose() {
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

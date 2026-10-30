@@ -32,6 +32,25 @@ void main() {
     }
   });
 
+  test('首页数据与逻辑不依赖界面或根路由装配点', () {
+    for (final file in files) {
+      final path = relative(file.uri);
+      if (!path.startsWith('01.home/base/') &&
+          !path.startsWith('01.home/middle/')) {
+        continue;
+      }
+      for (final dependency in dependencies(file)) {
+        final target = dependency.toString();
+        expect(
+          target.startsWith(lib.uri.resolve('01.home/upper/').toString()) ||
+              target == lib.uri.resolve('01.home/route.dart').toString(),
+          isFalse,
+          reason: '${file.path} 不应依赖首页界面或路由：$target',
+        );
+      }
+    }
+  });
+
   for (final module in [
     '04.elemental_battle',
     '13.minecraft',

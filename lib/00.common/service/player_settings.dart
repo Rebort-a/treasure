@@ -14,15 +14,21 @@ class PlayerSettings {
 
   Future<void> _load() async {
     final data = await StorageService.instance.read('settings');
-    defaultName.value = (data['defaultName'] as String? ?? '').trim();
+    final name = data['defaultName'];
+    defaultName.value = name is String ? name.trim() : '';
   }
 
   Future<void> setDefaultName(String name) async {
     await load();
     defaultName.value = name.trim();
-    final data = await StorageService.instance.read('settings');
-    data['defaultName'] = defaultName.value;
-    await StorageService.instance.write('settings', data);
+    final value = defaultName.value;
+    try {
+      await StorageService.instance.update('settings', (data) {
+        data['defaultName'] = value;
+      });
+    } catch (error) {
+      debugPrint('[PlayerSettings] Save failed: $error');
+    }
   }
 
   @visibleForTesting

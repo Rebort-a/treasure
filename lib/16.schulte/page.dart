@@ -6,6 +6,8 @@ import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
+import '../00.common/widget/dialog/template_dialog.dart';
+import '../00.common/model/notifiers.dart';
 
 class SchultePage extends StatefulWidget {
   const SchultePage({super.key});
@@ -17,6 +19,27 @@ class SchultePage extends StatefulWidget {
 class _SchultePageState extends State<SchultePage>
     with SingleTickerProviderStateMixin {
   late final SchulteManager _manager = SchulteManager();
+  final _navigation = AlwaysNotifier<void Function(BuildContext)>((_) {});
+
+  void _showSelector() {
+    _navigation.value = (context) => DialogTemplate.intSliderDialog(
+      context: context,
+      title: S.setDifficulty,
+      sliderData: IntSliderData(
+        start: _manager.minDifficulty,
+        end: _manager.maxDifficulty,
+        value: _manager.difficulty,
+        step: 1,
+      ),
+      onConfirm: _manager.changeDifficulty,
+    );
+  }
+
+  void _leavePage() {
+    _manager.leavePage();
+    _navigation.value = (context) => Navigator.pop(context);
+  }
+
   late final AnimationController _ctrl;
 
   @override
@@ -50,6 +73,7 @@ class _SchultePageState extends State<SchultePage>
   void dispose() {
     _manager.tapFeedback.removeListener(_onFeedback);
     _ctrl.dispose();
+    _navigation.dispose();
     _manager.dispose();
     super.dispose();
   }
@@ -61,7 +85,7 @@ class _SchultePageState extends State<SchultePage>
     child: PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) _manager.leavePage();
+        if (!didPop) _leavePage();
       },
       child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
     ),
@@ -72,7 +96,7 @@ class _SchultePageState extends State<SchultePage>
       title: Text(S.schulte),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: _manager.leavePage,
+        onPressed: _leavePage,
       ),
       centerTitle: true,
       actions: [
@@ -80,10 +104,7 @@ class _SchultePageState extends State<SchultePage>
           icon: const Icon(Icons.refresh),
           onPressed: _manager.resetGame,
         ),
-        IconButton(
-          icon: const Icon(Icons.tune),
-          onPressed: _manager.showSelector,
-        ),
+        IconButton(icon: const Icon(Icons.tune), onPressed: _showSelector),
       ],
     );
   }
@@ -91,7 +112,7 @@ class _SchultePageState extends State<SchultePage>
   Widget _buildBody() {
     return Column(
       children: [
-        NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+        NotifierNavigator(navigatorHandler: _navigation),
         _buildDisplayArea(),
         Expanded(child: _buildBoardArea()),
       ],

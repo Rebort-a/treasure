@@ -37,7 +37,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
 
   late Ticker _ticker;
   double _lastElapsed = 0;
-  final AlwaysNotifier<double> speed = AlwaysNotifier(1.0); // 倍速挡位（1/2/3）
+  final AlwaysNotifier<double> speed = AlwaysNotifier(1.0); // 倍速挡位（1/2/4）
 
   final Random _rand = Random();
   int _nextEnemyId = 0;

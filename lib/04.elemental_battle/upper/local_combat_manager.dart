@@ -22,6 +22,7 @@ class LocalCombatManager extends FoundationalCombatManager {
     this.player = player;
     this.enemy = enemy;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (disposed) return;
       initCombat(playerType);
       handleEnemyAction();
     });

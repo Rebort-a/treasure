@@ -27,12 +27,15 @@ class NetManager extends FoundationalManager {
   }
 
   void _onSearch() {
-    // 暂时生成棋盘并提取资源，恢复原状态；收到自己的资源回环后再正式应用。
-    final previousMap = displayMap.value;
-    initGame();
-    final resource = _mapToString();
-    displayMap.value = previousMap;
-    turnEngine.sendGameMessage(MessageType.resource, resource);
+    // 使用独立所有者生成临时资源，不替换或释放仍被界面使用的棋盘。
+    final temporary = _ResourceManager()..boardLevel = boardLevel;
+    try {
+      temporary.initGame();
+      final resource = _mapToString(temporary);
+      turnEngine.sendGameMessage(MessageType.resource, resource);
+    } finally {
+      temporary.dispose();
+    }
   }
 
   void _onResource(GameStep step, NetworkMessage message) {
@@ -68,8 +71,8 @@ class NetManager extends FoundationalManager {
     turnEngine.completeRound();
   }
 
-  String _mapToString() {
-    List<List<int>> animalDistribution = displayMap.value
+  String _mapToString(FoundationalManager source) {
+    List<List<int>> animalDistribution = source.displayMap.value
         .asMap()
         .entries
         .where((entry) => entry.value.value.hasAnimal)
@@ -85,7 +88,7 @@ class NetManager extends FoundationalManager {
         .toList();
 
     return jsonEncode({
-      'boardLevel': boardLevel,
+      'boardLevel': source.boardLevel,
       'animals': animalDistribution,
     });
   }
@@ -128,9 +131,12 @@ class NetManager extends FoundationalManager {
   }
 
   void leavePage() => turnEngine.leavePage();
+  @override
   void dispose() {
-    disposeAudioEvents();
+    if (disposed) return;
     turnEngine.releaseGame();
-    pageNavigator.dispose();
+    super.dispose();
   }
 }
+
+class _ResourceManager extends FoundationalManager {}

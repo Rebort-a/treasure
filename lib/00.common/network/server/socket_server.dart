@@ -420,26 +420,34 @@ class SocketServer {
     // 通知 UI 房间已无成员。
     _publishMembers();
 
-    // UDP 广播房间关闭（await 确保遍历所有网卡发送完毕）
-    final serverPort = port;
-    if (serverPort != 0) {
-      await Broadcast.sendMessage(
-        NetworkMessage(
-          id: 0,
-          type: MessageType.broadcast,
-          source: roomName,
-          content: RoomInfo.configToJsonString(
-            serverPort,
-            roomType,
-            RoomState.stop,
-            encryptionKey: encryptionKey,
-          ),
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-        ).toPlainSocketData(),
-      );
+    try {
+      // 关闭广播尽力发送，失败不能阻断监听和通知器的最终释放。
+      final serverPort = port;
+      if (serverPort != 0) {
+        await Broadcast.sendMessage(
+          NetworkMessage(
+            id: 0,
+            type: MessageType.broadcast,
+            source: roomName,
+            content: RoomInfo.configToJsonString(
+              serverPort,
+              roomType,
+              RoomState.stop,
+              encryptionKey: encryptionKey,
+            ),
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ).toPlainSocketData(),
+        );
+      }
+    } catch (error) {
+      debugPrint('[Server] Stop announcement failed: $error');
+    } finally {
+      try {
+        await _transport.close();
+      } finally {
+        // 本实例停止后不再复用，直接释放通知器。
+        membersNotifier.dispose();
+      }
     }
-    await _transport.close();
-    // 本实例停止后不再复用，直接释放通知器。
-    membersNotifier.dispose();
   }
 }

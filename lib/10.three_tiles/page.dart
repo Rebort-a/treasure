@@ -7,11 +7,89 @@ import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
+import '../00.common/model/notifiers.dart';
 
-class ThreeTilesPage extends StatelessWidget {
-  final Manager _manager = Manager();
+class ThreeTilesPage extends StatefulWidget {
+  const ThreeTilesPage({super.key});
 
-  ThreeTilesPage({super.key});
+  @override
+  State<ThreeTilesPage> createState() => _ThreeTilesPageState();
+}
+
+class _ThreeTilesPageState extends State<ThreeTilesPage> {
+  late final Manager _manager;
+  final _navigation = AlwaysNotifier<void Function(BuildContext)>((_) {});
+
+  void _onResult() {
+    final victory = _manager.result.value;
+    if (victory == null) return;
+    _navigation.value = (context) => showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(S.gameOver),
+        content: Text(
+          victory
+              ? S.difficultyTimeSeconds(
+                  _manager.difficulty.label,
+                  _manager.elapsed.value,
+                )
+              : S.youLost,
+        ),
+        actions: [
+          TextButton(
+            child: Text(S.ok),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDifficultyDialog() {
+    _navigation.value = (context) => showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(S.chooseDifficulty),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: Difficulty.values
+              .map(
+                (difficulty) => RadioMenuButton<Difficulty>(
+                  value: difficulty,
+                  groupValue: _manager.difficulty,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    Navigator.pop(context);
+                    _manager.changeDifficulty(value);
+                  },
+                  child: Text(difficulty.label),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  void _leavePage() {
+    _manager.leavePage();
+    _navigation.value = (context) => Navigator.pop(context);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = Manager();
+    _manager.result.addListener(_onResult);
+  }
+
+  @override
+  void dispose() {
+    _manager.result.removeListener(_onResult);
+    _navigation.dispose();
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => GameAudioScope(
@@ -20,7 +98,7 @@ class ThreeTilesPage extends StatelessWidget {
     child: PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _manager.leavePage();
+        if (!didPop) _leavePage();
       },
       child: Scaffold(appBar: _appBar(), body: _body()),
     ),
@@ -31,7 +109,7 @@ class ThreeTilesPage extends StatelessWidget {
     centerTitle: true,
     leading: IconButton(
       icon: const Icon(Icons.arrow_back),
-      onPressed: _manager.leavePage,
+      onPressed: _leavePage,
     ),
     actions: [
       IconButton(
@@ -40,14 +118,14 @@ class ThreeTilesPage extends StatelessWidget {
       ),
       IconButton(
         icon: const Icon(Icons.settings),
-        onPressed: _manager.showDifficultyDialog,
+        onPressed: _showDifficultyDialog,
       ),
     ],
   );
 
   Widget _body() => Column(
     children: [
-      NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+      NotifierNavigator(navigatorHandler: _navigation),
       _displayArea(),
       Expanded(child: _boardArea()),
       _propsArea(),
@@ -241,4 +319,12 @@ class ThreeTilesPage extends StatelessWidget {
       ),
     ),
   );
+}
+
+extension on Difficulty {
+  String get label => switch (this) {
+    Difficulty.easy => S.easy,
+    Difficulty.medium => S.medium,
+    Difficulty.hard => S.hard,
+  };
 }

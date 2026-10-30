@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/sound/sound_manager.dart';
 import 'package:treasure/00.common/sound/audio_preferences.dart';
-import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/sound/music_service.dart';
 import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/00.common/widget/component/game_audio_scope.dart';
+
+import '../../support/noop_json_store.dart';
 
 class _Events with SoundEmitter {}
 
@@ -38,27 +39,13 @@ class _Music implements MusicPlayer {
   }
 }
 
-class _Store implements JsonStore {
-  @override
-  Future<Map<String, dynamic>> read(
-    String name, {
-    String project = '00.common',
-  }) async => {};
-  @override
-  Future<void> write(
-    String name,
-    Map<String, dynamic> data, {
-    String project = '00.common',
-  }) async {}
-}
-
 void main() {
   testWidgets('运行状态、页面覆盖、前后台与全局音乐设置共同控制播放，退出释放资源', (tester) async {
     final source = _Events();
     final music = _Music();
     final running = ValueNotifier(false);
     final navigator = GlobalKey<NavigatorState>();
-    final preferences = AudioPreferences(store: _Store());
+    final preferences = AudioPreferences(store: NoopJsonStore());
     await tester.pumpWidget(
       MaterialApp(
         navigatorKey: navigator,

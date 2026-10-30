@@ -1,4 +1,4 @@
-import '../../00.common/game/entity.dart';
+import '../base/entity.dart';
 import '../../00.common/l10n/strings.dart';
 
 import 'elemental.dart';

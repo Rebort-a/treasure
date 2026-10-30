@@ -63,7 +63,7 @@ Game rules and rendering algorithms are implemented in Dart. Convenience plugins
 | 建立局域网房间 | 支持，依赖系统权限和网络环境 | 支持，需放行防火墙 | 不支持 |
 | UDP 房间发现 | 支持，依赖网络允许广播 | 支持，依赖网络允许广播 | 不支持，手动输入地址 |
 | 加入局域网房间 | 支持 | 支持 | 使用 WebSocket，受浏览器策略限制 |
-| 本地设置和游戏记录 | 应用文档目录中的 `.treasure/` | 当前工作目录中的 `.treasure/` | 当前不持久化 |
+| 本地设置和游戏记录 | 应用文档目录中的 `.treasure/` | 当前工作目录中的 `.treasure/` | 音频偏好使用 localStorage；其他通用文件存储不持久化 |
 
 HTTPS 页面连接局域网明文 WebSocket 可能被浏览器拦截。房间密码用于入房校验；XOR 不能提供可靠的机密性或完整性保护，请仅在可信局域网中使用。
 
@@ -132,7 +132,7 @@ CI 检查格式、静态分析、测试和覆盖率下限，并构建 Web；发�
 
 ## 🏗️ Architecture | 架构设计
 
-All modules follow a consistent **three-layer architecture** with two organizational patterns:
+Modules separate data, logic and UI using three organizational patterns:
 
 所有模块遵循统一的**三层架构**，有三种组织方式：
 
@@ -189,8 +189,8 @@ Used by #08–#12, #14–#16. | 用于 #08–#12、#14–#16。
 ```
 lib/
 ├── 00.common/       # Shared modules (engine, network, widgets)
-│   ├── engine/      # Network engines (base, turn-based, real-time)
-│   ├── network/     # UDP/TCP/WebSocket, encryption, room discovery
+│   ├── network/     # 协议、传输、房间发现与回合/实时引擎
+│   ├── sound/       # 音效、播报、音乐与音频偏好
 │   └── widget/      # Reusable UI components
 ├── 01.home/         # Home page
 ├── 02.lan_chat/     # LAN chat room (flat)

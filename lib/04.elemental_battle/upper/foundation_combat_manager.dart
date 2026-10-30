@@ -52,6 +52,19 @@ abstract class FoundationalCombatManager with SoundEmitter {
     },
   };
 
+  bool _disposed = false;
+  bool get disposed => _disposed;
+
+  /// 只释放协调器自建状态，参战实体仍由调用方管理。
+  void dispose() {
+    if (disposed) return;
+    _disposed = true;
+    disposeAudioEvents();
+    pageNavigator.dispose();
+    infoList.dispose();
+    currentGamer.dispose();
+  }
+
   ResultType combatResult = ResultType.continued;
 
   late Elemental player;

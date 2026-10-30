@@ -33,6 +33,20 @@ class GridNotifier extends ValueNotifier<Grid> {
 }
 
 class Board {
+  bool _disposed = false;
+
+  /// 棋盘拥有自己创建的格子与状态，列表容器不负责级联释放。
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final grid in grids.value) {
+      grid.dispose();
+    }
+    grids.dispose();
+    currentGamer.dispose();
+    gameOverNotifier.dispose();
+  }
+
   static const maxPiecesPerPlayer = 12;
   final Map<PieceType, List<int>> _pieceOrder = {
     PieceType.black: [],

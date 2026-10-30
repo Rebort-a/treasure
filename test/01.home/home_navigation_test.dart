@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
@@ -6,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/00.common/style/theme.dart';
+import 'package:treasure/00.common/service/storage_service.dart';
 import 'package:treasure/00.common/widget/navigator/floating_navigation_bar.dart';
 import 'package:treasure/01.home/upper/home_manager.dart';
 import 'package:treasure/01.home/upper/home_page.dart';
@@ -28,7 +31,20 @@ Future<void> _swipeTab(
 }
 
 void main() {
-  tearDown(() => BackgroundSettings.instance.resetForTesting());
+  late Directory directory;
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp(
+      'treasure_home_navigation_',
+    );
+    StorageService.instance.resetForTesting();
+    StorageService.instance.overrideBaseDir = directory;
+    await StorageService.instance.init();
+  });
+  tearDown(() async {
+    BackgroundSettings.instance.resetForTesting();
+    StorageService.instance.resetForTesting();
+    await directory.delete(recursive: true);
+  });
 
   for (final kind in [PointerDeviceKind.touch, PointerDeviceKind.mouse]) {
     testWidgets('左右滑动与导航点击同步切换标签，首尾滑动不越界：$kind', (tester) async {
@@ -81,7 +97,25 @@ void main() {
       expect(background, findsOneWidget);
     }
     expect(find.text(S.background), findsOneWidget);
-    await tester.tap(find.byTooltip(S.restoreDefaultBackground));
+    final restore = tester
+        .widgetList<IconButton>(find.byType(IconButton))
+        .singleWhere((button) => button.tooltip == S.restoreDefaultBackground);
+    // 文件写入与完成通知都在真实异步环境中创建，避免模拟时钟阻塞 I/O。
+    await tester.runAsync(() async {
+      final restored = Completer<void>();
+      void onImageChanged() {
+        if (BackgroundSettings.instance.image.value == null)
+          restored.complete();
+      }
+
+      BackgroundSettings.instance.image.addListener(onImageChanged);
+      try {
+        restore.onPressed!();
+        await restored.future.timeout(const Duration(seconds: 10));
+      } finally {
+        BackgroundSettings.instance.image.removeListener(onImageChanged);
+      }
+    });
     await tester.pumpAndSettle();
     expect(background, findsNothing);
     expect(BackgroundSettings.instance.image.value, isNull);

@@ -785,6 +785,12 @@ class TankMap {
       final list = row.cast<Map<String, dynamic>>();
       return list.map((t) => Tile.fromJson(t)).toList();
     }).toList();
+    // 空地图或缺列会在后续碰撞检测中越界，不作为可用快照接收。
+    if (tiles.isEmpty ||
+        tiles.first.isEmpty ||
+        tiles.any((row) => row.length != tiles.first.length)) {
+      throw const FormatException('invalid tank map dimensions');
+    }
     return TankMap(tiles);
   }
 }

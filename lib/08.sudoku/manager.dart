@@ -1,17 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../00.common/sound/sound_manager.dart';
 
-import '../00.common/widget/effect/magic_celebration.dart';
-import '../00.common/style/theme.dart';
 import '../00.common/model/notifiers.dart';
-import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/tool/timer_counter.dart';
 import '../00.common/service/storage_service.dart';
-import '../00.common/l10n/strings.dart';
+import '../00.common/service/json_store.dart';
 import 'algorithm.dart';
 import 'base.dart';
-import 'import_page.dart';
 
 class Manager with SoundEmitter {
   late final TimerCounter _timer; // 计时器
@@ -27,10 +23,17 @@ class Manager with SoundEmitter {
   final ListNotifier<CellNotifier> cells = ListNotifier([]);
   final ValueNotifier<int> selectedCellIndex = ValueNotifier(-1);
 
-  final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
-      AlwaysNotifier((_) {});
+  final JsonStore _store;
+  bool _disposed = false;
+  bool _leaving = false;
+  int get difficulty => _difficulty;
+  int get minDifficulty => boardSize;
+  int get maxDifficulty => boardSize * (boardSize - 2) + 1;
+  int get elapsed => _timer.tick;
+  int _operation = 0;
+  final Set<CellNotifier> _retiredCells = {};
 
-  Manager() {
+  Manager({JsonStore? store}) : _store = store ?? StorageService.instance {
     _initTimer();
     _initDifficulty();
     _initGame();
@@ -55,7 +58,7 @@ class Manager with SoundEmitter {
 
   /// 生成数独谜题（保证唯一解）
   void _initCells() {
-    cells.clear();
+    _clearCells();
 
     // 使用SudokuGenerator生成数独
     SudokuGenerator generator = SudokuGenerator(
@@ -100,7 +103,7 @@ class Manager with SoundEmitter {
 
   /// 选择单元格
   void selectCell(int index) {
-    if (isGameOver.value) return;
+    if (_disposed || isGameOver.value) return;
 
     if (selectedCellIndex.value == index) {
       selectedCell.hint = false;
@@ -147,44 +150,30 @@ class Manager with SoundEmitter {
     isGameOver.value = true;
     _clearProgress(); // 通关后清除存档
     _saveBestTime(); // 保存最佳用时
-    _showCompletionDialog();
   }
 
   /// 保存最佳用时
   Future<void> _saveBestTime() async {
-    final data = await StorageService.instance.read(
-      'sudoku_best',
-      project: '08.sudoku',
-    );
+    final operation = _operation;
+    final tick = _timer.tick;
     final key = 'diff_$_difficulty';
-    final best = data[key] as int? ?? 0;
-    if (best == 0 || _timer.tick < best) {
-      data[key] = _timer.tick;
-      await StorageService.instance.write(
-        'sudoku_best',
-        data,
-        project: '08.sudoku',
-      );
+    try {
+      final data = await _store.read('sudoku_best', project: '08.sudoku');
+      if (_disposed || operation != _operation) return;
+      final saved = data[key];
+      final best = saved is int && saved >= 0 ? saved : 0;
+      if (best == 0 || tick < best) {
+        data[key] = tick;
+        await _store.write('sudoku_best', data, project: '08.sudoku');
+      }
+    } catch (error) {
+      debugPrint('[Sudoku] Save best time failed: $error');
     }
   }
 
-  /// 显示难度设置对话框
-  void showSelector() {
-    pageNavigator.value = (context) => DialogTemplate.intSliderDialog(
-      context: context,
-      title: S.setDifficulty,
-      sliderData: IntSliderData(
-        start: boardSize,
-        end: boardSize * (boardSize - 2) + 1,
-        value: _difficulty,
-        step: 1,
-      ),
-      onConfirm: _changeDifficulty,
-    );
-  }
-
   /// 更改难度系数
-  void _changeDifficulty(int value) {
+  void changeDifficulty(int value) {
+    if (_disposed || _leaving) return;
     if (value != _difficulty) {
       _difficulty = value;
       resetGame();
@@ -206,6 +195,8 @@ class Manager with SoundEmitter {
 
   /// 重置游戏
   void resetGame() {
+    if (_disposed || _leaving) return;
+    _operation++;
     _clearSelectedCell();
     _initGame();
     _clearProgress();
@@ -250,19 +241,17 @@ class Manager with SoundEmitter {
     _saveProgress();
   }
 
-  void openImport() {
-    pageNavigator.value = (context) async {
-      final result = await Navigator.push<List<List<int>>>(
-        context,
-        MaterialPageRoute(builder: (_) => const SudokuImportPage()),
-      );
-      if (result != null && context.mounted) {
-        loadImportedPuzzle(result);
-      }
-    };
+  /// 导入结果仅能应用于发起导入的当前局。
+  int beginImport() => ++_operation;
+
+  void completeImport(int operation, List<List<int>> puzzle) {
+    if (_disposed || _leaving || operation != _operation) return;
+    loadImportedPuzzle(puzzle);
   }
 
   void loadImportedPuzzle(List<List<int>> puzzle) {
+    if (_disposed || _leaving) return;
+    _operation++;
     _clearSelectedCell();
     boardSize = 9;
     boardLevel = 3;
@@ -271,7 +260,7 @@ class Manager with SoundEmitter {
     final solver = BacktrackingSolver(level: boardLevel);
     _solution = solver.solve(puzzle);
 
-    cells.clear();
+    _clearCells();
     for (int i = 0; i < boardSize; i++) {
       for (int j = 0; j < boardSize; j++) {
         final value = puzzle[i][j];
@@ -300,70 +289,11 @@ class Manager with SoundEmitter {
   }
 
   void leavePage() {
+    if (_disposed || _leaving) return;
+    _operation++;
     _timer.stop();
     _saveProgress(); // 退出前自动保存
-    _navigateToBack();
-  }
-
-  void _showCompletionDialog() {
-    pageNavigator.value = (context) {
-      showDialog<void>(
-        context: context,
-        builder: (BuildContext context) {
-          return _buildCongratulations(context);
-        },
-      );
-    };
-  }
-
-  // 完成庆祝对话框
-  Widget _buildCongratulations(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: nightTheme.value
-          ? MagicTheme.magicBackground
-          : BaseTheme.backgroundColor,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            S.congratulations,
-            style: nightTheme.value
-                ? MagicTheme.titleStyle
-                : BaseTheme.titleStyle,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            S.difficultyTime(
-              '$_difficulty',
-              TimerCounter.formatDuration(_timer.tick),
-            ),
-            style: nightTheme.value
-                ? MagicTheme.bodyStyle
-                : BaseTheme.bodyStyle,
-          ),
-          const SizedBox(height: 16),
-          // 魔法庆祝动画
-          const MagicCelebrationAnimation(),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            style: nightTheme.value
-                ? MagicTheme.crystalButtonStyle(false)
-                : null,
-            onPressed: () {
-              Navigator.pop(context);
-              resetGame();
-            },
-            child: Text(S.startNewGame),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _navigateToBack() {
-    pageNavigator.value = (context) {
-      Navigator.pop(context);
-    };
+    _leaving = true;
   }
 
   // ==================== 持久化 ====================
@@ -383,79 +313,155 @@ class Manager with SoundEmitter {
       });
     }
 
-    await StorageService.instance.write('sudoku', {
-      'boardLevel': boardLevel,
-      'boardSize': boardSize,
-      'difficulty': _difficulty,
-      'elapsed': _timer.tick,
-      'solution': _solution,
-      'cells': cellData,
-    }, project: '08.sudoku');
+    try {
+      await _store.write('sudoku', {
+        'boardLevel': boardLevel,
+        'boardSize': boardSize,
+        'difficulty': _difficulty,
+        'elapsed': _timer.tick,
+        'solution': _solution,
+        'cells': cellData,
+      }, project: '08.sudoku');
+    } catch (error) {
+      debugPrint('[Sudoku] Save progress failed: $error');
+    }
   }
 
-  /// 从文件加载进度
+  /// 完整解码和校验后再提交，失败时不改变当前棋局。
   Future<void> _loadProgress() async {
-    final data = await StorageService.instance.read(
-      'sudoku',
-      project: '08.sudoku',
-    );
-    if (data.isEmpty) return;
-
+    final operation = _operation;
+    final restored = <CellNotifier>[];
     try {
-      boardLevel = data['boardLevel'] as int? ?? 3;
-      boardSize = data['boardSize'] as int? ?? 9;
-      _difficulty = data['difficulty'] as int? ?? 27;
+      final data = await _store.read('sudoku', project: '08.sudoku');
+      if (_disposed || operation != _operation || data.isEmpty) return;
+      final level = data['boardLevel'] as int? ?? 3;
+      final size = data['boardSize'] as int? ?? 9;
+      final difficulty = data['difficulty'] as int? ?? 27;
       final elapsed = data['elapsed'] as int? ?? 0;
-
-      // 恢复解
-      final solutionList = data['solution'] as List<dynamic>?;
-      if (solutionList == null || solutionList.length != boardSize) return;
-      _solution = List.generate(
-        boardSize,
-        (i) => List<int>.from(solutionList[i] as List<dynamic>),
-      );
-
-      // 恢复格子
-      final cellData = data['cells'] as List<dynamic>?;
-      if (cellData == null || cellData.length != boardSize * boardSize) return;
-
-      cells.clear();
-      for (var cellJson in cellData) {
-        final map = cellJson as Map<String, dynamic>;
+      if (level != 3 ||
+          size != 9 ||
+          difficulty < 0 ||
+          difficulty > 81 ||
+          elapsed < 0) {
+        throw const FormatException('Invalid board metadata');
+      }
+      final rawSolution = data['solution'] as List;
+      if (rawSolution.length != size) {
+        throw const FormatException('Invalid solution');
+      }
+      final solution = rawSolution
+          .map((row) => List<int>.from(row as List))
+          .toList();
+      bool validGroup(Iterable<int> group) =>
+          group.length == size &&
+          group.toSet().length == size &&
+          group.every((d) => d >= 1 && d <= size);
+      for (var i = 0; i < size; i++) {
+        if (!validGroup(solution[i]) ||
+            !validGroup(solution.map((row) => row[i]))) {
+          throw const FormatException('Invalid solution');
+        }
+      }
+      for (var row = 0; row < size; row += level) {
+        for (var col = 0; col < size; col += level) {
+          if (!validGroup([
+            for (var r = row; r < row + level; r++)
+              for (var c = col; c < col + level; c++) solution[r][c],
+          ])) {
+            throw const FormatException('Invalid solution box');
+          }
+        }
+      }
+      final rawCells = data['cells'] as List;
+      if (rawCells.length != size * size) {
+        throw const FormatException('Invalid cells');
+      }
+      for (var i = 0; i < rawCells.length; i++) {
+        final map = rawCells[i] as Map;
+        final row = map['row'] as int;
+        final col = map['col'] as int;
         final type = CellType.values[map['type'] as int];
-        final fixedDigit = map['fixedDigit'] as int? ?? 0;
-        final spareDigits = List<int>.from(
-          map['spareDigits'] as List<dynamic>? ?? [],
-        );
-
+        final digit = map['fixedDigit'] as int? ?? 0;
+        final spares = List<int>.from(map['spareDigits'] as List? ?? []);
+        if (row != i ~/ size ||
+            col != i % size ||
+            digit < 0 ||
+            digit > size ||
+            spares.any((d) => d < 1 || d > size) ||
+            spares.toSet().length != spares.length ||
+            (type == CellType.editable ? digit != 0 : digit == 0) ||
+            (type == CellType.fixed && digit != solution[row][col])) {
+          throw const FormatException('Invalid cell');
+        }
         final cell = CellNotifier(
-          SudokuCell(
-            row: map['row'] as int,
-            col: map['col'] as int,
-            type: type,
-            fixedDigit: fixedDigit,
-          ),
+          SudokuCell(row: row, col: col, type: type, fixedDigit: digit),
         );
-        for (var d in spareDigits) {
+        restored.add(cell);
+        for (final d in spares) {
           cell.addDigit(d);
         }
-        cells.add(cell);
       }
-
-      // 恢复计时器（从已保存的秒数继续）
+      _clearSelectedCell();
+      _clearCells();
+      boardLevel = level;
+      boardSize = size;
+      _difficulty = difficulty;
+      _solution = solution;
+      cells.addAll(restored);
+      restored.clear();
       _timer.stop();
       _timer.setTick(elapsed);
       _timer.start();
-
       isGameOver.value = false;
     } catch (e) {
       debugPrint('[Sudoku] Load progress failed: $e');
-      // 加载失败，保持当前新游戏状态
+    } finally {
+      for (final cell in restored) {
+        cell.dispose();
+      }
     }
+  }
+
+  void _clearCells() {
+    _retiredCells.addAll(cells);
+    cells.clear();
+    // 旧棋盘在下一帧解绑后才能安全释放子状态。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed || _leaving) return;
+      for (final cell in _retiredCells) {
+        cell.dispose();
+      }
+      _retiredCells.clear();
+    });
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _operation++;
+    _timer.dispose();
+    disposeAudioEvents();
+    for (final cell in {...cells, ..._retiredCells}) {
+      cell.dispose();
+    }
+    _retiredCells.clear();
+    cells.dispose();
+    isGameOver.dispose();
+    nightTheme.dispose();
+    selectedCellIndex.dispose();
   }
 
   /// 清除保存的进度
   Future<void> _clearProgress() async {
-    await StorageService.instance.delete('sudoku', project: '08.sudoku');
+    try {
+      final store = _store;
+      if (store is StorageService) {
+        await store.delete('sudoku', project: '08.sudoku');
+      } else {
+        await store.write('sudoku', {}, project: '08.sudoku');
+      }
+    } catch (error) {
+      debugPrint('[Sudoku] Clear progress failed: $error');
+    }
   }
 }

@@ -2,8 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../../00.common/game/map.dart';
-import '../../00.common/game/entity.dart';
+import '../base/entity.dart';
 import '../base/effect.dart';
 import '../base/energy.dart';
 import '../base/skill.dart';

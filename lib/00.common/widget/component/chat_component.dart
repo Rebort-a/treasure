@@ -3,7 +3,8 @@ import 'dart:typed_data';
 // ignore: unnecessary_import
 import 'dart:ui';
 
-import 'package:file_picker/file_picker.dart';
+import '../../service/media_file_picker.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../model/chat_message.dart';
@@ -15,14 +16,6 @@ import '../../model/notifiers.dart';
 import '../../network/protocol/network_message.dart';
 
 import '../image/blur_hash_image.dart';
-
-/// 复用现有文件插件适配入口，避免第三方依赖扩散到首页设置。
-class MediaFilePicker {
-  static Future<Uint8List?> pickImage() async {
-    final file = await FilePicker.pickFile(type: FileType.image);
-    return file == null ? null : await file.readAsBytes();
-  }
-}
 
 /// 现代化消息列表
 class MessageList extends StatefulWidget {
@@ -240,6 +233,8 @@ class _MessageListState extends State<MessageList> {
   }
 
   Widget _dateSeparator(int timestamp) {
+    final localizations =
+        AppLocalizations.of(context) ?? LanguageProvider.instance.current;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
@@ -250,7 +245,11 @@ class _MessageListState extends State<MessageList> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            ChatMessage.formatDateSeparator(timestamp),
+            ChatMessage.formatDateSeparator(
+              timestamp,
+              todayLabel: localizations.today,
+              yesterdayLabel: localizations.yesterday,
+            ),
             style: widget.theme.dateSeparatorStyle,
           ),
         ),
@@ -562,33 +561,35 @@ class _MessageListState extends State<MessageList> {
   }
 
   Future<void> _saveFile(ChatMessage msg) async {
-    String? base64Data;
-    String fileName = 'file';
     try {
       final json = jsonDecode(msg.content);
-      fileName = json['name'] as String? ?? 'file';
-      base64Data = json['data'] as String?;
-    } catch (_) {}
+      if (json is! Map<String, dynamic>) {
+        throw const FormatException('Invalid attachment');
+      }
+      final fileName = json['name'] as String? ?? 'file';
+      final base64Data = json['data'];
+      if (base64Data is! String || base64Data.isEmpty) {
+        throw const FormatException('Attachment data is missing');
+      }
+      final bytes = base64Decode(base64Data);
 
-    if (base64Data == null || base64Data.isEmpty) return;
-
-    final bytes = base64Decode(base64Data);
-    final messenger = ScaffoldMessenger.of(context);
-
-    // 系统保存对话框：file_picker v12 在所有平台统一写入 bytes 并返回文件 Uri
-    final savedUri = await FilePicker.saveFile(
-      dialogTitle: S.downloading,
-      fileName: fileName,
-      bytes: bytes,
-    );
-    if (savedUri == null) return;
-
-    final displayPath = savedUri.scheme == 'file'
-        ? savedUri.toFilePath()
-        : savedUri.toString();
-    messenger.showSnackBar(
-      SnackBar(content: Text('${S.savedTo}: $displayPath')),
-    );
+      // 系统保存对话框：file_picker v12 在所有平台统一写入 bytes 并返回文件 Uri。
+      final savedUri = await MediaFilePicker.saveFile(
+        dialogTitle: S.downloading,
+        fileName: fileName,
+        bytes: bytes,
+      );
+      if (!mounted || savedUri == null) return;
+      final displayPath = savedUri.scheme == 'file'
+          ? savedUri.toFilePath()
+          : savedUri.toString();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('${S.savedTo}: $displayPath')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('${S.saveFailed}: $error')));
+    }
   }
 
   Widget _systemMsg(ChatMessage msg) {

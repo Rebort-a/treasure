@@ -9,6 +9,7 @@ import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 class GuessManager with SoundEmitter {
+  bool _disposed = false;
   late final TimerCounter _timer; // 计时器
 
   int _difficulty = 6;
@@ -45,10 +46,12 @@ class GuessManager with SoundEmitter {
   }
 
   void resetGame() {
+    if (_disposed) return;
     _initGame();
   }
 
   void _changeDifficulty(int value) {
+    if (_disposed) return;
     if (value != _difficulty) {
       _difficulty = value;
       resetGame();
@@ -71,7 +74,7 @@ class GuessManager with SoundEmitter {
   }
 
   void guessSelect(int index) {
-    if (_isGameOver) return;
+    if (_disposed || _isGameOver) return;
 
     if (selectedItem.value == index) {
       selectedItem.value = -1;
@@ -118,14 +121,28 @@ class GuessManager with SoundEmitter {
   }
 
   void markSelect(int index) {
-    if (_isGameOver) return;
+    if (_disposed || _isGameOver) return;
 
     selectedItem.value = -1;
 
     markItems[index] = MarkTypeExt.toggle(markItems[index]);
   }
 
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _timer.dispose();
+    disposeAudioEvents();
+    correctItems.dispose();
+    guessItems.dispose();
+    markItems.dispose();
+    selectedItem.dispose();
+    displayInfo.dispose();
+    pageNavigator.dispose();
+  }
+
   void leavePage() {
+    if (_disposed) return;
     _timer.stop();
     pageNavigator.value = (context) {
       Navigator.pop(context);

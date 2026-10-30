@@ -19,8 +19,6 @@ class AlwaysNotifier<T> extends ChangeNotifier implements ValueListenable<T> {
 }
 
 class ListNotifier<T> extends ValueNotifier<List<T>> with IterableMixin<T> {
-  final List<VoidCallback> _callBacks = [];
-
   ListNotifier(super.value);
 
   @override
@@ -28,40 +26,40 @@ class ListNotifier<T> extends ValueNotifier<List<T>> with IterableMixin<T> {
 
   void add(T value) {
     super.value.add(value);
-    notifyAll();
+    notifyListeners();
   }
 
   void addAll(Iterable<T> iterable) {
     super.value.addAll(iterable);
-    notifyAll();
+    notifyListeners();
   }
 
   void remove(T value) {
     super.value.remove(value);
-    notifyAll();
+    notifyListeners();
   }
 
   T removeLast() {
     final removed = super.value.removeLast();
-    notifyAll();
+    notifyListeners();
     return removed;
   }
 
   T removeAt(int index) {
     final removed = super.value.removeAt(index);
-    notifyAll();
+    notifyListeners();
     return removed;
   }
 
   void removeWhere(bool Function(T) check) {
     super.value.removeWhere(check);
-    notifyAll();
+    notifyListeners();
   }
 
   void clear() {
     if (isNotEmpty) {
       super.value.clear();
-      notifyAll();
+      notifyListeners();
     }
   }
 
@@ -71,24 +69,9 @@ class ListNotifier<T> extends ValueNotifier<List<T>> with IterableMixin<T> {
 
   void operator []=(int index, T value) {
     super.value[index] = value;
-    notifyAll();
+    notifyListeners();
   }
 
   @override
   Iterator<T> get iterator => super.value.iterator;
-
-  void addCallBack(VoidCallback callBack) {
-    _callBacks.add(callBack);
-  }
-
-  void removeCallBack(VoidCallback callBack) {
-    _callBacks.remove(callBack);
-  }
-
-  void notifyAll() {
-    super.notifyListeners();
-    for (VoidCallback callBack in _callBacks) {
-      callBack();
-    }
-  }
 }

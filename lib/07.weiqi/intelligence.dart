@@ -268,6 +268,7 @@ class GoAiController {
   final GoAiDifficulty difficulty;
   final int size;
   final ValueNotifier<bool> thinking = ValueNotifier(false);
+  bool _disposed = false;
 
   GoAiController({
     required this.size,
@@ -277,6 +278,7 @@ class GoAiController {
 
   /// 异步获取最佳着法。每次接收当前局面快照（无内部状态）
   Future<int?> getAction(List<StoneState> rawSnapshot) async {
+    if (_disposed) return null;
     thinking.value = true;
     try {
       return await compute(
@@ -293,14 +295,15 @@ class GoAiController {
       _GoAiLog.d('搜索异常 $e');
       return null;
     } finally {
-      // 控制器可能已被替换/释放（重开、切难度、关 AI），设值容错
-      try {
-        thinking.value = false;
-      } catch (_) {}
+      if (!_disposed) thinking.value = false;
     }
   }
 
-  void dispose() => thinking.dispose();
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    thinking.dispose();
+  }
 }
 
 /// compute 入口参数（须可跨 isolate 序列化，用 int index 表示 StoneState）

@@ -7,10 +7,27 @@ import '../00.common/widget/component/game_audio_scope.dart';
 import 'base.dart';
 import 'manager.dart';
 
-class SoftPage extends StatelessWidget {
-  final _manager = Manager();
+class SoftPage extends StatefulWidget {
+  const SoftPage({super.key});
 
-  SoftPage({super.key});
+  @override
+  State<SoftPage> createState() => _SoftPageState();
+}
+
+class _SoftPageState extends State<SoftPage> {
+  late final Manager _manager;
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = Manager();
+  }
+
+  @override
+  void dispose() {
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +169,11 @@ class SoftTubePainter extends CustomPainter {
 
     // 4. 一次性绘制到主画布（避免覆盖）
     final picture = recorder.endRecording();
-    canvas.drawPicture(picture);
+    try {
+      canvas.drawPicture(picture);
+    } finally {
+      picture.dispose();
+    }
   }
 
   (List<Vector3>, Vector3)? _getQuadPoints(int index) {

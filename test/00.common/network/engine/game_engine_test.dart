@@ -12,6 +12,7 @@ import 'package:treasure/00.common/game/step.dart';
 import 'package:treasure/00.common/network/protocol/network_message.dart';
 import 'package:treasure/06.greedy_snake/net_manager.dart' as snake;
 import 'package:treasure/17.tank/net_manager.dart' as tank;
+import 'package:treasure/17.tank/base.dart' as tank_model;
 
 import '../support/network_room_harness.dart';
 import '../support/match_game_driver.dart';
@@ -357,6 +358,215 @@ void main() {
     } finally {
       a?.dispose();
       b?.dispose();
+      await h.close();
+    }
+  });
+
+  test('贪吃蛇损坏资源不污染局面或推进同步代数', () async {
+    final h = RoomHarness(4);
+    await h.server.start();
+    snake.NetManager? manager;
+    try {
+      final host = await h.join('Host');
+      final guest = await h.join('Guest');
+      final game = manager = snake.NetManager(room: guest);
+      game.realEngine.startMatched(
+        opponentId: host.identity,
+        publisherId: host.identity,
+        isPublisher: false,
+        gameId: 'snake-invalid-resource',
+      );
+      game.addSnake(host.identity, 10);
+      game.addSnake(guest.identity, 10);
+      game.addFood(const Offset(10, 10));
+      final state = <String, dynamic>{
+        'snakes': game.snakes.map((k, v) => MapEntry('$k', v.toJson())),
+        'foods': game.foodGrid.toJson(),
+      };
+      void resource(int syncId, Map<String, dynamic> value) {
+        game.realEngine.handleGameMessage(
+          NetworkMessage(
+            id: host.identity,
+            source: 'test',
+            gameId: game.realEngine.gameId,
+            recipientIds: {host.identity, guest.identity},
+            timestamp: 0,
+            type: MessageType.resource,
+            content: jsonEncode({
+              'players': [host.identity, guest.identity],
+              'revision': 1,
+              'admissions': <String, String>{},
+              'data': jsonEncode({'syncId': syncId, 'state': value}),
+            }),
+          ),
+        );
+      }
+
+      resource(1, state);
+      final previousSnakes = Map.of(game.snakes);
+      final previousFoods = game.foodGrid.toJson();
+      for (final broken in [
+        {
+          ...state,
+          'snakes': {
+            '${host.identity}': game.snakes[host.identity]!.toJson(),
+            'bad-id': {},
+          },
+        },
+        {
+          ...state,
+          'foods': {
+            'entries': [
+              {
+                'position': {'dx': 1, 'dy': 2},
+                'radius': 2,
+              },
+              {},
+            ],
+          },
+        },
+      ]) {
+        resource(99, broken);
+        expect(game.snakes, previousSnakes);
+        expect(game.foodGrid.toJson(), previousFoods);
+      }
+      for (final id in [host.identity, guest.identity]) {
+        game.realEngine.handleGameMessage(
+          NetworkMessage(
+            id: id,
+            source: 'test',
+            gameId: game.realEngine.gameId,
+            recipientIds: {host.identity, guest.identity},
+            timestamp: 0,
+            type: MessageType.sync,
+            content: jsonEncode({'syncId': 1}),
+          ),
+        );
+      }
+      expect(game.realEngine.gameStep.value, GameStep.action);
+      game.realEngine.handleGameMessage(
+        NetworkMessage(
+          id: host.identity,
+          source: 'test',
+          gameId: game.realEngine.gameId,
+          recipientIds: {host.identity, guest.identity},
+          timestamp: 0,
+          type: MessageType.action,
+          content: jsonEncode({
+            'syncId': 1,
+            'actionType': 'joystick',
+            'angle': 0.75,
+          }),
+        ),
+      );
+      expect(game.snakes[host.identity]!.angle, 0.75);
+      expect(game.gameState.value, isTrue);
+      resource(100, {
+        ...state,
+        'foods': {
+          'entries': [null],
+        },
+      });
+      expect(game.gameState.value, isTrue);
+      expect(game.snakes, previousSnakes);
+    } finally {
+      manager?.dispose();
+      await h.close();
+    }
+  });
+
+  test('坦克损坏资源保留世界、待确认事件和原同步屏障', () async {
+    final h = RoomHarness(6);
+    await h.server.start();
+    tank.NetTankManager? manager;
+    try {
+      final host = await h.join('Host');
+      final guest = await h.join('Guest');
+      final game = manager = tank.NetTankManager(room: guest);
+      game.realEngine.startMatched(
+        opponentId: host.identity,
+        publisherId: host.identity,
+        isPublisher: false,
+        gameId: 'tank-invalid-resource',
+      );
+      game.addPlayerTank(host.identity);
+      game.addPlayerTank(guest.identity);
+      void resource(int match, int sync, Map<String, dynamic> state) {
+        game.realEngine.handleGameMessage(
+          NetworkMessage(
+            id: host.identity,
+            source: 'test',
+            gameId: game.realEngine.gameId,
+            recipientIds: {host.identity, guest.identity},
+            timestamp: 0,
+            type: MessageType.resource,
+            content: jsonEncode({
+              'players': [host.identity, guest.identity],
+              'revision': 1,
+              'admissions': <String, String>{},
+              'data': jsonEncode({
+                'match': match,
+                'sync': sync,
+                'state': state,
+              }),
+            }),
+          ),
+        );
+      }
+
+      resource(1, 1, game.toJson());
+      final enemy = tank_model.Tank.enemy(
+        position: const Offset(20, 20),
+        type: tank_model.EnemyType.basic,
+      );
+      game.broadcastSpawn(-1, enemy);
+      final before = game.toJson();
+      final player = game.tanks[guest.identity];
+      resource(99, 99, {...before, 'itemSpawnTimer': 'bad'});
+      expect(game.toJson(), before);
+      expect(game.tanks[guest.identity], same(player));
+      expect(game.pendingEnemySpawnCount, 1);
+      for (final id in [host.identity, guest.identity]) {
+        game.realEngine.handleGameMessage(
+          NetworkMessage(
+            id: id,
+            source: 'test',
+            gameId: game.realEngine.gameId,
+            recipientIds: {host.identity, guest.identity},
+            timestamp: 0,
+            type: MessageType.sync,
+            content: jsonEncode({'match': 1, 'sync': 1}),
+          ),
+        );
+      }
+      expect(game.realEngine.gameStep.value, GameStep.action);
+      game.realEngine.handleGameMessage(
+        NetworkMessage(
+          id: host.identity,
+          source: 'test',
+          gameId: game.realEngine.gameId,
+          recipientIds: {host.identity, guest.identity},
+          timestamp: 0,
+          type: MessageType.action,
+          content: jsonEncode({
+            'match': 1,
+            'sync': 1,
+            'actionType': 'spawn',
+            'key': -1,
+            'tank': enemy.toJson(),
+          }),
+        ),
+      );
+      expect(game.tanks[-1]?.enemyType, tank_model.EnemyType.basic);
+      expect(game.pendingEnemySpawnCount, 0);
+      expect(game.isRunning.value, isTrue);
+      resource(100, 100, {...before, 'score': 'bad'});
+      expect(game.isRunning.value, isTrue);
+      expect(game.tanks[-1]?.enemyType, tank_model.EnemyType.basic);
+      resource(1, 2, before);
+      expect(game.tanks[-1], isNull);
+    } finally {
+      manager?.dispose();
       await h.close();
     }
   });

@@ -20,6 +20,7 @@ enum GameState { start, playing, paused, gameOver, levelUp }
 /// 游戏管理类（核心逻辑）
 class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   final Random _random = Random();
+  bool _disposed = false;
   late Ticker _ticker;
   final FocusNode focusNode = FocusNode();
 
@@ -70,6 +71,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
 
   // 游戏主更新方法
   void _update(Duration elapsed) {
+    if (_disposed) return;
     final currentTime = elapsed.inMilliseconds;
 
     final currentElapsed = currentTime / 1000.0;
@@ -611,6 +613,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
       'spaceship',
       project: '11.spaceship',
     );
+    if (_disposed) return;
     _highScore = data['highScore'] as int? ?? 0;
     final achList = data['achievements'] as List<dynamic>? ?? [];
     _persistedAchievements.clear();
@@ -632,10 +635,14 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
         _persistedAchievements.add(a);
       }
     }
-    await StorageService.instance.write('spaceship', {
-      'highScore': _highScore,
-      'achievements': _persistedAchievements.map((e) => e.name).toList(),
-    }, project: '11.spaceship');
+    try {
+      await StorageService.instance.write('spaceship', {
+        'highScore': _highScore,
+        'achievements': _persistedAchievements.map((e) => e.name).toList(),
+      }, project: '11.spaceship');
+    } catch (error) {
+      debugPrint('[Spaceship] Save history failed: $error');
+    }
   }
 
   // 解锁成就
@@ -874,6 +881,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   }
 
   void _changeSensitivity(double value) {
+    if (_disposed) return;
     _sensitivity = value;
   }
 
@@ -889,6 +897,18 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   List<Star> get stars => _stars;
   List<Explosion> get explosions => _explosions;
   List<AchievementType> get unlockedAchievements => _unlockedAchievements;
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _ticker.dispose();
+    focusNode.dispose();
+    _state.dispose();
+    pageNavigator.dispose();
+    disposeAudioEvents();
+    super.dispose();
+  }
 
   bool get hasBoss => _boss != null;
 }

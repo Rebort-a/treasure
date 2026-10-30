@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/sound/sound_manager.dart';
 import 'package:treasure/00.common/sound/audio_preferences.dart';
-import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/00.common/widget/component/game_audio_scope.dart';
+
+import '../../support/noop_json_store.dart';
 
 class _Events with SoundEmitter {}
 
@@ -23,20 +24,6 @@ class _Player implements SoundPlayer<Sound> {
   Future<void> dispose() async => disposals++;
 }
 
-class _Store implements JsonStore {
-  @override
-  Future<Map<String, dynamic>> read(
-    String name, {
-    String project = '00.common',
-  }) async => {};
-  @override
-  Future<void> write(
-    String name,
-    Map<String, dynamic> data, {
-    String project = '00.common',
-  }) async {}
-}
-
 Widget _game(_Events source, _Player player, AudioPreferences preferences) =>
     GameAudioScope(
       source: source,
@@ -50,7 +37,7 @@ void main() {
   testWidgets('静音与前后台切换只影响音频，不积压事件，退出释放一次', (tester) async {
     final source = _Events();
     final player = _Player();
-    final preferences = AudioPreferences(store: _Store());
+    final preferences = AudioPreferences(store: NoopJsonStore());
     await tester.pumpWidget(
       MaterialApp(home: _game(source, player, preferences)),
     );
@@ -85,7 +72,7 @@ void main() {
     final source = _Events();
     final player = _Player();
     final navigator = GlobalKey<NavigatorState>();
-    final preferences = AudioPreferences(store: _Store());
+    final preferences = AudioPreferences(store: NoopJsonStore());
     await tester.pumpWidget(
       MaterialApp(
         navigatorKey: navigator,
@@ -123,7 +110,7 @@ void main() {
     final next = _Events();
     final oldPlayer = _Player();
     final player = _Player();
-    final preferences = AudioPreferences(store: _Store());
+    final preferences = AudioPreferences(store: NoopJsonStore());
     await tester.pumpWidget(
       MaterialApp(home: _game(first, oldPlayer, preferences)),
     );

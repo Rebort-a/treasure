@@ -4,6 +4,16 @@ import 'base.dart';
 abstract class GoFoundationalManager with SoundEmitter {
   final GoBoard board = GoBoard(size: 19);
 
+  bool _disposed = false;
+  bool get disposed => _disposed;
+
+  void dispose() {
+    if (disposed) return;
+    _disposed = true;
+    disposeAudioEvents();
+    board.dispose();
+  }
+
   void placePiece(int index);
 
   void applyBoardMove(int index) {

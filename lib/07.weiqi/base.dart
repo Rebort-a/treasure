@@ -166,6 +166,20 @@ abstract final class GoRules {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GoBoard {
+  bool _disposed = false;
+
+  /// 棋盘拥有自己创建的格子与状态，列表容器不负责级联释放。
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final grid in grids.value) {
+      grid.dispose();
+    }
+    grids.dispose();
+    currentPlayer.dispose();
+    gameOverNotifier.dispose();
+  }
+
   final int size;
   final ListNotifier<GoGridNotifier> grids = ListNotifier([]);
   List<Map<String, dynamic>> moveHistory = []; // 记录落子历史：位置、颜色、提子
@@ -224,6 +238,7 @@ class GoBoard {
 
   // 落子逻辑（委托 GoRules）
   bool placeStone(int index) {
+    if (index < 0 || index >= grids.value.length) return false;
     if (gameOver || !grids.value[index].value.isEmpty()) return false;
 
     final cells = _cellsSnapshot();

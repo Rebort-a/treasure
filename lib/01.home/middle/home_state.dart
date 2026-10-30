@@ -42,11 +42,15 @@ class HomeState {
       item,
       ...recentApps.value.where((other) => other != item),
     ].take(3).toList();
-    await StorageService.instance.writeList(
-      'recent_apps',
-      recentApps.value.map((item) => item.name).toList(),
-      project: '01.home',
-    );
+    try {
+      await StorageService.instance.writeList(
+        'recent_apps',
+        recentApps.value.map((item) => item.name).toList(),
+        project: '01.home',
+      );
+    } catch (error) {
+      debugPrint('[Home] Save recent apps failed: $error');
+    }
   }
 
   void dispose() {

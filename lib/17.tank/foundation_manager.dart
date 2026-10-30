@@ -13,9 +13,9 @@ import 'base.dart';
 ///
 /// 同步模型：
 /// - 所有端统一跑移动/子弹飞行/砖墙销毁（确定性，不依赖网络）。
-/// - AI 决策（转向/开火/生成）与命中判定只在【权威方】执行，
-///   通过 action 消息广播给其他端应用，避免各端重复扣血或 AI 发散。
-/// - local：自己是权威；net：host 为权威，client 非权威。
+/// - AI 决策由发布者执行；玩家子弹由拥有者判定命中，AI 子弹由发布者判定。
+///   确认后的事件通过 action 广播应用，避免各端重复扣血或 AI 发散。
+/// - local：自己负责全部判定；net：发布者承担 AI 与世界事件的权威职责。
 abstract class TankGameManager extends ChangeNotifier
     with SoundEmitter
     implements TickerProvider {
@@ -876,8 +876,7 @@ abstract class TankGameManager extends ChangeNotifier
   /// 重置全部状态（不含玩家重建与恢复运行）
   void resetState() {
     emitSound(Sound.reset);
-    // NetTankManager 的 authority 身份由当前玩家坦克推导，必须在清空 tanks
-    // 之前保存；否则联机 Host 重开时会被误判为非权威端。
+    // 按重置开始时的权威身份决定地图生成；联机身份由当前发布者决定。
     final shouldGenerateMap = isAuthority;
     _gameOver = false;
     gameResult.value = null;
@@ -933,44 +932,60 @@ abstract class TankGameManager extends ChangeNotifier
   };
 
   void fromJson(Map<String, dynamic> json) {
-    _gameOver = false;
-    gameResult.value = null;
-    playerAiming = false;
-    explosions.clear();
-    map = TankMap.fromJson(json['map'] as Map<String, dynamic>);
-    tanks.clear();
-    (json['tanks'] as Map<String, dynamic>).forEach((k, v) {
-      tanks[int.parse(k)] = Tank.fromJson(v as Map<String, dynamic>);
-    });
+    final parsedMap = TankMap.fromJson(json['map'] as Map<String, dynamic>);
+    final parsedTanks = (json['tanks'] as Map<String, dynamic>).map(
+      (k, v) =>
+          MapEntry(int.parse(k), Tank.fromJson(v as Map<String, dynamic>)),
+    );
+    final parsedBullets = (json['bullets'] as List)
+        .map((b) => Bullet.fromJson(b as Map<String, dynamic>))
+        .toList();
+    final parsedPowerups = (json['powerups'] as List? ?? const [])
+        .map((p) => PowerUp.fromJson(p as Map<String, dynamic>))
+        .toList();
+    final parsedLives = (json['lives'] as Map<String, dynamic>).map(
+      (k, v) => MapEntry(int.parse(k), v as int),
+    );
+    final parsedSpawns = (json['spawnUsed'] as Map<String, dynamic>? ?? {}).map(
+      (k, v) => MapEntry(int.parse(k), v as int),
+    );
+    final parsedRemaining = json['remaining'] as int;
+    final parsedOnField = json['onField'] as int;
+    final parsedBaseDestroyed = json['baseDestroyed'] as bool;
+    final parsedScore = json['score'] as int;
+    final parsedEnemySeq = json['enemySeq'] as int;
+    final parsedShieldTimer = (json['shieldTimer'] as num?)?.toDouble() ?? 0;
+    final parsedItemSpawnTimer =
+        (json['itemSpawnTimer'] as num?)?.toDouble() ?? 0;
+
+    // 包括末尾字段在内全部解析成功后，才提交快照并清理瞬时状态。
+    map = parsedMap;
+    tanks
+      ..clear()
+      ..addAll(parsedTanks);
     bullets
       ..clear()
-      ..addAll(
-        (json['bullets'] as List)
-            .map((b) => Bullet.fromJson(b as Map<String, dynamic>))
-            .toList(),
-      );
+      ..addAll(parsedBullets);
     powerups
       ..clear()
-      ..addAll(
-        (json['powerups'] as List? ?? const [])
-            .map((p) => PowerUp.fromJson(p as Map<String, dynamic>))
-            .toList(),
-      );
-    livesByPlayer.clear();
-    (json['lives'] as Map<String, dynamic>).forEach((k, v) {
-      livesByPlayer[int.parse(k)] = v as int;
-    });
-    playerSpawnUsed.clear();
-    (json['spawnUsed'] as Map<String, dynamic>?)?.forEach((k, v) {
-      playerSpawnUsed[int.parse(k)] = v as int;
-    });
-    remainingEnemies = json['remaining'] as int;
-    enemiesOnField = json['onField'] as int;
-    baseDestroyed = json['baseDestroyed'] as bool;
-    score = json['score'] as int;
-    _enemyIdSeq = json['enemySeq'] as int;
-    shieldTimer = (json['shieldTimer'] as num?)?.toDouble() ?? 0;
-    _itemSpawnTimer = (json['itemSpawnTimer'] as num?)?.toDouble() ?? 0;
+      ..addAll(parsedPowerups);
+    livesByPlayer
+      ..clear()
+      ..addAll(parsedLives);
+    playerSpawnUsed
+      ..clear()
+      ..addAll(parsedSpawns);
+    remainingEnemies = parsedRemaining;
+    enemiesOnField = parsedOnField;
+    baseDestroyed = parsedBaseDestroyed;
+    score = parsedScore;
+    _enemyIdSeq = parsedEnemySeq;
+    shieldTimer = parsedShieldTimer;
+    _itemSpawnTimer = parsedItemSpawnTimer;
+    _gameOver = false;
+    playerAiming = false;
+    explosions.clear();
+    gameResult.value = null;
   }
 
   // ---- 抽象钩子 ----

@@ -29,12 +29,11 @@ class ThemeProvider {
   /// 从本地加载主题设置
   Future<void> load() async {
     final data = await StorageService.instance.read('settings');
-    if (data['themeMode'] != null) {
-      final index = data['themeMode'] as int;
-      if (index >= 0 && index < ThemeMode.values.length) {
-        themeMode.value = ThemeMode.values[index];
-      }
-    }
+    final index = data['themeMode'];
+    themeMode.value =
+        index is int && index >= 0 && index < ThemeMode.values.length
+        ? ThemeMode.values[index]
+        : ThemeMode.light;
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -43,9 +42,14 @@ class ThemeProvider {
   }
 
   Future<void> _save() async {
-    final data = await StorageService.instance.read('settings');
-    data['themeMode'] = themeMode.value.index;
-    await StorageService.instance.write('settings', data);
+    final index = themeMode.value.index;
+    try {
+      await StorageService.instance.update('settings', (data) {
+        data['themeMode'] = index;
+      });
+    } catch (error) {
+      debugPrint('[Theme] Save failed: $error');
+    }
   }
 }
 
@@ -124,37 +128,6 @@ class MagicTheme {
         ),
       ),
     ),
-  );
-
-  // 羊皮纸背景
-  // 修改 MagicTheme 中的 parchmentBackground
-  static BoxDecoration get parchmentBackground => BoxDecoration(
-    // 米黄色径向渐变：模拟羊皮纸的光影质感
-    gradient: RadialGradient(
-      center: Alignment.center,
-      radius: 1.2,
-      colors: [
-        MagicTheme.parchment, // 浅米黄
-        MagicTheme.darkParchment, // 深米黄
-        const Color(0xFFD9C8A9), // 浅棕色
-      ],
-    ),
-    // 细微噪点：用 ImageFilter 模拟纸张纹理（无需图片）
-    image: DecorationImage(
-      image: const AssetImage(''), // 空图片占位（避免报错）
-      fit: BoxFit.cover,
-      colorFilter: ColorFilter.mode(
-        Colors.black.withValues(alpha: 0.03),
-        BlendMode.multiply,
-      ),
-      // 关键：用 CustomPaint 生成噪点（替代图片纹理）
-      // 实际通过 child 中的 CustomPaint 实现，这里仅保持结构
-    ),
-    borderRadius: BorderRadius.circular(8),
-    border: Border.all(color: MagicTheme.gold, width: 2),
-    boxShadow: const [
-      BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(3, 3)),
-    ],
   );
 
   // 水晶按钮样式

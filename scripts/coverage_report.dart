@@ -2,6 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+/// 已核实仅含声明、没有可执行行的文件；新增可执行逻辑后必须移出。
+/// 这些文件不视为已覆盖，未知文件仍按缺失 LCOV 记录处理。
+const nonExecutableSources = {
+  'lib/00.common/network/network_config.dart': '仅包含枚举与编译期常量',
+};
+
 /// 同一文件的多段记录合并到具体行，避免重复统计覆盖率。
 class CoverageReport {
   final Map<String, Map<int, int>> files;
@@ -63,6 +69,7 @@ class CoverageReport {
         final path = normalizeSourcePath(rawPath);
         if (path.startsWith(entry.key) &&
             !isGenerated(path) &&
+            !nonExecutableSources.containsKey(path) &&
             !files.containsKey(path)) {
           failures.add('${entry.key}: missing LCOV record for $path');
         }
@@ -138,7 +145,14 @@ void _run(List<String> arguments) {
           .where((path) => !isGenerated(path))
           .toList()
         ..sort();
-  final missing = inventory.where((path) => !report.files.containsKey(path));
+  final missing = inventory.where(
+    (path) =>
+        !report.files.containsKey(path) &&
+        !nonExecutableSources.containsKey(path),
+  );
+  final declarationOnly = inventory
+      .where(nonExecutableSources.containsKey)
+      .toList();
   final modules = inventory.map((path) => path.split('/')[1]).toSet().toList()
     ..sort();
   final totals = <String, CoverageTotals>{
@@ -162,11 +176,16 @@ void _run(List<String> arguments) {
     '(${total.percent.toStringAsFixed(1)}%)',
   );
   stdout.writeln(
-    'LCOV files: ${inventory.length - missing.length}/${inventory.length}; '
+    'LCOV files: ${inventory.where(report.files.containsKey).length}/${inventory.length}; '
     'missing files have unknown executable-line coverage, not 100%.',
   );
   for (final file in missing) {
     stdout.writeln('  Missing LCOV: $file');
+  }
+  for (final file in declarationOnly) {
+    stdout.writeln(
+      '  No executable lines: $file (${nonExecutableSources[file]})',
+    );
   }
   for (final argument in arguments.where((arg) => arg.startsWith('--json='))) {
     final output = File(argument.substring('--json='.length));
@@ -180,6 +199,9 @@ void _run(List<String> arguments) {
         },
         'sourceFiles': inventory.length,
         'missingLcovFiles': missing.toList(),
+        'nonExecutableFiles': {
+          for (final file in declarationOnly) file: nonExecutableSources[file],
+        },
       }),
     );
   }

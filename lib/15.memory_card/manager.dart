@@ -1,17 +1,20 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../00.common/sound/sound_manager.dart';
 
 import '../00.common/model/notifiers.dart';
 import '../00.common/tool/timer_counter.dart';
-import '../00.common/widget/dialog/template_dialog.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 
 class MemoryManager with SoundEmitter {
   late final TimerCounter _timer;
+
+  bool _disposed = false;
+  bool _leaving = false;
+  int _operation = 0;
 
   int _difficulty = 6; // 牌对数
 
@@ -22,9 +25,6 @@ class MemoryManager with SoundEmitter {
   final ValueNotifier<int> elapsed = ValueNotifier(0);
   final ValueNotifier<String> displayInfo = ValueNotifier('');
   final ValueNotifier<bool> gameOver = ValueNotifier(false);
-
-  final AlwaysNotifier<void Function(BuildContext)> pageNavigator =
-      AlwaysNotifier((_) {});
 
   MemoryManager() {
     _initTimer();
@@ -39,6 +39,8 @@ class MemoryManager with SoundEmitter {
 
   /// 初始化棋盘：取 _difficulty 种图案各 2 张洗牌填入；计时归零但不启动（首翻启动）
   void _initGame() {
+    if (_disposed || _leaving) return;
+    _operation++;
     emitSound(Sound.reset);
     _timer.stop();
     _timer.setTick(0);
@@ -48,16 +50,20 @@ class MemoryManager with SoundEmitter {
     final patterns = List<String>.from(cardPatterns)..shuffle(rng);
     final chosen = patterns.take(_difficulty).toList();
 
-    cards.clear();
+    final previous = cards.value;
     int id = 0;
+    final next = <MemoryCardNotifier>[];
     for (final p in chosen) {
-      cards.add(MemoryCardNotifier(MemoryCard(id: id++, pattern: p)));
-      cards.add(MemoryCardNotifier(MemoryCard(id: id++, pattern: p)));
+      next.add(MemoryCardNotifier(MemoryCard(id: id++, pattern: p)));
+      next.add(MemoryCardNotifier(MemoryCard(id: id++, pattern: p)));
     }
-    // 洗牌（按 id 打乱）
-    final list = cards.value.toList()..shuffle(rng);
-    cards.clear();
-    cards.addAll(list);
+    next.shuffle(rng);
+    // 一次替换列表，旧操作已由局次失效。
+    // ChangeNotifier 释放后仍允许移除监听，视图下一次重建可安全解绑旧牌。
+    cards.value = next;
+    for (final card in previous) {
+      card.dispose();
+    }
 
     firstIndex.value = -1;
     isMatching.value = false;
@@ -66,13 +72,11 @@ class MemoryManager with SoundEmitter {
     displayInfo.value = _displayText;
   }
 
-  int get difficulty => _difficulty;
-
   void resetGame() => _initGame();
 
   /// 翻牌主入口（异步时序，isMatching 锁防重入）
   Future<void> flipCard(int i) async {
-    if (gameOver.value || isMatching.value) return;
+    if (_disposed || _leaving || gameOver.value || isMatching.value) return;
     if (i < 0 || i >= cards.length) return;
     final card = cards[i];
 
@@ -101,34 +105,17 @@ class MemoryManager with SoundEmitter {
     final b = i;
     final cardA = cards[a];
     final cardB = cards[b];
+    final operation = ++_operation;
     isMatching.value = true;
     await Future.delayed(const Duration(milliseconds: 500));
 
-    // await 期间若重开/改难度重建了 cards，索引失效，中止判定
-    if (a >= cards.length ||
-        b >= cards.length ||
-        !identical(cards[a], cardA) ||
-        !identical(cards[b], cardB) ||
-        cards[a].state != CardState.revealed ||
-        cards[b].state != CardState.revealed) {
-      firstIndex.value = -1;
-      isMatching.value = false;
-      return;
-    }
+    // 旧局或退出后的操作不能改写当前局的选择和配对锁。
+    if (!_isCurrentOperation(operation)) return;
 
     if (cardA.pattern == cardB.pattern) {
       // 匹配成功：两张同时再展示 50ms 后永久移除
       await Future.delayed(const Duration(milliseconds: 50));
-      if (a >= cards.length ||
-          b >= cards.length ||
-          !identical(cards[a], cardA) ||
-          !identical(cards[b], cardB) ||
-          cards[a].state != CardState.revealed ||
-          cards[b].state != CardState.revealed) {
-        firstIndex.value = -1;
-        isMatching.value = false;
-        return;
-      }
+      if (!_isCurrentOperation(operation)) return;
       cardA.changeState(CardState.matched);
       cardB.changeState(CardState.matched);
       matchedCount.value++;
@@ -145,6 +132,9 @@ class MemoryManager with SoundEmitter {
     isMatching.value = false;
   }
 
+  bool _isCurrentOperation(int operation) =>
+      !_disposed && !_leaving && operation == _operation;
+
   void _handleGameOver() {
     emitSound(Sound.win);
     _timer.stop();
@@ -156,22 +146,12 @@ class MemoryManager with SoundEmitter {
       ? S.timeTaken(_timer.tick)
       : S.remainingPairs(_difficulty - matchedCount.value);
 
-  /// 难度设置对话框（牌对数 4~16）
-  void showSelector() {
-    pageNavigator.value = (context) => DialogTemplate.intSliderDialog(
-      context: context,
-      title: S.setDifficulty,
-      sliderData: IntSliderData(
-        start: 4,
-        end: cardPatterns.length < 16 ? cardPatterns.length : 16,
-        value: _difficulty,
-        step: 1,
-      ),
-      onConfirm: _changeDifficulty,
-    );
-  }
+  int get difficulty => _difficulty;
+  int get minDifficulty => 4;
+  int get maxDifficulty => cardPatterns.length < 16 ? cardPatterns.length : 16;
 
-  void _changeDifficulty(int value) {
+  void changeDifficulty(int value) {
+    if (_disposed || _leaving) return;
     if (value != _difficulty) {
       _difficulty = value;
       resetGame();
@@ -179,9 +159,27 @@ class MemoryManager with SoundEmitter {
   }
 
   void leavePage() {
+    if (_disposed || _leaving) return;
+    _leaving = true;
+    _operation++;
     _timer.stop();
-    pageNavigator.value = (context) {
-      Navigator.pop(context);
-    };
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _operation++;
+    _timer.dispose();
+    disposeAudioEvents();
+    for (final card in cards.value) {
+      card.dispose();
+    }
+    cards.dispose();
+    firstIndex.dispose();
+    isMatching.dispose();
+    matchedCount.dispose();
+    elapsed.dispose();
+    displayInfo.dispose();
+    gameOver.dispose();
   }
 }

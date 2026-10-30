@@ -128,6 +128,7 @@ class Constant {
 }
 
 class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
+  bool _disposed = false;
   late Ticker _ticker;
   double _lastElapsed = 0; // 上次更新时间
   final FocusNode focusNode = FocusNode();
@@ -156,6 +157,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   }
 
   void _update(Duration elapsed) {
+    if (_disposed) return;
     final currentTime = elapsed.inMilliseconds;
 
     final currentElapsed = currentTime / 1000.0;
@@ -274,6 +276,8 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     disposeAudioEvents();
     _ticker.dispose();
     focusNode.dispose();

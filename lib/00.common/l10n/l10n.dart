@@ -40,19 +40,22 @@ class LanguageProvider {
   /// 从本地加载语言设置
   Future<void> load() async {
     final data = await StorageService.instance.read('settings');
-    if (data['language'] != null) {
-      final index = data['language'] as int;
-      if (index >= 0 && index < AppLocale.values.length) {
-        locale.value = AppLocale.values[index];
-      }
-    }
+    final index = data['language'];
+    locale.value = index is int && index >= 0 && index < AppLocale.values.length
+        ? AppLocale.values[index]
+        : AppLocale.en;
     localization.value = lookupAppLocalizations(flutterLocale);
   }
 
   Future<void> _save() async {
-    final data = await StorageService.instance.read('settings');
-    data['language'] = locale.value.index;
-    await StorageService.instance.write('settings', data);
+    final index = locale.value.index;
+    try {
+      await StorageService.instance.update('settings', (data) {
+        data['language'] = index;
+      });
+    } catch (error) {
+      debugPrint('[Language] Save failed: $error');
+    }
   }
 
   Future<void> toggle() async {

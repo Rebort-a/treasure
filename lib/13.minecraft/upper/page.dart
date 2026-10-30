@@ -28,21 +28,18 @@ class _MinecraftPageState extends State<MinecraftPage> {
   void initState() {
     super.initState();
     manager = Manager();
-    manager.addListener(_onManagerUpdate);
     // 确保 widget 挂载后再请求焦点
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       manager.controlManager.focusNode.requestFocus();
     });
   }
 
   @override
   void dispose() {
-    manager.removeListener(_onManagerUpdate);
     manager.dispose();
     super.dispose();
   }
-
-  void _onManagerUpdate() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -71,12 +68,12 @@ class _MinecraftPageState extends State<MinecraftPage> {
             _buildScene(),
 
             // 破坏进度指示器
-            if (manager.destroyProgress > 0)
-              Center(
-                child: DestroyProgressIndicator(
-                  progress: manager.destroyProgress,
-                ),
-              ),
+            ValueListenableBuilder<double>(
+              valueListenable: manager.destruction,
+              builder: (_, progress, __) => progress > 0
+                  ? Center(child: DestroyProgressIndicator(progress: progress))
+                  : const SizedBox.shrink(),
+            ),
 
             // 十字准星
             const IgnorePointer(child: Crosshair()),
@@ -97,14 +94,17 @@ class _MinecraftPageState extends State<MinecraftPage> {
   Widget _buildScene() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return CustomPaint(
-          painter: ScenePainter(
-            manager.sceneInfo,
-            manager.debugInfo,
-            debugConfig: manager.debugConfig,
-            faceMeshCache: _faceMeshCache,
+        return ValueListenableBuilder(
+          valueListenable: manager.scene,
+          builder: (_, scene, __) => CustomPaint(
+            painter: ScenePainter(
+              scene,
+              manager.debugInfo,
+              debugConfig: manager.debugConfig,
+              faceMeshCache: _faceMeshCache,
+            ),
+            size: constraints.biggest,
           ),
-          size: constraints.biggest,
         );
       },
     );
@@ -153,7 +153,7 @@ class _MinecraftPageState extends State<MinecraftPage> {
       };
       final slot = keySlotMap[event.logicalKey];
       if (slot != null && slot < manager.slotTypes.length) {
-        setState(() => manager.selectedSlot = slot);
+        manager.selectedSlot = slot;
         return;
       }
     }
@@ -213,11 +213,14 @@ class _MinecraftPageState extends State<MinecraftPage> {
             padding: EdgeInsets.only(
               bottom: orientation == Orientation.portrait ? 160 : 12,
             ),
-            child: Hotbar(
-              slotTypes: manager.slotTypes,
-              getCount: manager.getCount,
-              selectedSlot: manager.selectedSlot,
-              onSelect: (i) => setState(() => manager.selectedSlot = i),
+            child: ValueListenableBuilder<int>(
+              valueListenable: manager.hotbarRevision,
+              builder: (_, revision, __) => Hotbar(
+                slotTypes: manager.slotTypes,
+                getCount: manager.getCount,
+                selectedSlot: manager.selectedSlot,
+                onSelect: (i) => manager.selectedSlot = i,
+              ),
             ),
           ),
         ),
@@ -227,16 +230,14 @@ class _MinecraftPageState extends State<MinecraftPage> {
 
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is PointerScrollEvent) {
-      setState(() {
-        if (event.scrollDelta.dy < 0) {
-          manager.selectedSlot =
-              (manager.selectedSlot + 1) % Constants.hotbarSlotCount;
-        } else if (event.scrollDelta.dy > 0) {
-          manager.selectedSlot =
-              (manager.selectedSlot - 1 + Constants.hotbarSlotCount) %
-              Constants.hotbarSlotCount;
-        }
-      });
+      if (event.scrollDelta.dy < 0) {
+        manager.selectedSlot =
+            (manager.selectedSlot + 1) % Constants.hotbarSlotCount;
+      } else if (event.scrollDelta.dy > 0) {
+        manager.selectedSlot =
+            (manager.selectedSlot - 1 + Constants.hotbarSlotCount) %
+            Constants.hotbarSlotCount;
+      }
     }
   }
 }

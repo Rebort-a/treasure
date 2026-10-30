@@ -12,6 +12,30 @@ import 'package:treasure/04.elemental_battle/upper/local_combat_manager.dart';
 void main() {
   tearDown(() => LanguageProvider.instance.resetForTesting());
 
+  testWidgets('首帧前销毁战斗管理器不会继续初始化已释放状态', (tester) async {
+    final player = Elemental(
+      baseName: 'Player',
+      configs: EnergyConfigs.defaultConfigs(),
+      current: 0,
+    );
+    final enemy = Elemental(
+      baseName: 'Enemy',
+      configs: EnergyConfigs.defaultConfigs(),
+      current: 0,
+    );
+    final manager = LocalCombatManager(
+      player: player,
+      enemy: enemy,
+      playerType: TurnGamerType.front,
+    );
+    manager.dispose();
+    manager.dispose();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(() => manager.infoList.addListener(() {}), throwsFlutterError);
+    expect(() => manager.currentGamer.addListener(() {}), throwsFlutterError);
+  });
+
   for (final locale in AppLocale.values) {
     testWidgets('本地战斗结算可关闭并返回冒险，不使用房间关闭提示：$locale', (tester) async {
       await LanguageProvider.instance.setLocale(locale);
@@ -62,10 +86,8 @@ void main() {
       expect(find.text('Adventure'), findsOneWidget);
       expect(find.byType(AlertDialog), findsNothing);
       await tester.pumpWidget(const SizedBox());
-      manager.disposeAudioEvents();
-      manager.pageNavigator.dispose();
-      manager.infoList.dispose();
-      manager.currentGamer.dispose();
+      manager.dispose();
+      manager.dispose();
     });
   }
 }

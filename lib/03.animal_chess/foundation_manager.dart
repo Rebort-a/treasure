@@ -11,6 +11,22 @@ import 'base.dart';
 import 'extension.dart';
 
 abstract class FoundationalManager with SoundEmitter {
+  bool _disposed = false;
+  bool get disposed => _disposed;
+
+  void dispose() {
+    if (disposed) return;
+    _disposed = true;
+    disposeAudioEvents();
+    for (final cell in displayMap.value) {
+      cell.dispose();
+    }
+    displayMap.dispose();
+    currentGamer.dispose();
+    winner.dispose();
+    pageNavigator.dispose();
+  }
+
   int boardLevel = 2;
   int get _boardSize => boardLevel * 2 + 1;
 
@@ -36,9 +52,16 @@ abstract class FoundationalManager with SoundEmitter {
   }
 
   void setupBoard() {
+    if (disposed) return;
+    final previous = displayMap.value;
     displayMap.value = List.generate(_boardSize * _boardSize, (index) {
       return CellNotifier(Cell(coordinate: index, type: _getCellType(index)));
     });
+    _markedCell.clear();
+    // 先通知界面解绑旧格子，再由实际所有者释放。
+    for (final cell in previous) {
+      cell.dispose();
+    }
   }
 
   CellType _getCellType(int index) {

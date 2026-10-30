@@ -54,6 +54,32 @@ end_of_record
     );
   });
 
+  test('明确的无可执行行声明不伪造覆盖率，其他缺失文件仍被拒绝', () {
+    final report = CoverageReport.parse('''
+SF:lib/00.common/network/example.dart
+DA:1,1
+end_of_record
+''');
+    expect(
+      report.check(
+        {'lib/00.common/network/': 100},
+        [
+          'lib/00.common/network/example.dart',
+          'lib/00.common/network/network_config.dart',
+        ],
+      ),
+      isEmpty,
+    );
+    expect(report.totalsFor('lib/').found, 1);
+    expect(
+      report.check(
+        {'lib/00.common/network/': 100},
+        ['lib/00.common/network/missing_logic.dart'],
+      ),
+      hasLength(1),
+    );
+  });
+
   test('非法行号或命中次数不能生成看似有效的报告', () {
     for (final data in ['DA:0,1', 'DA:1,-1', 'DA:x,1', 'DA:1']) {
       expect(

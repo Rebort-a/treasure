@@ -10,11 +10,119 @@ import '../00.common/widget/canvas/parchment_texture.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
+import 'import_page.dart';
+import '../00.common/widget/effect/magic_celebration.dart';
+import '../00.common/tool/timer_counter.dart';
+import '../00.common/widget/dialog/template_dialog.dart';
+import '../00.common/model/notifiers.dart';
 
-class SudokuPage extends StatelessWidget {
-  final Manager _manager = Manager();
+class SudokuPage extends StatefulWidget {
+  const SudokuPage({super.key});
 
-  SudokuPage({super.key});
+  @override
+  State<SudokuPage> createState() => _SudokuPageState();
+}
+
+class _SudokuPageState extends State<SudokuPage> {
+  late final Manager _manager;
+  final _navigation = AlwaysNotifier<void Function(BuildContext)>((_) {});
+
+  void _openImport() {
+    final operation = _manager.beginImport();
+    _navigation.value = (context) async {
+      final result = await Navigator.push<List<List<int>>>(
+        context,
+        MaterialPageRoute(builder: (_) => const SudokuImportPage()),
+      );
+      if (mounted && context.mounted && result != null) {
+        _manager.completeImport(operation, result);
+      }
+    };
+  }
+
+  void _onCompleted() {
+    if (!_manager.isGameOver.value) return;
+    _navigation.value = (context) =>
+        showDialog<void>(context: context, builder: _buildCongratulations);
+  }
+
+  // 完成庆祝对话框
+  Widget _buildCongratulations(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: _manager.nightTheme.value
+          ? MagicTheme.magicBackground
+          : BaseTheme.backgroundColor,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            S.congratulations,
+            style: _manager.nightTheme.value
+                ? MagicTheme.titleStyle
+                : BaseTheme.titleStyle,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            S.difficultyTime(
+              '${_manager.difficulty}',
+              TimerCounter.formatDuration(_manager.elapsed),
+            ),
+            style: _manager.nightTheme.value
+                ? MagicTheme.bodyStyle
+                : BaseTheme.bodyStyle,
+          ),
+          const SizedBox(height: 16),
+          // 魔法庆祝动画
+          const MagicCelebrationAnimation(),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            style: _manager.nightTheme.value
+                ? MagicTheme.crystalButtonStyle(false)
+                : null,
+            onPressed: () {
+              Navigator.pop(context);
+              _manager.resetGame();
+            },
+            child: Text(S.startNewGame),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSelector() {
+    _navigation.value = (context) => DialogTemplate.intSliderDialog(
+      context: context,
+      title: S.setDifficulty,
+      sliderData: IntSliderData(
+        start: _manager.minDifficulty,
+        end: _manager.maxDifficulty,
+        value: _manager.difficulty,
+        step: 1,
+      ),
+      onConfirm: _manager.changeDifficulty,
+    );
+  }
+
+  void _leavePage() {
+    _manager.leavePage();
+    _navigation.value = (context) => Navigator.pop(context);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = Manager();
+    _manager.isGameOver.addListener(_onCompleted);
+  }
+
+  @override
+  void dispose() {
+    _manager.isGameOver.removeListener(_onCompleted);
+    _navigation.dispose();
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => GameAudioScope(
@@ -23,7 +131,7 @@ class SudokuPage extends StatelessWidget {
     child: PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) _manager.leavePage();
+        if (!didPop) _leavePage();
       },
       child: _buildPage(),
     ),
@@ -53,12 +161,12 @@ class SudokuPage extends StatelessWidget {
         children: [
           _buildLeadingAction(
             icon: Icons.arrow_back,
-            onPressed: _manager.leavePage,
+            onPressed: _leavePage,
             isNightMode: isNightMode,
           ),
           _buildLeadingAction(
             icon: Icons.file_upload,
-            onPressed: _manager.openImport,
+            onPressed: _openImport,
             isNightMode: isNightMode,
           ),
           _buildLeadingAction(
@@ -77,7 +185,7 @@ class SudokuPage extends StatelessWidget {
         ),
         _buildAppBarAction(
           icon: Icons.tune,
-          onPressed: _manager.showSelector,
+          onPressed: _showSelector,
           isNightMode: isNightMode,
         ),
       ],
@@ -154,7 +262,7 @@ class SudokuPage extends StatelessWidget {
   Widget _buildBaseBodyContent() {
     return Column(
       children: [
-        NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+        NotifierNavigator(navigatorHandler: _navigation),
         const Spacer(flex: 2),
         Expanded(flex: 12, child: _buildBoardArea()),
         const Spacer(flex: 1),

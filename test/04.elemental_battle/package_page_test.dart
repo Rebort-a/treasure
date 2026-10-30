@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:treasure/00.common/game/entity.dart';
+import 'package:treasure/04.elemental_battle/base/entity.dart';
 import 'package:treasure/00.common/l10n/strings.dart';
 import 'package:treasure/04.elemental_battle/base/energy.dart';
 import 'package:treasure/04.elemental_battle/middle/player.dart';

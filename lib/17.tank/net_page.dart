@@ -34,7 +34,8 @@ class _TankGame extends StatelessWidget {
     return ValueListenableBuilder<GameStep>(
       valueListenable: _manager.realEngine.gameStep,
       builder: (_, step, __) {
-        return step == GameStep.action
+        // 结束后保留战场与结果入口，等待玩家主动退出，不提前切走吞掉结果。
+        return step == GameStep.action || _manager.gameResult.value != null
             ? TankGameScreen(manager: _manager, showStateButton: false)
             : _buildPrepare(step);
       },

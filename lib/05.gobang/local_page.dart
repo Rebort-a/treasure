@@ -18,7 +18,6 @@ class LocalGomokuPage extends StatefulWidget {
 
 class _LocalGomokuPageState extends State<LocalGomokuPage> {
   late final LocalManager _manager;
-  bool _vsAi = false;
 
   @override
   void initState() {
@@ -27,18 +26,11 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
   }
 
   void _toggleAi(bool value) {
-    setState(() {
-      _vsAi = value;
-      if (value) {
-        _manager.toggleAi(true);
-      } else {
-        _manager.toggleAi(false);
-      }
-    });
+    _manager.toggleAi(value);
   }
 
   void _setDifficulty(AiDifficulty d) {
-    setState(() => _manager.setDifficulty(d));
+    _manager.setDifficulty(d);
   }
 
   void _onGridSelected(int index) => _manager.placePiece(index);
@@ -47,13 +39,14 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
   void _restart() {
     final oldFaction = _manager.aiFaction;
     final winnerIsAi =
-        _vsAi && oldFaction != null && _manager.board.lastWinner == oldFaction;
+        _manager.aiEnabled &&
+        oldFaction != null &&
+        _manager.board.lastWinner == oldFaction;
     final newFaction = winnerIsAi ? TurnGamerType.front : TurnGamerType.rear;
-    setState(() {
-      if (_vsAi) _manager.toggleAi(false);
-      _manager.restart();
-      if (_vsAi) _manager.toggleAi(true, faction: newFaction);
-    });
+    final wasAi = _manager.aiEnabled;
+    if (wasAi) _manager.toggleAi(false);
+    _manager.restart();
+    if (wasAi) _manager.toggleAi(true, faction: newFaction);
   }
 
   @override
@@ -64,115 +57,121 @@ class _LocalGomokuPageState extends State<LocalGomokuPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GameAudioScope(
-      source: _manager,
-      project: '05.gobang',
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(S.gobang),
-          centerTitle: true,
-          actions: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                switch (value) {
-                  case 'restart':
-                    _restart();
-                  case 'undo':
-                    _manager.undo();
-                  case 'ai':
-                    _toggleAi(!_vsAi);
-                  case 'easy':
-                    _setDifficulty(AiDifficulty.easy);
-                  case 'normal':
-                    _setDifficulty(AiDifficulty.normal);
-                  case 'hard':
-                    _setDifficulty(AiDifficulty.hard);
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'restart',
-                  child: ListTile(
-                    leading: const Icon(Icons.refresh),
-                    title: Text(S.restart),
-                    dense: true,
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'undo',
-                  child: ListTile(
-                    leading: const Icon(Icons.undo),
-                    title: Text(S.undo),
-                    dense: true,
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'ai',
-                  child: ListTile(
-                    leading: const Icon(Icons.smart_toy),
-                    title: Text(S.aiLabel),
-                    dense: true,
-                    trailing: Switch(
-                      value: _vsAi,
-                      onChanged: (v) {
-                        Navigator.pop(context);
-                        _toggleAi(v);
-                      },
+    return ValueListenableBuilder<bool>(
+      valueListenable: _manager.aiEnabledListenable,
+      builder: (context, _, _) => ValueListenableBuilder<AiDifficulty>(
+        valueListenable: _manager.difficultyListenable,
+        builder: (context, _, _) => GameAudioScope(
+          source: _manager,
+          project: '05.gobang',
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(S.gobang),
+              centerTitle: true,
+              actions: [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'restart':
+                        _restart();
+                      case 'undo':
+                        _manager.undo();
+                      case 'ai':
+                        _toggleAi(!_manager.aiEnabled);
+                      case 'easy':
+                        _setDifficulty(AiDifficulty.easy);
+                      case 'normal':
+                        _setDifficulty(AiDifficulty.normal);
+                      case 'hard':
+                        _setDifficulty(AiDifficulty.hard);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'restart',
+                      child: ListTile(
+                        leading: const Icon(Icons.refresh),
+                        title: Text(S.restart),
+                        dense: true,
+                      ),
                     ),
-                  ),
+                    PopupMenuItem(
+                      value: 'undo',
+                      child: ListTile(
+                        leading: const Icon(Icons.undo),
+                        title: Text(S.undo),
+                        dense: true,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'ai',
+                      child: ListTile(
+                        leading: const Icon(Icons.smart_toy),
+                        title: Text(S.aiLabel),
+                        dense: true,
+                        trailing: Switch(
+                          value: _manager.aiEnabled,
+                          onChanged: (v) {
+                            Navigator.pop(context);
+                            _toggleAi(v);
+                          },
+                        ),
+                      ),
+                    ),
+                    if (_manager.aiEnabled) ...[
+                      const PopupMenuDivider(),
+                      _difficultyItem(S.easy, 'easy', AiDifficulty.easy),
+                      _difficultyItem(S.medium, 'normal', AiDifficulty.normal),
+                      _difficultyItem(S.hard, 'hard', AiDifficulty.hard),
+                    ],
+                  ],
                 ),
-                if (_vsAi) ...[
-                  const PopupMenuDivider(),
-                  _difficultyItem(S.easy, 'easy', AiDifficulty.easy),
-                  _difficultyItem(S.medium, 'normal', AiDifficulty.normal),
-                  _difficultyItem(S.hard, 'hard', AiDifficulty.hard),
-                ],
               ],
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            ValueListenableBuilder<TurnGamerType>(
-              valueListenable: _manager.board.currentGamer,
-              builder: (context, gamer, _) {
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    _manager.board.gameOver
-                        ? S.sideWin(
-                            gamer == TurnGamerType.rear
-                                ? S.blackSide
-                                : S.whiteSide,
-                          )
-                        : S.currentTurn(
-                            gamer == TurnGamerType.front
-                                ? S.blackSide
-                                : S.whiteSide,
-                          ),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+            body: Column(
+              children: [
+                ValueListenableBuilder<TurnGamerType>(
+                  valueListenable: _manager.board.currentGamer,
+                  builder: (context, gamer, _) {
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        _manager.board.gameOver
+                            ? S.sideWin(
+                                gamer == TurnGamerType.rear
+                                    ? S.blackSide
+                                    : S.whiteSide,
+                              )
+                            : S.currentTurn(
+                                gamer == TurnGamerType.front
+                                    ? S.blackSide
+                                    : S.whiteSide,
+                              ),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Expanded(
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _manager.board.gameOverNotifier,
+                    builder: (_, finished, _) => GameReplayBoard(
+                      finished: finished,
+                      onReplay: _restart,
+                      child: FoundationalWidget(
+                        manager: _manager,
+                        onGridSelected: _onGridSelected,
+                      ),
                     ),
                   ),
-                );
-              },
-            ),
-            Expanded(
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _manager.board.gameOverNotifier,
-                builder: (_, finished, _) => GameReplayBoard(
-                  finished: finished,
-                  onReplay: _restart,
-                  child: FoundationalWidget(
-                    manager: _manager,
-                    onGridSelected: _onGridSelected,
-                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

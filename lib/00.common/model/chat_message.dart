@@ -13,9 +13,6 @@ class ChatMessage {
   final int timestamp;
   final bool isMe;
   final bool isSystem;
-  final String? imagePath;
-  final String? fileName;
-  final int? fileSize;
 
   /// 保留协议编码，不在接收时固定翻译，以便切换语言后重新展示。
   NoticeType? get notificationType =>
@@ -30,9 +27,6 @@ class ChatMessage {
     required this.timestamp,
     required this.isMe,
     this.isSystem = false,
-    this.imagePath,
-    this.fileName,
-    this.fileSize,
   });
 
   /// 从 NetworkMessage 创建
@@ -85,13 +79,19 @@ class ChatMessage {
   }
 
   /// 格式化日期分隔符
-  static String formatDateSeparator(int timestamp) {
+  static String formatDateSeparator(
+    int timestamp, {
+    required String todayLabel,
+    required String yesterdayLabel,
+  }) {
     final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final messageDate = DateTime(dt.year, dt.month, dt.day);
-    if (messageDate == today) return '今天';
-    if (messageDate == today.subtract(const Duration(days: 1))) return '昨天';
+    if (messageDate == today) return todayLabel;
+    if (messageDate == DateTime(now.year, now.month, now.day - 1)) {
+      return yesterdayLabel;
+    }
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 

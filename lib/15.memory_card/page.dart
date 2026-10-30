@@ -10,11 +10,51 @@ import '../00.common/widget/navigator/notifier_navigator.dart';
 import '../00.common/l10n/strings.dart';
 import 'base.dart';
 import 'manager.dart';
+import '../00.common/widget/dialog/template_dialog.dart';
+import '../00.common/model/notifiers.dart';
 
-class MemoryPage extends StatelessWidget {
-  final MemoryManager _manager = MemoryManager();
+class MemoryPage extends StatefulWidget {
+  const MemoryPage({super.key});
 
-  MemoryPage({super.key});
+  @override
+  State<MemoryPage> createState() => _MemoryPageState();
+}
+
+class _MemoryPageState extends State<MemoryPage> {
+  late final MemoryManager _manager;
+  final _navigation = AlwaysNotifier<void Function(BuildContext)>((_) {});
+
+  void _showSelector() {
+    _navigation.value = (context) => DialogTemplate.intSliderDialog(
+      context: context,
+      title: S.setDifficulty,
+      sliderData: IntSliderData(
+        start: _manager.minDifficulty,
+        end: _manager.maxDifficulty,
+        value: _manager.difficulty,
+        step: 1,
+      ),
+      onConfirm: _manager.changeDifficulty,
+    );
+  }
+
+  void _leavePage() {
+    _manager.leavePage();
+    _navigation.value = (context) => Navigator.pop(context);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _manager = MemoryManager();
+  }
+
+  @override
+  void dispose() {
+    _navigation.dispose();
+    _manager.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => GameAudioScope(
@@ -23,7 +63,7 @@ class MemoryPage extends StatelessWidget {
     child: PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) _manager.leavePage();
+        if (!didPop) _leavePage();
       },
       child: Scaffold(appBar: _buildAppBar(), body: _buildBody()),
     ),
@@ -34,7 +74,7 @@ class MemoryPage extends StatelessWidget {
       title: Text(S.memoryCard),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: _manager.leavePage,
+        onPressed: _leavePage,
       ),
       centerTitle: true,
       actions: [
@@ -42,10 +82,7 @@ class MemoryPage extends StatelessWidget {
           icon: const Icon(Icons.refresh),
           onPressed: _manager.resetGame,
         ),
-        IconButton(
-          icon: const Icon(Icons.tune),
-          onPressed: _manager.showSelector,
-        ),
+        IconButton(icon: const Icon(Icons.tune), onPressed: _showSelector),
       ],
     );
   }
@@ -53,7 +90,7 @@ class MemoryPage extends StatelessWidget {
   Widget _buildBody() {
     return Column(
       children: [
-        NotifierNavigator(navigatorHandler: _manager.pageNavigator),
+        NotifierNavigator(navigatorHandler: _navigation),
         _buildDisplayArea(),
         Expanded(child: _buildBoardArea()),
       ],

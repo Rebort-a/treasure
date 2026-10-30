@@ -24,3 +24,14 @@ enum EntityType {
   strong, // 强敌
   boss, // 魔王
 }
+
+// 可移动的实体
+mixin MovableEntity {
+  late final EntityType id;
+  late int y, x;
+
+  void updatePosition(int newY, int newX) {
+    y = newY;
+    x = newX;
+  }
+}

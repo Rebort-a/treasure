@@ -55,6 +55,48 @@ void main() {
   setUp(() => LanguageProvider.instance.resetForTesting());
   tearDown(() => LanguageProvider.instance.resetForTesting());
 
+  testWidgets('已有消息日期随界面语言切换，原始消息保持不变', (tester) async {
+    final channel = _Chat();
+    final locale = ValueNotifier(const Locale('en'));
+    final now = DateTime.now();
+    for (final date in [now, DateTime(now.year, now.month, now.day - 1)]) {
+      channel.messageList.add(
+        NetworkMessage(
+          id: 1,
+          type: MessageType.text,
+          source: 'Alice',
+          content: date.toIso8601String(),
+          timestamp: date.millisecondsSinceEpoch,
+        ),
+      );
+    }
+    final original = channel.messageList.value
+        .map((message) => message.toJsonString())
+        .toList();
+    await tester.pumpWidget(
+      ValueListenableBuilder<Locale>(
+        valueListenable: locale,
+        builder: (_, value, _) => _chat(value, channel),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final english = lookupAppLocalizations(const Locale('en'));
+    expect(find.text(english.today), findsOneWidget);
+    expect(find.text(english.yesterday), findsOneWidget);
+    locale.value = const Locale('zh');
+    await tester.pumpAndSettle();
+    final chinese = lookupAppLocalizations(const Locale('zh'));
+    expect(find.text(chinese.today), findsOneWidget);
+    expect(find.text(chinese.yesterday), findsOneWidget);
+    expect(
+      channel.messageList.value.map((message) => message.toJsonString()),
+      original,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    channel.dispose();
+    locale.dispose();
+  });
+
   test('通知使用固定编码，序列化往返不携带翻译文本', () {
     expect(NoticeType.values.map((type) => type.code), [1, 2, 3, 4]);
     for (final notificationType in NoticeType.values) {

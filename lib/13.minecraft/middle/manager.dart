@@ -36,7 +36,31 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
   // 背包系统（类型 → 数量，slotOrder 记录栏位顺序）
   final Map<BlockType, int> _inventoryCounts = {};
   final List<BlockType> _slotOrder = [];
-  int selectedSlot = 0;
+  int _selectedSlot = 0;
+
+  /// 场景、破坏进度与快捷栏独立发布，实时更新不重建整页。
+  final scene = ValueNotifier<SceneInfo>(
+    const SceneInfo(
+      position: Vector3.zero,
+      orientation: Vector3.zero,
+      blocks: [],
+    ),
+  );
+  final destruction = ValueNotifier<double>(0);
+
+  /// 仅栏位选择、类型顺序或数量变化时递增。
+  final hotbarRevision = ValueNotifier<int>(0);
+
+  int get selectedSlot => _selectedSlot;
+  set selectedSlot(int value) {
+    if (value < 0 ||
+        value >= Constants.hotbarSlotCount ||
+        value == _selectedSlot) {
+      return;
+    }
+    _selectedSlot = value;
+    hotbarRevision.value++;
+  }
 
   SceneInfo _lastInfo = const SceneInfo(
     position: Vector3.zero,
@@ -127,6 +151,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
     // 射线检测 + 摧毁进度
     _performRaycast();
     _controlManager.updateDestroyProgress(deltaTime);
+    destruction.value = destroyProgress;
 
     // 分批处理加载队列
     if (_chunkManager.processLoadQueue()) {
@@ -152,7 +177,8 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
     }
     return !(_lastInfo.position == _player.position) ||
         !(_lastInfo.orientation == _player.orientation) ||
-        destroyProgress > 0;
+        _lastInfo.targetedBlock != targetedBlock?.block ||
+        _lastInfo.targetedFaceNormal != targetedBlock?.faceNormal;
   }
 
   /// 更新可见方块
@@ -166,6 +192,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
       targetedFaceNormal: targetedBlock?.faceNormal,
       revision: _sceneRevision,
     );
+    scene.value = _lastInfo;
   }
 
   /// 射线检测（使用放置距离，摧毁距离在 ControlManager 中判断）
@@ -260,7 +287,10 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
     } else if (_slotOrder.length < Constants.hotbarSlotCount) {
       _inventoryCounts[type] = amount;
       _slotOrder.add(type);
+    } else {
+      return;
     }
+    hotbarRevision.value++;
   }
 
   bool _canAddInventory(BlockType type) =>
@@ -290,6 +320,7 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
     } else {
       _inventoryCounts[type] = count - 1;
     }
+    hotbarRevision.value++;
     return true;
   }
 
@@ -302,6 +333,9 @@ class Manager with ChangeNotifier, SoundEmitter implements TickerProvider {
     disposeAudioEvents();
     _ticker.dispose();
     _controlManager.dispose();
+    scene.dispose();
+    destruction.dispose();
+    hotbarRevision.dispose();
     super.dispose();
   }
 

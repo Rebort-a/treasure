@@ -2,27 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/sound/audio_preferences.dart';
-import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/widget/button/scale_button.dart';
 
-class _Store implements JsonStore {
-  @override
-  Future<Map<String, dynamic>> read(
-    String name, {
-    String project = '00.common',
-  }) async => {};
-
-  @override
-  Future<void> write(
-    String name,
-    Map<String, dynamic> data, {
-    String project = '00.common',
-  }) async {}
-}
+import '../../support/noop_json_store.dart';
 
 void main() {
   testWidgets('长按连发的震动独立开关且即时生效，松手和销毁均停止连发', (tester) async {
-    final preferences = AudioPreferences(store: _Store());
+    final preferences = AudioPreferences(store: NoopJsonStore());
     await preferences.ready;
     preferences.setSoundEnabled(false);
     preferences.setVoiceEnabled(false);

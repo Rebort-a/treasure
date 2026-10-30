@@ -151,6 +151,7 @@ esac
   Future<ProcessResult> release({
     String mode = '',
     List<String> arguments = const [],
+    String? message = '- Verify the release workflow',
   }) {
     environment['RELEASE_TEST_MODE'] = mode;
     return _process(bash, [
@@ -159,8 +160,7 @@ esac
       '--',
       '--yes',
       ...arguments,
-      '--message',
-      '- Verify the release workflow',
+      if (message != null) ...['--message', message],
     ]);
   }
 
@@ -176,6 +176,25 @@ void main() {
   late _ReleaseFixture fixture;
   setUp(() async => fixture = await _ReleaseFixture.create());
   tearDown(() async => fixture.dispose());
+
+  test('缺省发布正文为英文列表，非法列表在修改前拒绝', () async {
+    for (final message in ['No list marker', '- ']) {
+      final invalid = await fixture.release(message: message);
+      expect(invalid.exitCode, isNot(0));
+      expect(await fixture.git(['rev-parse', 'HEAD']), fixture.initialCommit);
+      expect(await fixture.git(['status', '--porcelain']), isEmpty);
+      expect(await fixture.git(['tag', '--list']), isEmpty);
+    }
+    final result = await fixture.release(
+      message: null,
+      arguments: ['--skip-wait'],
+    );
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    expect(
+      await fixture.git(['log', '-1', '--format=%b']),
+      '- Prepare release v1.2.4',
+    );
+  });
 
   for (final (type, tag, title) in [
     ('patch', 'v1.2.4', 'release: v1.2.4'),

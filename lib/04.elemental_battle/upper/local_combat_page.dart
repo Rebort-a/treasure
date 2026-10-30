@@ -8,20 +8,39 @@ import 'foundation_combat_widget.dart';
 import '../middle/elemental.dart';
 import 'local_combat_manager.dart';
 
-class LocalCombatPage extends StatelessWidget {
+class LocalCombatPage extends StatefulWidget {
+  final Elemental player;
+  final Elemental enemy;
+  final TurnGamerType playerType;
+
+  const LocalCombatPage({
+    super.key,
+    required this.player,
+    required this.enemy,
+    required this.playerType,
+  });
+
+  @override
+  State<LocalCombatPage> createState() => _LocalCombatPageState();
+}
+
+class _LocalCombatPageState extends State<LocalCombatPage> {
   late final LocalCombatManager _manager;
 
-  LocalCombatPage({
-    super.key,
-    required Elemental player,
-    required Elemental enemy,
-    required TurnGamerType playerType,
-  }) {
+  @override
+  void initState() {
+    super.initState();
     _manager = LocalCombatManager(
-      player: player,
-      enemy: enemy,
-      playerType: playerType,
+      player: widget.player,
+      enemy: widget.enemy,
+      playerType: widget.playerType,
     );
+  }
+
+  @override
+  void dispose() {
+    _manager.dispose();
+    super.dispose();
   }
 
   @override

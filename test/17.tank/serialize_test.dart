@@ -258,6 +258,86 @@ void main() {
       expect(target.explosions, isEmpty);
     });
 
+    test('损坏快照在任意解析阶段失败都保留世界和瞬时状态', () {
+      final manager = _TestTankManager()
+        ..addPlayerTank(0)
+        ..score = 42
+        ..playerAiming = true
+        ..gameResult.value = const TankGameResult(victory: false, score: 42)
+        ..explosions.add(Explosion(position: const Offset(20, 20), size: 32));
+      addTearDown(manager.dispose);
+      final before = manager.toJson();
+      final tank = manager.tanks[0];
+      final result = manager.gameResult.value;
+      final explosion = manager.explosions.single;
+      final badSnapshots = <Map<String, dynamic>>[
+        {
+          ...before,
+          'map': {'tiles': []},
+        },
+        {
+          ...before,
+          'map': {
+            'tiles': [
+              [{}],
+              [],
+            ],
+          },
+        },
+        {
+          ...before,
+          'tanks': {'0': tank!.toJson(), 'bad-id': {}},
+        },
+        {
+          ...before,
+          'bullets': [{}],
+        },
+        {
+          ...before,
+          'powerups': [{}],
+        },
+        {
+          ...before,
+          'lives': {'0': 'bad'},
+        },
+        {
+          ...before,
+          'spawnUsed': {'0': 'bad'},
+        },
+        {...before, 'score': 'bad'},
+        {...before, 'itemSpawnTimer': 'bad'},
+      ];
+      for (final snapshot in badSnapshots) {
+        expect(() => manager.fromJson(snapshot), throwsA(anything));
+        expect(manager.toJson(), before);
+        expect(manager.tanks[0], same(tank));
+        expect(manager.gameResult.value, same(result));
+        expect(manager.explosions, [explosion]);
+        expect(manager.playerAiming, isTrue);
+      }
+      manager.fromJson(before);
+      expect(manager.toJson(), before);
+      expect(manager.gameResult.value, isNull);
+      expect(manager.explosions, isEmpty);
+      expect(manager.playerAiming, isFalse);
+    });
+
+    test('旧快照缺失可选字段时仍回填默认值', () {
+      final manager = _TestTankManager()..addPlayerTank(0);
+      addTearDown(manager.dispose);
+      final snapshot = manager.toJson()
+        ..remove('powerups')
+        ..remove('spawnUsed')
+        ..remove('shieldTimer')
+        ..remove('itemSpawnTimer');
+      manager.fromJson(snapshot);
+      expect(manager.tanks.keys, [0]);
+      expect(manager.powerups, isEmpty);
+      expect(manager.playerSpawnUsed, isEmpty);
+      expect(manager.shieldTimer, 0);
+      expect(manager.toJson()['itemSpawnTimer'], 0);
+    });
+
     test('构造子弹不会提前修改状态，确认后才应用', () {
       final manager = _TestTankManager()..addPlayerTank(0);
       addTearDown(manager.dispose);
@@ -298,7 +378,7 @@ void main() {
     });
   });
 
-  testWidgets('HUD 不显示重生和无敌倒计时，并提供 Material 文本环境', (tester) async {
+  testWidgets('死亡等待与出生保护期间界面可构建卸载，展示不推进模拟', (tester) async {
     final manager = _TestTankManager()..addPlayerTank(0);
     addTearDown(manager.dispose);
     final tank = manager.tanks[0]!
@@ -312,11 +392,11 @@ void main() {
       ),
     );
 
-    expect(find.byType(Material), findsWidgets);
-    expect(find.byIcon(Icons.flash_on), findsNothing);
-    expect(find.byIcon(Icons.autorenew), findsNothing);
+    expect(tester.takeException(), isNull);
     expect(tank.invincibleTimer, 1);
     expect(tank.respawnTimer, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
   });
 }
 
