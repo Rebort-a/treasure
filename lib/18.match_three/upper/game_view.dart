@@ -258,12 +258,11 @@ class _MatchGameContent extends StatelessWidget {
         builder: (context, busy, _) => ValueListenableBuilder<bool>(
           valueListenable: manager.bonusTime,
           builder: (context, bonusTime, _) {
-            final showingBonus = view.status == MatchStatus.won && bonusTime;
-            final showingResult = !busy && view.status != MatchStatus.playing;
-            if (showingBonus || showingResult) {
-              final message = showingBonus
-                  ? S.matchBonusTime
-                  : view.status == MatchStatus.won
+            if (view.status == MatchStatus.won && bonusTime) {
+              return _celebrationIndicator(context, S.matchBonusTime);
+            }
+            if (!busy && view.status != MatchStatus.playing) {
+              final message = view.status == MatchStatus.won
                   ? S.matchWon
                   : S.matchLost;
               return _resultIndicator(context, message, view.status);

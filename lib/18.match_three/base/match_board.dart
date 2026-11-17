@@ -74,11 +74,13 @@ class BoardFrame {
     MatchBoard board, {
     required Set<int> pieceIds,
     int? sourcePieceId,
+    Set<int> spawnedPieceIds = const {},
   }) : this(
          board,
          FramePhase.transfer,
          transferringPieceIds: pieceIds,
          transferSourcePieceId: sourcePieceId,
+         spawnedPieceIds: spawnedPieceIds,
        );
 
   /// 开局只清空展示帧，不修改内核棋盘或消耗随机数。
@@ -803,10 +805,21 @@ class MatchBoard {
       while (movesLeft > 0) {
         final index = _next(cells);
         final piece = pieces[index]!;
-        // 步数先进入飞行帧，目标动物保持原状；连线到达后才展示转换结果。
+        // 复用上一波补齐后的棋盘，让补块坠落与下一次奖励连线同时开始。
+        final spawnedPieceIds = frames.last.spawnedPieceIds;
+        while (frames.last.phase == FramePhase.fall) {
+          frames.removeLast();
+        }
+        // 飞行期间目标动物保持原状，连线到达后才展示转换结果。
         movesLeft--;
         moveNumber++;
-        frames.add(BoardFrame.transfer(this, pieceIds: {piece.id}));
+        frames.add(
+          BoardFrame.transfer(
+            this,
+            pieceIds: {piece.id},
+            spawnedPieceIds: spawnedPieceIds,
+          ),
+        );
         _createSpecial(
           index,
           const [PieceEffect.row, PieceEffect.column, PieceEffect.bomb][_next(

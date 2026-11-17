@@ -290,13 +290,17 @@ class MatchManager {
   }
 
   bool _isFullBoardSpawn(BoardFrame frame) =>
-      frame.phase == FramePhase.fall &&
       frame.spawnedPieceIds.length == MatchBoard.cells;
 
   /// 只在推进展示帧时发声，刷新视图和重复快照不会重播音效。
   void _presentFrame(BoardFrame frame, {int cascade = 1}) {
     final previous = view.value?.frame;
     _show(frame);
+    if (frame.spawnedPieceIds.isNotEmpty) {
+      _emitSound(
+        _isFullBoardSpawn(frame) ? MatchSound.appear : MatchSound.fall,
+      );
+    }
     switch (frame.phase) {
       case FramePhase.swap:
         _emitSound(MatchSound.swap);
@@ -332,18 +336,13 @@ class MatchManager {
             ).any((cracked) => cracked)) {
           _emitSound(MatchSound.ice);
         }
-      case FramePhase.fall:
-        if (frame.spawnedPieceIds.isNotEmpty) {
-          _emitSound(
-            _isFullBoardSpawn(frame) ? MatchSound.appear : MatchSound.fall,
-          );
-        }
       case FramePhase.transform:
         if (frame.convertedPieceIds.isNotEmpty) {
           _emitSound(MatchSound.transform);
         }
       case FramePhase.transfer:
         _emitSound(MatchSound.transform);
+      case FramePhase.fall:
       case FramePhase.settled:
         break;
     }

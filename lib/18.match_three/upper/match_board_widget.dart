@@ -66,8 +66,10 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
   @override
   Widget build(BuildContext context) {
     final frame = widget.view.frame;
+    final falling =
+        frame.phase == FramePhase.fall || frame.spawnedPieceIds.isNotEmpty;
     final duration = _animate
-        ? Duration(milliseconds: frame.phase == FramePhase.fall ? 210 : 180)
+        ? Duration(milliseconds: falling ? 210 : 180)
         : Duration.zero;
     return AspectRatio(
       aspectRatio: 1,
@@ -170,7 +172,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                   AnimatedPositioned(
                                     key: ValueKey('piece-${piece.id}'),
                                     duration: duration,
-                                    curve: frame.phase == FramePhase.fall
+                                    curve: falling
                                         ? const Cubic(0.2, 0.8, 0.3, 1.04)
                                         : Curves.easeInOutCubic,
                                     left:
