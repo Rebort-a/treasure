@@ -8,6 +8,19 @@ enum FramePhase { swap, bonus, clear, fall, settled, transform, transfer }
 
 enum ComboPraise { good, great, excellent, amazing, unbelievable }
 
+enum BonusPacing { fixedBeat, waitForFall }
+
+/// 奖励时间线使用整数毫秒，联机重演不依赖客户端的动画或系统时钟。
+abstract final class BonusTiming {
+  static const firstTransfer = 500;
+  static const transferInterval = 900;
+  static const transfer = 300;
+  static const ignition = 500;
+  static const autoIgnition = 650;
+  static const clear = 180;
+  static const fall = 220;
+}
+
 class Piece {
   final int id;
   final int kind;
@@ -46,6 +59,19 @@ class BoardFrame {
   final int score;
   final FramePhase phase;
 
+  /// 相对奖励开场的时间；普通模式仍依动画帧顺序播放。
+  final int? bonusAt;
+
+  /// 奖励连线进行中跟踪的棋子；目标被清除时可换到另一只普通动物。
+  final int? bonusTransferTargetId;
+
+  /// 奖励期间可并行播放多波消除；用棋子身份跟踪仍在消失的棋子。
+  final List<BoardFrame> activeClears;
+  final Set<int> clearingPieceIds;
+  final Set<int>? crackedIce;
+  final bool bonusFalling;
+  final int? bonusTransferStartedAt;
+
   BoardFrame(
     MatchBoard board,
     this.phase, {
@@ -58,10 +84,25 @@ class BoardFrame {
     this.transferSourcePieceId,
     this.staggeredFall = false,
     this.naturalClear = false,
+    this.bonusAt,
+    this.bonusTransferTargetId,
+    List<BoardFrame> activeClears = const [],
+    Set<int>? clearingPieceIds,
+    this.crackedIce,
+    this.bonusFalling = false,
+    this.bonusTransferStartedAt,
   }) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
        collected = List.unmodifiable(board.collected),
        clearing = Set.unmodifiable(clearing),
+       clearingPieceIds = Set.unmodifiable(
+         clearingPieceIds ??
+             {
+               for (final index in clearing)
+                 if (board.pieces[index] case final Piece piece) piece.id,
+             },
+       ),
+       activeClears = List.unmodifiable(activeClears),
        spawnedPieceIds = Set.unmodifiable(spawnedPieceIds),
        convertedPieceIds = Set.unmodifiable(convertedPieceIds),
        transferringPieceIds = Set.unmodifiable(transferringPieceIds),
@@ -97,6 +138,13 @@ class BoardFrame {
       transferSourcePieceId = null,
       staggeredFall = false,
       naturalClear = false,
+      bonusAt = null,
+      bonusTransferTargetId = null,
+      activeClears = const [],
+      clearingPieceIds = const {},
+      crackedIce = null,
+      bonusFalling = false,
+      bonusTransferStartedAt = null,
       movesLeft = board.movesLeft,
       score = board.score,
       phase = FramePhase.settled;
@@ -261,7 +309,11 @@ class MatchBoard {
   }
 
   /// 横向与纵向分别扫描，交叉点会出现在两条线中，供炸弹判定使用。
-  List<List<int>> matchRuns() {
+  List<List<int>> matchRuns() => _matchRuns(const {});
+
+  List<List<int>> _matchRuns(Set<int> excluded) {
+    int? kindAt(int index) =>
+        excluded.contains(index) ? null : pieces[index]?.kind;
     final runs = <List<int>>[];
     for (final vertical in [false, true]) {
       for (var line = 0; line < side; line++) {
@@ -269,9 +321,9 @@ class MatchBoard {
         while (start < side) {
           int at(int position) =>
               vertical ? position * side + line : line * side + position;
-          final kind = pieces[at(start)]?.kind;
+          final kind = kindAt(at(start));
           var end = start + 1;
-          while (kind != null && end < side && pieces[at(end)]?.kind == kind) {
+          while (kind != null && end < side && kindAt(at(end)) == kind) {
             end++;
           }
           if (kind != null && end - start >= 3) {
@@ -457,6 +509,42 @@ class MatchBoard {
     bool compactFall = false,
     bool naturalClear = false,
   }) {
+    final wave = _scoreWave(initial, protected, multiplier, consumedRainbows);
+    frames.add(
+      BoardFrame(
+        this,
+        FramePhase.clear,
+        clearing: wave.cells,
+        naturalClear: naturalClear,
+      ),
+    );
+    for (final index in wave.cells) {
+      pieces[index] = null;
+    }
+    // 交错演出直接展示补齐后的坠落目标，不插入额外的空格帧。
+    if (!compactFall && staggeredPieceIds == null) {
+      frames.add(BoardFrame(this, FramePhase.fall));
+    }
+    final spawnedPieceIds = _collapse();
+    frames.add(
+      BoardFrame(
+        this,
+        FramePhase.fall,
+        spawnedPieceIds: spawnedPieceIds,
+        staggeredFall:
+            staggeredPieceIds != null &&
+            _nextSpecial(staggeredPieceIds, const {}) != null,
+      ),
+    );
+    return wave;
+  }
+
+  ({Set<int> cells, int specialEffectsTriggered}) _scoreWave(
+    Set<int> initial,
+    Set<int> protected,
+    int multiplier, [
+    Set<int> consumedRainbows = const {},
+  ]) {
     final clear = _expandEffects(
       initial,
       protected,
@@ -488,32 +576,6 @@ class MatchBoard {
         score += iceLayerBonus;
       }
     }
-    frames.add(
-      BoardFrame(
-        this,
-        FramePhase.clear,
-        clearing: clear,
-        naturalClear: naturalClear,
-      ),
-    );
-    for (final index in clear) {
-      pieces[index] = null;
-    }
-    // 交错演出直接展示补齐后的坠落目标，不插入额外的空格帧。
-    if (!compactFall && staggeredPieceIds == null) {
-      frames.add(BoardFrame(this, FramePhase.fall));
-    }
-    final spawnedPieceIds = _collapse();
-    frames.add(
-      BoardFrame(
-        this,
-        FramePhase.fall,
-        spawnedPieceIds: spawnedPieceIds,
-        staggeredFall:
-            staggeredPieceIds != null &&
-            _nextSpecial(staggeredPieceIds, const {}) != null,
-      ),
-    );
     return (cells: clear, specialEffectsTriggered: specialEffectsTriggered);
   }
 
@@ -698,7 +760,249 @@ class MatchBoard {
     }
   }
 
-  SwapResult? playSwap(int a, int b) {
+  int _playFixedBonus(List<BoardFrame> frames, int a, int b, int multiplier) {
+    const never = 1 << 30;
+    frames.add(BoardFrame(this, FramePhase.bonus, bonusAt: 0));
+    var waitingForOpeningClear =
+        movesLeft > 0 && _nextSpecial(null, const {}) != null;
+    var transferAt = movesLeft > 0 && !waitingForOpeningClear
+        ? BonusTiming.firstTransfer
+        : never;
+    var convertedAt = never;
+    var scanAt = 0;
+    var autoAt = BonusTiming.autoIgnition;
+    var boardReadyAt = 0;
+    var now = 0;
+    int? startedAt;
+    int? targetId;
+    final activeClears = <({int fallAt, BoardFrame frame})>[];
+    final clearingIds = <int>{};
+    final landsAt = <int, int>{};
+    var spawned = const <int>{};
+    final convertedIgnitionAt = <int, int>{};
+    final cascadeIgnitionAt = <int, int>{};
+
+    int nextFallAt() =>
+        activeClears.isEmpty ? never : activeClears.first.fallAt;
+    int autoIgnitionAt(int id) => math.max(autoAt, cascadeIgnitionAt[id] ?? 0);
+
+    int pickTarget() {
+      final candidates = [
+        for (var i = 0; i < cells; i++)
+          if (pieces[i] case Piece(:final id, effect: PieceEffect.none)
+              when !clearingIds.contains(id))
+            i,
+      ];
+      return candidates.isEmpty ? -1 : candidates[_next(candidates.length)];
+    }
+
+    void retarget() {
+      final index = pickTarget();
+      targetId = index < 0 ? null : pieces[index]!.id;
+    }
+
+    void present(
+      FramePhase phase, {
+      Set<int> converted = const {},
+      BoardFrame? wave,
+    }) {
+      frames.add(
+        BoardFrame(
+          this,
+          phase,
+          bonusAt: now,
+          clearing: wave?.clearing ?? const {},
+          naturalClear: wave?.naturalClear ?? false,
+          spawnedPieceIds: spawned,
+          transferringPieceIds: {
+            if (phase == FramePhase.transfer && targetId != null) targetId!,
+          },
+          convertedPieceIds: converted,
+          activeClears: [for (final clear in activeClears) clear.frame],
+          clearingPieceIds: clearingIds,
+          crackedIce: wave?.crackedIce,
+          bonusFalling: now < boardReadyAt,
+          bonusTransferTargetId: targetId,
+          bonusTransferStartedAt: startedAt,
+        ),
+      );
+    }
+
+    var waves = 0;
+    void beginClear(Set<int> initial, {Map<int, PieceEffect>? created}) {
+      final protected = {
+        for (var i = 0; i < cells; i++)
+          if (clearingIds.contains(pieces[i]?.id)) i,
+        ...?created?.keys,
+      };
+      final iceBefore = List<int>.of(ice);
+      final wave = _scoreWave(initial, protected, multiplier++);
+      waves++;
+      final frame = BoardFrame(
+        this,
+        FramePhase.clear,
+        bonusAt: now,
+        clearing: wave.cells,
+        naturalClear: created != null,
+        crackedIce: {
+          for (var i = 0; i < cells; i++)
+            if (ice[i] < iceBefore[i]) i,
+        },
+      );
+      clearingIds.addAll(frame.clearingPieceIds);
+      for (final id in frame.clearingPieceIds) {
+        convertedIgnitionAt.remove(id);
+        cascadeIgnitionAt.remove(id);
+        landsAt.remove(id);
+      }
+      activeClears.add((fallAt: now + BonusTiming.clear, frame: frame));
+      if (targetId != null &&
+          (clearingIds.contains(targetId) ||
+              (created?.keys.any((i) => pieces[i]?.id == targetId) ?? false))) {
+        retarget();
+      }
+      present(FramePhase.clear, wave: frame);
+    }
+
+    // 转换特效的到期事件独立于棋盘扫描，可在另一波消除或坠落中引爆。
+    while (true) {
+      final fallAt = nextFallAt();
+      final ignitionAt = convertedIgnitionAt.values.fold(never, math.min);
+      final at = math.min(
+        math.min(transferAt, convertedAt),
+        math.min(math.min(fallAt, scanAt), ignitionAt),
+      );
+      if (at == never) break;
+      if (at != now) spawned = const {};
+      now = at;
+      if (now == fallAt) {
+        // 同一时刻完成的消除一起补块；其他波仍按各自的棋子身份继续播放。
+        final finished = <int>{};
+        while (nextFallAt() == now) {
+          finished.addAll(activeClears.removeAt(0).frame.clearingPieceIds);
+        }
+        for (var i = 0; i < cells; i++) {
+          if (finished.contains(pieces[i]?.id)) pieces[i] = null;
+        }
+        clearingIds.removeAll(finished);
+        final before = List<Piece?>.of(pieces);
+        spawned = _collapse();
+        boardReadyAt = now + BonusTiming.fall;
+        for (var i = 0; i < cells; i++) {
+          final piece = pieces[i]!;
+          if (piece.id != before[i]?.id && !clearingIds.contains(piece.id)) {
+            landsAt[piece.id] = boardReadyAt;
+          }
+        }
+        if (startedAt != null && targetId == null) {
+          retarget();
+          if (convertedAt == never) convertedAt = now;
+        }
+        scanAt = math.min(scanAt, boardReadyAt);
+        present(FramePhase.fall);
+      } else if (now == scanAt) {
+        landsAt.removeWhere((_, at) => at <= now);
+        // 后一次补块不会推迟已经落地的棋子参与自然匹配。
+        scanAt = landsAt.values.fold(never, math.min);
+        if (now < boardReadyAt) scanAt = math.min(scanAt, boardReadyAt);
+        // 极端随机序列由最终洗牌兜底；达到上限后不再生成新的连锁特效。
+        final runs = waves < (initialMoves + 1) * cells * 4
+            ? _matchRuns({
+                for (var i = 0; i < cells; i++)
+                  if (clearingIds.contains(pieces[i]?.id) ||
+                      landsAt.containsKey(pieces[i]?.id))
+                    i,
+              })
+            : const <List<int>>[];
+        if (runs.isNotEmpty) {
+          final created = _createEffects(runs, a, b);
+          for (final entry in created.entries) {
+            _createSpecial(entry.key, entry.value);
+            cascadeIgnitionAt[pieces[entry.key]!.id] =
+                now + BonusTiming.autoIgnition;
+          }
+          beginClear({for (final run in runs) ...run}, created: created);
+        } else if (activeClears.isEmpty &&
+            now >= boardReadyAt &&
+            now != ignitionAt) {
+          final due = pieces.indexWhere(
+            (piece) =>
+                piece != null &&
+                piece.effect != PieceEffect.none &&
+                !convertedIgnitionAt.containsKey(piece.id) &&
+                autoIgnitionAt(piece.id) <= now,
+          );
+          if (due >= 0) {
+            autoAt =
+                now +
+                BonusTiming.clear +
+                BonusTiming.fall +
+                BonusTiming.autoIgnition;
+            beginClear({due});
+          } else {
+            for (final piece in pieces.whereType<Piece>()) {
+              if (piece.effect != PieceEffect.none &&
+                  !convertedIgnitionAt.containsKey(piece.id)) {
+                scanAt = math.min(scanAt, autoIgnitionAt(piece.id));
+              }
+            }
+            // 开场特效和后续连锁全部结算、棋盘落稳后，才启动第一次转换。
+            if (waitingForOpeningClear && scanAt == never) {
+              waitingForOpeningClear = false;
+              transferAt = now;
+            }
+          }
+        }
+      } else if (now == ignitionAt) {
+        beginClear({
+          for (var i = 0; i < cells; i++)
+            if (convertedIgnitionAt[pieces[i]?.id] == now) i,
+        });
+      } else if (now == convertedAt) {
+        convertedAt = never;
+        if (targetId == null ||
+            !pieces.any(
+              (piece) =>
+                  piece?.id == targetId && piece?.effect == PieceEffect.none,
+            )) {
+          retarget();
+        }
+        if (targetId == null) {
+          // 全盘消除期间没有普通动物，将这次落点放到补块之后。
+          convertedAt = nextFallAt();
+          continue;
+        }
+        final id = targetId!;
+        final index = pieces.indexWhere((piece) => piece?.id == id);
+        _createSpecial(
+          index,
+          const [PieceEffect.row, PieceEffect.column, PieceEffect.bomb][_next(
+            3,
+          )],
+        );
+        convertedIgnitionAt[id] = now + BonusTiming.ignition;
+        startedAt = null;
+        targetId = null;
+        present(FramePhase.bonus, converted: {id});
+      } else {
+        assert(now == transferAt && convertedAt == never);
+        movesLeft--;
+        moveNumber++;
+        transferAt = movesLeft > 0 ? now + BonusTiming.transferInterval : never;
+        startedAt = now;
+        convertedAt = now + BonusTiming.transfer;
+        retarget();
+        present(FramePhase.transfer);
+      }
+    }
+    return now;
+  }
+
+  SwapResult? playSwap(
+    int a,
+    int b, {
+    BonusPacing bonusPacing = BonusPacing.fixedBeat,
+  }) {
     if (status != MatchStatus.playing || !canSwap(a, b)) return null;
     final previousScore = score;
     final previousShuffles = reshuffles;
@@ -851,13 +1155,19 @@ class MatchBoard {
       );
     }
     final cascades = resolution.waves;
+    int? bonusEnd;
     if (status == MatchStatus.won) {
       // 本次行动先稳定结算，展示层完成赞美后再进入奖励阶段。
       frames.add(BoardFrame(this, FramePhase.settled));
-      _playBonus(frames, a, b, cascades + 1);
+      switch (bonusPacing) {
+        case BonusPacing.fixedBeat:
+          bonusEnd = _playFixedBonus(frames, a, b, cascades + 1);
+        case BonusPacing.waitForFall:
+          _playBonus(frames, a, b, cascades + 1);
+      }
     }
     _ensurePlayable();
-    frames.add(BoardFrame(this, FramePhase.settled));
+    frames.add(BoardFrame(this, FramePhase.settled, bonusAt: bonusEnd));
     return SwapResult(
       List.unmodifiable(frames),
       cascades,

@@ -66,14 +66,15 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
   @override
   Widget build(BuildContext context) {
     final frame = widget.view.frame;
-    final falling =
-        frame.phase == FramePhase.fall || frame.spawnedPieceIds.isNotEmpty;
+    final falling = frame.phase == FramePhase.fall || frame.bonusFalling;
     // 奖励转换和引爆可以插在坠落中途，不切换仍在运行的位置动画曲线。
     final useFallCurve = falling || widget.manager.bonusTime.value;
     final fallDuration = _animate
         ? MatchManager.fallAnimationDuration
         : Duration.zero;
     const clearDuration = MatchManager.clearAnimationDuration;
+    final pieceClearDuration = _animate ? clearDuration : Duration.zero;
+    final clearWaves = frame.bonusAt == null ? [frame] : frame.activeClears;
     final duration = falling
         ? fallDuration
         : _animate
@@ -81,7 +82,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
         : Duration.zero;
     final fallCompletionPiece =
         widget.manager.bonusTime.value &&
-            widget.manager.bonusPacing == BonusPacing.waitForFall &&
+            frame.bonusAt == null &&
             frame.phase == FramePhase.fall &&
             frame.spawnedPieceIds.isNotEmpty
         ? frame.spawnedPieceIds.first
@@ -218,16 +219,21 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                         row: index ~/ MatchBoard.side,
                                         cell: cell,
                                         child: AnimatedScale(
-                                          scale: frame.clearing.contains(index)
+                                          scale:
+                                              frame.clearingPieceIds.contains(
+                                                piece.id,
+                                              )
                                               ? 0.15
                                               : 1,
-                                          duration: duration,
+                                          duration: pieceClearDuration,
                                           child: AnimatedOpacity(
                                             opacity:
-                                                frame.clearing.contains(index)
+                                                frame.clearingPieceIds.contains(
+                                                  piece.id,
+                                                )
                                                 ? 0
                                                 : 1,
-                                            duration: duration,
+                                            duration: pieceClearDuration,
                                             child: Stack(
                                               alignment: Alignment.center,
                                               children: [
@@ -284,12 +290,14 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                             ],
                           ),
                         ),
-                        Positioned.fill(
-                          child: MatchClearEffects(
-                            frame: frame,
-                            duration: clearDuration,
+                        for (final wave in clearWaves)
+                          Positioned.fill(
+                            key: frame.bonusAt == null ? null : ObjectKey(wave),
+                            child: MatchClearEffects(
+                              frame: wave,
+                              duration: clearDuration,
+                            ),
                           ),
-                        ),
                         Positioned.fill(
                           child: MatchConversionTransfer(
                             frame: frame,

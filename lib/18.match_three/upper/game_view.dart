@@ -276,8 +276,9 @@ class _MatchGameContent extends StatelessWidget {
                   }
                   return ValueListenableBuilder<int?>(
                     valueListenable: manager.comboMultiplier,
-                    builder: (context, multiplier, _) =>
-                        _multiplierIndicator(context, multiplier ?? 1),
+                    builder: (context, multiplier, _) => multiplier == null
+                        ? const SizedBox.shrink()
+                        : _multiplierIndicator(context, multiplier),
                   );
                 },
               );

@@ -19,6 +19,7 @@ enum MatchSound {
   appear,
   transform,
   bonus,
+  win,
   won,
   lost;
 

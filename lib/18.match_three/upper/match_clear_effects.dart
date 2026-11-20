@@ -66,7 +66,11 @@ class _MatchClearEffectsState extends State<MatchClearEffects>
       child: RepaintBoundary(
         child: CustomPaint(
           key: const ValueKey('match-clear-effects'),
-          painter: MatchClearPainter(widget.frame, _clock, _crackedIce),
+          painter: MatchClearPainter(
+            widget.frame,
+            _clock,
+            widget.frame.crackedIce ?? _crackedIce,
+          ),
         ),
       ),
     );

@@ -35,8 +35,7 @@ void _expectSpecialsPreservedOrTriggered(List<BoardFrame> frames) {
       if (piece == null || piece.effect == PieceEffect.none) continue;
       final next = after[piece.id];
       if (next == null) {
-        expect(before.phase, FramePhase.clear);
-        expect(before.clearing, contains(index));
+        expect(before.clearingPieceIds, contains(piece.id));
       } else {
         expect(next.effect, piece.effect);
       }
@@ -531,10 +530,13 @@ void main() {
           anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
         );
         generatedEffects.add(converted.effect);
-        final previous = result.frames[result.frames.indexOf(frame) - 1];
-        expect(previous.phase, FramePhase.transfer);
-        expect(previous.transferSourcePieceId, isNull);
-        expect(previous.transferringPieceIds, frame.convertedPieceIds);
+        final conversionIndex = result.frames.indexOf(frame);
+        final previous = result.frames[conversionIndex - 1];
+        final transfer = result.frames
+            .take(conversionIndex)
+            .lastWhere((candidate) => candidate.phase == FramePhase.transfer);
+        expect(transfer.transferSourcePieceId, isNull);
+        expect(transfer.movesLeft, frame.movesLeft);
         expect(
           previous.pieces
               .whereType<Piece>()
@@ -542,8 +544,7 @@ void main() {
               .effect,
           PieceEffect.none,
         );
-        expect(previous.movesLeft, frame.movesLeft);
-        expect(frame.score - previous.score, 40);
+        expect(frame.score - previous.score, MatchBoard.specialCreationBonus);
       }
     }
     expect(generatedEffects, {
@@ -889,10 +890,102 @@ void main() {
     expect(bonusScores.length, greaterThanOrEqualTo(bonusCount + 1));
   });
 
-  test('Bonus 自动触发已有和掉落连锁生成的所有特效，步数耗尽仍继续结算', () {
-    var sawExistingSpecial = false;
-    var sawCascadeSpecial = false;
-    var sawCascadeSpecialWithoutMoves = false;
+  test('Bonus 开场先引爆已有特效并等连锁落稳，再开始固定节拍转换', () {
+    final data =
+        _pattern(
+            {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
+            effects: {50: PieceEffect.bomb, 60: PieceEffect.rainbow},
+            seed: 2,
+          ).toJson()
+          ..['targets'] = {'0': 1, '1': 1}
+          ..['collected'] = [0, 1, 0, 0, 0, 0]
+          ..['movesLeft'] = 3;
+    data['moveNumber'] = data['initialMoves'] - data['movesLeft'];
+    final result = MatchBoard.fromJson(data).playSwap(10, 2)!;
+    final bonus = result.frames.where((frame) => frame.bonusAt != null);
+    final opening = bonus.takeWhile(
+      (frame) => frame.phase != FramePhase.transfer,
+    );
+    final transfers = bonus
+        .where((frame) => frame.phase == FramePhase.transfer)
+        .toList();
+    final openingClears = opening.where(
+      (frame) => frame.phase == FramePhase.clear,
+    );
+
+    expect(
+      openingClears.where((frame) => !frame.naturalClear).length,
+      greaterThanOrEqualTo(2),
+    );
+    expect(openingClears.last.naturalClear, isTrue);
+    expect(opening.every((frame) => frame.movesLeft == 2), isTrue);
+    expect(transfers, hasLength(2));
+    expect(transfers.first.movesLeft, 1);
+    expect(
+      transfers.first.pieces.whereType<Piece>().every(
+        (piece) => piece.effect == PieceEffect.none,
+      ),
+      isTrue,
+    );
+    expect(opening.last.phase, FramePhase.fall);
+    expect(transfers.first.bonusAt! - opening.last.bonusAt!, BonusTiming.fall);
+    expect(
+      transfers.last.bonusAt! - transfers.first.bonusAt!,
+      BonusTiming.transferInterval,
+    );
+  });
+
+  test('Bonus 步数特效在坠落中准时引爆，被提前波及时不重复引爆', () {
+    for (final seed in [73, 76]) {
+      final data =
+          _pattern({0: 0, 1: 0, 2: 1, 3: 0, 10: 0}, seed: seed).toJson()
+            ..['targets'] = {'0': 1, '1': 1}
+            ..['collected'] = [0, 1, 0, 0, 0, 0]
+            ..['movesLeft'] = 5;
+      data['moveNumber'] = data['initialMoves'] - data['movesLeft'];
+      final result = MatchBoard.fromJson(data).playSwap(10, 2)!;
+      final bonus = result.frames.where((frame) => frame.bonusAt != null);
+      final clears = bonus.where((frame) => frame.phase == FramePhase.clear);
+      var ignitedMidFall = false;
+      var triggeredEarly = false;
+      for (final conversion in bonus.where(
+        (f) => f.convertedPieceIds.isNotEmpty,
+      )) {
+        final id = conversion.convertedPieceIds.single;
+        final clear = clears.singleWhere(
+          (f) => f.clearing.any((cell) => f.pieces[cell]?.id == id),
+        );
+        final elapsed = clear.bonusAt! - conversion.bonusAt!;
+        if (!clear.naturalClear &&
+            clear.pieces[clear.clearing.first]!.id == id) {
+          expect(
+            elapsed,
+            BonusTiming.ignition,
+            reason: 'seed=$seed, piece=$id',
+          );
+          final lastFall = bonus.lastWhere(
+            (f) => f.phase == FramePhase.fall && f.bonusAt! <= clear.bonusAt!,
+          );
+          ignitedMidFall |=
+              clear.bonusAt! - lastFall.bonusAt! < BonusTiming.fall;
+        } else {
+          expect(elapsed, lessThanOrEqualTo(BonusTiming.ignition));
+          triggeredEarly |= elapsed < BonusTiming.ignition;
+        }
+      }
+      if (seed == 73) {
+        expect(ignitedMidFall, isTrue);
+      } else {
+        expect(triggeredEarly, isTrue);
+      }
+    }
+  });
+
+  test('Bonus 三类特效展示后才主动引爆，步数耗尽仍继续结算', () {
+    var ignitedExisting = false;
+    var ignitedConverted = false;
+    var ignitedCascadeWithoutMoves = false;
+    var naturalClearTriggeredEarly = false;
     for (var seed = 1; seed <= 50; seed++) {
       final setup = _pattern(
         {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
@@ -914,49 +1007,45 @@ void main() {
       );
       expect(bonusIndex, greaterThanOrEqualTo(0));
       final bonusFrames = result.frames.skip(bonusIndex).toList();
-      final initialSpecialIds = {
-        for (final piece in bonusFrames.first.pieces.whereType<Piece>())
-          if (piece.effect != PieceEffect.none) piece.id,
-      };
-      sawExistingSpecial |= initialSpecialIds.isNotEmpty;
-      final triggeredIds = <int>{};
-      final cascadeSpecialIds = <int>{};
-      for (var i = 0; i < bonusFrames.length; i++) {
-        final frame = bonusFrames[i];
-        if (frame.phase != FramePhase.clear) continue;
-        triggeredIds.addAll({
-          for (final index in frame.clearing)
-            if (frame.pieces[index] case final Piece piece
-                when piece.effect != PieceEffect.none)
-              piece.id,
-        });
-        // 消除帧中保留下来的特效由连锁匹配生成，而非步数转换。
-        for (var index = 0; index < MatchBoard.cells; index++) {
-          final piece = frame.pieces[index];
-          if (piece == null ||
-              piece.effect == PieceEffect.none ||
-              frame.clearing.contains(index)) {
-            continue;
+      final visibleAt = <int, int>{};
+      final convertedIds = <int>{};
+      final pending = <int>{};
+      for (final frame in bonusFrames) {
+        final now = frame.bonusAt!;
+        convertedIds.addAll(frame.convertedPieceIds);
+        for (final piece in frame.pieces.whereType<Piece>()) {
+          if (piece.effect != PieceEffect.none &&
+              !visibleAt.containsKey(piece.id)) {
+            visibleAt[piece.id] = now;
+            pending.add(piece.id);
           }
-          cascadeSpecialIds.add(piece.id);
-          if (frame.movesLeft == 0) sawCascadeSpecialWithoutMoves = true;
-          // 逐只触发后不要求紧接的下一波就轮到它，但最终必须按棋子身份触发。
-          final laterClearedIds = bonusFrames
-              .skip(i + 1)
-              .where((next) => next.phase == FramePhase.clear)
-              .expand(
-                (next) => next.clearing.map((cell) => next.pieces[cell]!.id),
-              );
-          expect(
-            laterClearedIds,
-            contains(piece.id),
-            reason: 'seed=$seed, piece=${piece.id}',
-          );
+        }
+        if (frame.phase != FramePhase.clear) continue;
+        for (final index in frame.clearing) {
+          final piece = frame.pieces[index]!;
+          if (!pending.remove(piece.id)) continue;
+          final shown = now - visibleAt[piece.id]!;
+          final converted = convertedIds.contains(piece.id);
+          final minimum = converted
+              ? BonusTiming.ignition
+              : BonusTiming.autoIgnition;
+          if (frame.naturalClear) {
+            naturalClearTriggeredEarly |= shown < minimum;
+          } else if (index == frame.clearing.first) {
+            // 主动引爆的起点先加入消除集合，其余特效可被同波波及。
+            expect(
+              shown,
+              greaterThanOrEqualTo(minimum),
+              reason: 'seed=$seed, piece=${piece.id}',
+            );
+            ignitedExisting |= visibleAt[piece.id] == 0;
+            ignitedConverted |= converted;
+            ignitedCascadeWithoutMoves |=
+                !converted && visibleAt[piece.id]! > 0 && frame.movesLeft == 0;
+          }
         }
       }
-      sawCascadeSpecial |= cascadeSpecialIds.isNotEmpty;
-      expect(triggeredIds, containsAll(initialSpecialIds));
-      expect(triggeredIds, containsAll(cascadeSpecialIds));
+      expect(pending, isEmpty, reason: 'seed=$seed');
       expect(board.movesLeft, 0);
       expect(board.status, MatchStatus.won);
       expect(board.matchRuns(), isEmpty);
@@ -967,10 +1056,10 @@ void main() {
         isTrue,
       );
     }
-    // 避免只验证没有产生新特效的局面，确保三种情况都实际发生。
-    expect(sawExistingSpecial, isTrue);
-    expect(sawCascadeSpecial, isTrue);
-    expect(sawCascadeSpecialWithoutMoves, isTrue);
+    expect(ignitedExisting, isTrue);
+    expect(ignitedConverted, isTrue);
+    expect(ignitedCascadeWithoutMoves, isTrue);
+    expect(naturalClearTriggeredEarly, isTrue);
   });
 
   test('步数归零结束，达成全部目标才获胜，结束后不再接受交换', () {

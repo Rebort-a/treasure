@@ -106,12 +106,23 @@ void main() {
       ),
     );
     final replay = find.byKey(const ValueKey('round-replay'));
+    final multiplier = find.byKey(const ValueKey('match-multiplier'));
+    var sawMultiplier = false;
+    var sawCelebration = false;
     manager.swap(10, 2);
     expect(manager.busy.value, isTrue);
     for (var step = 0; step < 120 && manager.busy.value; step++) {
       expect(replay, findsNothing);
+      sawMultiplier |= multiplier.evaluate().isNotEmpty;
+      if (manager.winCelebration.value) {
+        sawCelebration = true;
+        expect(manager.bonusTime.value, isFalse);
+        expect(multiplier, findsNothing);
+      }
       await tester.pump(const Duration(milliseconds: 150));
     }
+    expect(sawMultiplier, isTrue);
+    expect(sawCelebration, isTrue);
     expect(manager.busy.value, isFalse);
     expect(manager.bonusTime.value, isFalse);
     expect(manager.view.value!.status, MatchStatus.won);
@@ -208,20 +219,22 @@ void main() {
   });
 
   for (final reduceMotion in [false, true]) {
-    testWidgets('奖励引爆保留展示时间，补块三连不等下一次转换：$reduceMotion', (tester) async {
+    testWidgets('奖励转换与自然连锁并行，补块三连按普通节奏触发：$reduceMotion', (tester) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = reduceMotion
-        ..loadState(_winningState(seed: 2, moves: 5));
+        ..loadState(_winningState(seed: 55, moves: 5));
       addTearDown(manager.dispose);
       final transfers = <(DateTime, BoardFrame)>[];
       final conversions = <(DateTime, BoardFrame)>[];
       final clears = <(DateTime, BoardFrame)>[];
       final falls = <(DateTime, BoardFrame)>[];
+      DateTime? openedAt;
       manager.view.addListener(() {
         if (!manager.bonusTime.value) return;
         final frame = manager.view.value!.frame;
         final event = (tester.binding.clock.now(), frame);
-        if (frame.transferringPieceIds.isNotEmpty) transfers.add(event);
+        if (frame.phase == FramePhase.bonus) openedAt ??= event.$1;
+        if (frame.phase == FramePhase.transfer) transfers.add(event);
         if (frame.convertedPieceIds.isNotEmpty) conversions.add(event);
         if (frame.phase == FramePhase.clear) clears.add(event);
         if (frame.phase == FramePhase.fall) falls.add(event);
@@ -234,58 +247,86 @@ void main() {
 
       expect(transfers, hasLength(4));
       expect(conversions, hasLength(4));
-      const ignitionDelay = Duration(milliseconds: 350);
-      const conversionInterval = Duration(milliseconds: 900);
+      expect(
+        transfers.first.$1.difference(openedAt!),
+        const Duration(milliseconds: BonusTiming.firstTransfer),
+      );
+      const conversionInterval = Duration(
+        milliseconds: BonusTiming.transferInterval,
+      );
+      final ignitionTimes = <DateTime>[];
       for (var i = 0; i < conversions.length; i++) {
         final (transferTime, transfer) = transfers[i];
         final (convertedAt, conversion) = conversions[i];
         final id = conversion.convertedPieceIds.single;
-        expect(transfer.transferringPieceIds, {id});
-        expect(conversion.movesLeft, 3 - i);
+        expect(transfer.movesLeft, 3 - i);
+        expect(conversion.movesLeft, transfer.movesLeft);
         expect(
           convertedAt.difference(transferTime),
           manager.transferDuration(transfer),
         );
-        final (ignitedAt, _) = clears.firstWhere((event) {
-          final (time, frame) = event;
-          return time.isAfter(convertedAt) &&
-              frame.clearing.any((index) => frame.pieces[index]?.id == id);
-        });
-        expect(ignitedAt.difference(convertedAt), ignitionDelay);
+        final (ignitedAt, _) = clears.singleWhere(
+          (event) => event.$2.clearing.any(
+            (index) => event.$2.pieces[index]?.id == id,
+          ),
+        );
+        expect(
+          ignitedAt.difference(convertedAt),
+          const Duration(milliseconds: BonusTiming.ignition),
+        );
+        ignitionTimes.add(ignitedAt);
         if (i > 0) {
-          final previousConversion = conversions[i - 1].$1;
-          final interveningClears = clears.where(
-            (event) =>
-                event.$1.isAfter(previousConversion) &&
-                event.$1.isBefore(transferTime),
+          expect(
+            transferTime.difference(transfers[i - 1].$1),
+            conversionInterval,
           );
-          if (interveningClears.length == 1) {
-            expect(
-              convertedAt.difference(previousConversion),
-              conversionInterval,
-            );
-          }
         }
       }
-      final naturalClears = clears.where(
-        (event) =>
-            event.$2.naturalClear && event.$1.isAfter(conversions.first.$1),
-      );
+      final naturalClears = clears.where((event) => event.$2.naturalClear);
       expect(
-        naturalClears.any((event) => event.$1.isBefore(transfers.last.$1)),
+        naturalClears.any((event) {
+          final clearedAt = event.$1;
+          final refillAt = clearedAt.add(MatchManager.clearAnimationDuration);
+          return ignitionTimes.any(
+            (time) => time.isAfter(clearedAt) && time.isBefore(refillAt),
+          );
+        }),
         isTrue,
       );
-      for (final (clearedAt, clear) in naturalClears) {
-        final (fallAt, fall) = falls.lastWhere(
+      // 至少一拍在自然消除或它引起的坠落中开始，不只是和主动引爆重叠。
+      expect(
+        naturalClears.any((event) {
+          final clearedAt = event.$1;
+          final (refillAt, _) = falls.firstWhere(
+            (fall) => fall.$1.isAfter(clearedAt),
+          );
+          final landedAt = refillAt.add(MatchManager.fallAnimationDuration);
+          return transfers.any(
+            (transfer) =>
+                !transfer.$1.isBefore(clearedAt) &&
+                transfer.$1.isBefore(landedAt),
+          );
+        }),
+        isTrue,
+      );
+      for (final (clearedAt, _) in naturalClears) {
+        final (fallAt, _) = falls.lastWhere(
           (event) => event.$1.isBefore(clearedAt),
         );
-        expect(clear.movesLeft, fall.movesLeft);
-        expect(clearedAt.difference(fallAt), const Duration(milliseconds: 220));
+        expect(
+          clearedAt.difference(fallAt),
+          const Duration(milliseconds: BonusTiming.fall),
+        );
       }
-      // 无论消除由自然匹配还是主动引爆发起，结束后都按普通时长补块。
-      for (final (clearedAt, _) in clears) {
+      // 两波消除重叠时，按棋子身份找本波对应的补块帧。
+      for (final (clearedAt, wave) in clears) {
+        final ids = {for (final cell in wave.clearing) wave.pieces[cell]!.id};
         final (refillAt, _) = falls.firstWhere(
-          (event) => event.$1.isAfter(clearedAt),
+          (event) =>
+              event.$1.isAfter(clearedAt) &&
+              !event.$2.pieces.whereType<Piece>().any(
+                (piece) => ids.contains(piece.id),
+              ),
         );
         expect(
           refillAt.difference(clearedAt),
@@ -300,7 +341,8 @@ void main() {
 
   testWidgets('完整坠落模式先落稳再扣步连线，连线结束后才转换', (tester) async {
     final data = _winningState();
-    final expected = MatchBoard.fromJson(data)..playSwap(10, 2);
+    final expected = MatchBoard.fromJson(data)
+      ..playSwap(10, 2, bonusPacing: BonusPacing.waitForFall);
     final manager = MatchManager(
       generate: false,
       bonusPacing: BonusPacing.waitForFall,
@@ -334,10 +376,12 @@ void main() {
     expect(manager.view.value!.frame, same(transfer));
     manager.finishBoardAnimation(transfer);
     await tester.pump();
-    expect(
-      manager.view.value!.frame.convertedPieceIds,
-      transfer.transferringPieceIds,
-    );
+    final conversion = manager.view.value!.frame;
+    expect(conversion.convertedPieceIds, transfer.transferringPieceIds);
+    await tester.pump(const Duration(milliseconds: BonusTiming.ignition - 1));
+    expect(manager.view.value!.frame, same(conversion));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(manager.view.value!.frame.phase, FramePhase.clear);
 
     // 没有界面回调时，后续动画仍会通过超时保护正常结算。
     for (var i = 0; i < 200 && manager.busy.value; i++) {

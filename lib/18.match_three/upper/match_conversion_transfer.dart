@@ -22,15 +22,17 @@ class MatchConversionTransfer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final startedAt = frame.bonusTransferStartedAt;
     if (!animated ||
-        frame.phase != FramePhase.transfer ||
-        frame.transferringPieceIds.isEmpty) {
+        (startedAt == null &&
+            (frame.phase != FramePhase.transfer ||
+                frame.transferringPieceIds.isEmpty))) {
       return const SizedBox.shrink();
     }
     return IgnorePointer(
       child: ClipRect(
         child: TweenAnimationBuilder<double>(
-          key: ValueKey(frame),
+          key: startedAt == null ? ValueKey(frame) : ValueKey(startedAt),
           tween: Tween(begin: 0, end: 1),
           duration: duration,
           curve: Curves.easeInOutCubic,
@@ -67,7 +69,10 @@ class _ConversionTransferPainter extends CustomPainter {
         : center(sourceIndex);
     for (var index = 0; index < frame.pieces.length; index++) {
       final piece = frame.pieces[index];
-      if (piece == null || !frame.transferringPieceIds.contains(piece.id)) {
+      if (piece == null ||
+          !(frame.bonusTransferStartedAt != null
+              ? piece.id == frame.bonusTransferTargetId
+              : frame.transferringPieceIds.contains(piece.id))) {
         continue;
       }
       final target = center(index);

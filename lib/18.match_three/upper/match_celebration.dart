@@ -1,11 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../base/match_board.dart';
 import '../middle/match_manager.dart';
 
-/// 奖励开场的一次性撒花层，不占布局空间，也不拦截重开、聊天等操作。
+/// 达成目标时的一次性撒花层，不占布局空间，也不拦截重开、聊天等操作。
 class MatchCelebration extends StatefulWidget {
   final MatchManager manager;
   final Widget child;
@@ -26,7 +26,8 @@ class _MatchCelebrationState extends State<MatchCelebration>
     vsync: this,
     duration: const Duration(milliseconds: 3200),
   )..addStatusListener(_onAnimationStatus);
-  bool _celebrated = false;
+  Completer<void>? _playback;
+  bool _started = false;
   bool _visible = false;
   bool _reduceMotion = true;
 
@@ -37,12 +38,10 @@ class _MatchCelebrationState extends State<MatchCelebration>
   }
 
   void _listen(MatchManager manager, bool add) {
-    for (final notifier in [manager.view, manager.busy, manager.bonusTime]) {
-      if (add) {
-        notifier.addListener(_sync);
-      } else {
-        notifier.removeListener(_sync);
-      }
+    if (add) {
+      manager.winCelebration.addListener(_sync);
+    } else {
+      manager.winCelebration.removeListener(_sync);
     }
   }
 
@@ -59,30 +58,39 @@ class _MatchCelebrationState extends State<MatchCelebration>
     if (oldWidget.manager != widget.manager) {
       _listen(oldWidget.manager, false);
       _listen(widget.manager, true);
-      _celebrated = false;
+      _started = false;
       _hide();
       _sync();
     }
   }
 
+  void _finishPlayback() {
+    _playback?.complete();
+    _playback = null;
+  }
+
   void _hide() {
     _controller.stop();
     if (_visible) setState(() => _visible = false);
+    _finishPlayback();
   }
 
   void _sync() {
     final manager = widget.manager;
-    if (manager.view.value?.status != MatchStatus.won) {
-      // 本地重开、联机清空快照或失败均立即撤下旧局特效。
-      _celebrated = false;
+    if (!manager.winCelebration.value) {
+      _started = false;
       _hide();
       return;
     }
-    if (_reduceMotion) _hide();
-    // 奖励开场与语音同时开始，不能被提前成立的胜利状态触发。
-    if (_celebrated || !manager.bonusTime.value) return;
-    _celebrated = true;
-    if (_reduceMotion) return;
+    if (_reduceMotion) {
+      _started = true;
+      _hide();
+      return;
+    }
+    if (_started) return;
+    _started = true;
+    final playback = _playback = Completer<void>();
+    manager.trackConfettiPlayback(playback.future);
     setState(() => _visible = true);
     _controller.forward(from: 0);
   }
@@ -94,6 +102,7 @@ class _MatchCelebrationState extends State<MatchCelebration>
   @override
   void dispose() {
     _listen(widget.manager, false);
+    _finishPlayback();
     _controller.dispose();
     super.dispose();
   }

@@ -123,6 +123,7 @@ void main() {
     final audio = MatchAudioController(
       manager: manager,
       player: player,
+      winPlayer: _Player(),
       praisePlayer: _Voice(),
       bonusPlayer: _Player(),
       store: store,
@@ -153,6 +154,7 @@ void main() {
     final audio = MatchAudioController(
       manager: manager,
       player: player,
+      winPlayer: _Player(),
       praisePlayer: _Voice(),
       bonusPlayer: _Player(),
       store: _Store(),
@@ -184,6 +186,7 @@ void main() {
     final audio = MatchAudioController(
       manager: manager,
       player: player,
+      winPlayer: _Player(),
       praisePlayer: _Voice(),
       bonusPlayer: _Player(),
       store: _Store(),
@@ -205,6 +208,7 @@ void main() {
     final audio = MatchAudioController(
       manager: manager,
       player: player,
+      winPlayer: _Player(),
       praisePlayer: _Voice(),
       bonusPlayer: _Player(),
       store: store,
@@ -226,6 +230,7 @@ void main() {
     final audio = MatchAudioController(
       manager: manager,
       player: player,
+      winPlayer: _Player(),
       praisePlayer: _Voice(),
       bonusPlayer: _Player(),
       store: _Store(),
@@ -248,6 +253,7 @@ void main() {
     final audio = MatchAudioController(
       manager: manager,
       player: player,
+      winPlayer: _Player(),
       praisePlayer: _Voice(),
       bonusPlayer: _Player(),
       store: _Store(),
@@ -283,6 +289,7 @@ void main() {
       final audio = MatchAudioController(
         manager: local,
         player: player,
+        winPlayer: _Player(),
         praisePlayer: _Voice(),
         bonusPlayer: _Player(),
         store: _Store(),
@@ -325,6 +332,7 @@ void main() {
       final audio = MatchAudioController(
         manager: manager,
         player: player,
+        winPlayer: _Player(),
         praisePlayer: _Voice(),
         bonusPlayer: _Player(),
         store: _Store(),
@@ -357,6 +365,7 @@ void main() {
       final audio = MatchAudioController(
         manager: manager,
         player: player,
+        winPlayer: _Player(),
         praisePlayer: _Voice(),
         bonusPlayer: _Player(),
         store: _Store(),
@@ -438,6 +447,7 @@ void main() {
       final audio = MatchAudioController(
         manager: manager,
         player: player,
+        winPlayer: _Player(),
         praisePlayer: _Voice(),
         bonusPlayer: _Player(),
         store: _Store(),

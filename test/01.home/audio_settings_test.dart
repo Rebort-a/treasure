@@ -80,6 +80,7 @@ void main() {
     final matchAudio = MatchAudioController(
       manager: match,
       player: matchPlayer,
+      winPlayer: _Player<MatchSound>(),
       praisePlayer: voice,
       bonusPlayer: bonus,
       preferences: preferences,

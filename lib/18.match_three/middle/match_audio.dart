@@ -12,13 +12,15 @@ class MatchAssetSoundPlayer extends AssetSoundPlayer<MatchSound>
     : super(
         assets: {
           for (final sound in MatchSound.values)
-            if (sound != MatchSound.reset) sound: sound.asset,
+            if (sound != MatchSound.reset && sound != MatchSound.win)
+              sound: sound.asset,
         },
       );
 }
 
 class MatchAudioController extends SoundController<MatchSound> {
   final MatchManager manager;
+  late final SoundController<MatchSound> _winAudio;
   late final SoundController<ComboPraise> _praiseAudio;
   late final SoundController<MatchSound> _bonusAudio;
   bool _pageActive = true;
@@ -27,13 +29,17 @@ class MatchAudioController extends SoundController<MatchSound> {
   MatchAudioController({
     required this.manager,
     MatchSoundPlayer? player,
+    SoundPlayer<MatchSound>? winPlayer,
     SoundPlayer<ComboPraise>? praisePlayer,
     SoundPlayer<MatchSound>? bonusPlayer,
     super.store,
     super.preferences,
   }) : super(
          events: manager.sound,
-         currentSound: () => manager.sound.value?.sound,
+         currentSound: () {
+           final sound = manager.sound.value?.sound;
+           return sound == MatchSound.win ? null : sound;
+         },
          player: player ?? MatchAssetSoundPlayer(),
          project: '18.match_three',
          resetSound: MatchSound.reset,
@@ -41,6 +47,23 @@ class MatchAudioController extends SoundController<MatchSound> {
              sound == MatchSound.entrance || sound == MatchSound.appear,
          minimumInterval: (sound) => sound == MatchSound.select ? 45 : 90,
        ) {
+    _winAudio = SoundController<MatchSound>(
+      events: manager.sound,
+      currentSound: () =>
+          manager.sound.value?.sound == MatchSound.win ? MatchSound.win : null,
+      player:
+          winPlayer ??
+          AssetSoundPlayer<MatchSound>(
+            assets: {MatchSound.win: MatchSound.win.asset},
+            voiceCount: 1,
+            latestOnly: true,
+            waitForCompletion: true,
+          ),
+      project: '18.match_three',
+      preferences: audioPreferences,
+      minimumInterval: (_) => 0,
+      onPlayback: (_, playback) => manager.trackWinPlayback(playback),
+    );
     _praiseAudio = SoundController<ComboPraise>(
       events: manager.praiseVoice,
       currentSound: () => manager.praiseVoice.value?.praise,
@@ -60,12 +83,6 @@ class MatchAudioController extends SoundController<MatchSound> {
       channel: SoundChannel.voice,
       // 每次结算发布一次事件，连续操作的播报不设间隔。
       minimumInterval: (_) => 0,
-      onPlayback: (praise, playback) {
-        final event = manager.praiseVoice.value;
-        if (event != null && event.praise == praise) {
-          manager.trackPraisePlayback(event, playback);
-        }
-      },
     );
     _bonusAudio = SoundController<MatchSound>(
       // 奖励阶段包含多个转换帧，只在进入阶段时播报一次。
@@ -86,6 +103,7 @@ class MatchAudioController extends SoundController<MatchSound> {
       minimumInterval: (_) => 0,
       onPlayback: (_, playback) => manager.trackBonusPlayback(playback),
     );
+    manager.winCelebration.addListener(_onCelebration);
     manager.bonusTime.addListener(_syncVoices);
     manager.sound.addListener(_onSound);
     _syncVoices();
@@ -93,18 +111,31 @@ class MatchAudioController extends SoundController<MatchSound> {
 
   @override
   Future<void> get ready async {
-    await Future.wait([super.ready, _praiseAudio.ready, _bonusAudio.ready]);
+    await Future.wait([
+      super.ready,
+      _winAudio.ready,
+      _praiseAudio.ready,
+      _bonusAudio.ready,
+    ]);
   }
 
   void _syncVoices() {
     final active = _pageActive;
-    // 奖励播报优先，避免上一手的赞美与 Bonus Time 同时说话。
-    _praiseAudio.setActive(active && !manager.bonusTime.value);
+    // 上一手的赞美不与胜利音效或奖励播报重叠。
+    _praiseAudio.setActive(
+      active && !manager.winCelebration.value && !manager.bonusTime.value,
+    );
     _bonusAudio.setActive(active);
+  }
+
+  void _onCelebration() {
+    _syncVoices();
+    if (!manager.winCelebration.value) _winAudio.stop();
   }
 
   void _onSound() {
     if (manager.sound.value?.sound == MatchSound.reset) {
+      _winAudio.stop();
       _praiseAudio.stop();
       _bonusAudio.stop();
     }
@@ -114,6 +145,7 @@ class MatchAudioController extends SoundController<MatchSound> {
   void setActive(bool active) {
     _pageActive = active;
     super.setActive(active);
+    _winAudio.setActive(active);
     _syncVoices();
   }
 
@@ -121,9 +153,11 @@ class MatchAudioController extends SoundController<MatchSound> {
   Future<void> dispose() => _disposingAll ??= _disposeAll();
 
   Future<void> _disposeAll() async {
+    manager.winCelebration.removeListener(_onCelebration);
     manager.bonusTime.removeListener(_syncVoices);
     manager.sound.removeListener(_onSound);
     await Future.wait([
+      _winAudio.dispose(),
       _praiseAudio.dispose(),
       _bonusAudio.dispose(),
       super.dispose(),
