@@ -68,9 +68,24 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
     final frame = widget.view.frame;
     final falling =
         frame.phase == FramePhase.fall || frame.spawnedPieceIds.isNotEmpty;
-    final duration = _animate
-        ? Duration(milliseconds: falling ? 210 : 180)
+    // 奖励转换和引爆可以插在坠落中途，不切换仍在运行的位置动画曲线。
+    final useFallCurve = falling || widget.manager.bonusTime.value;
+    final fallDuration = _animate
+        ? MatchManager.fallAnimationDuration
         : Duration.zero;
+    const clearDuration = MatchManager.clearAnimationDuration;
+    final duration = falling
+        ? fallDuration
+        : _animate
+        ? clearDuration
+        : Duration.zero;
+    final fallCompletionPiece =
+        widget.manager.bonusTime.value &&
+            widget.manager.bonusPacing == BonusPacing.waitForFall &&
+            frame.phase == FramePhase.fall &&
+            frame.spawnedPieceIds.isNotEmpty
+        ? frame.spawnedPieceIds.first
+        : null;
     return AspectRatio(
       aspectRatio: 1,
       child: DecoratedBox(
@@ -172,7 +187,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                   AnimatedPositioned(
                                     key: ValueKey('piece-${piece.id}'),
                                     duration: duration,
-                                    curve: falling
+                                    curve: useFallCurve
                                         ? const Cubic(0.2, 0.8, 0.3, 1.04)
                                         : Curves.easeInOutCubic,
                                     left:
@@ -195,7 +210,11 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                         spawned: frame.spawnedPieceIds.contains(
                                           piece.id,
                                         ),
-                                        animated: _animate,
+                                        duration: fallDuration,
+                                        onEnd: piece.id == fallCompletionPiece
+                                            ? () => widget.manager
+                                                  .finishBoardAnimation(frame)
+                                            : null,
                                         row: index ~/ MatchBoard.side,
                                         cell: cell,
                                         child: AnimatedScale(
@@ -265,13 +284,19 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                             ],
                           ),
                         ),
-                        Positioned.fill(child: MatchClearEffects(frame: frame)),
+                        Positioned.fill(
+                          child: MatchClearEffects(
+                            frame: frame,
+                            duration: clearDuration,
+                          ),
+                        ),
                         Positioned.fill(
                           child: MatchConversionTransfer(
                             frame: frame,
                             animated: _animate,
+                            duration: widget.manager.transferDuration(frame),
                             onCompleted: () =>
-                                widget.manager.finishConversionTransfer(frame),
+                                widget.manager.finishBoardAnimation(frame),
                           ),
                         ),
                         if (widget.manager case final NetMatchManager manager)

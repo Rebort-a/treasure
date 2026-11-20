@@ -8,8 +8,13 @@ import 'animal_piece.dart';
 /// 消除演出只读取帧快照，不改变棋盘，也不消耗内核的随机序列。
 class MatchClearEffects extends StatefulWidget {
   final BoardFrame frame;
+  final Duration duration;
 
-  const MatchClearEffects({super.key, required this.frame});
+  const MatchClearEffects({
+    super.key,
+    required this.frame,
+    required this.duration,
+  });
 
   @override
   State<MatchClearEffects> createState() => _MatchClearEffectsState();
@@ -19,7 +24,7 @@ class _MatchClearEffectsState extends State<MatchClearEffects>
     with SingleTickerProviderStateMixin {
   late final AnimationController _clock = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 180),
+    duration: widget.duration,
   );
   bool _animated = false;
   Set<int> _crackedIce = {};
@@ -38,6 +43,9 @@ class _MatchClearEffectsState extends State<MatchClearEffects>
   @override
   void didUpdateWidget(MatchClearEffects oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.duration != oldWidget.duration) {
+      _clock.duration = widget.duration;
+    }
     if (identical(widget.frame, oldWidget.frame)) return;
     _clock.stop();
     _crackedIce = {
@@ -185,7 +193,8 @@ class MatchClearPainter extends CustomPainter {
 /// 新棋子挂载时就从棋盘上方进入，而不是先停在格子上方等下一帧。
 class MatchPieceEntrance extends StatelessWidget {
   final bool spawned;
-  final bool animated;
+  final Duration duration;
+  final VoidCallback? onEnd;
   final int row;
   final double cell;
   final Widget child;
@@ -193,7 +202,8 @@ class MatchPieceEntrance extends StatelessWidget {
   const MatchPieceEntrance({
     super.key,
     required this.spawned,
-    required this.animated,
+    required this.duration,
+    this.onEnd,
     required this.row,
     required this.cell,
     required this.child,
@@ -201,8 +211,9 @@ class MatchPieceEntrance extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-    tween: Tween(begin: spawned && animated ? 1 : 0, end: 0),
-    duration: animated ? const Duration(milliseconds: 210) : Duration.zero,
+    tween: Tween(begin: spawned && duration > Duration.zero ? 1 : 0, end: 0),
+    duration: duration,
+    onEnd: onEnd,
     curve: Curves.easeOutBack,
     child: child,
     builder: (context, value, child) => Transform.translate(

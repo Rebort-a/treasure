@@ -3,19 +3,20 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../base/match_board.dart';
-import '../middle/match_manager.dart';
 import 'animal_piece.dart';
 
 /// 彩虹与奖励步数共用转换连线，仅在棋盘内绘制且不参与命中测试。
 class MatchConversionTransfer extends StatelessWidget {
   final BoardFrame frame;
   final bool animated;
+  final Duration duration;
   final VoidCallback? onCompleted;
 
   const MatchConversionTransfer({
     super.key,
     required this.frame,
     required this.animated,
+    required this.duration,
     this.onCompleted,
   });
 
@@ -31,7 +32,7 @@ class MatchConversionTransfer extends StatelessWidget {
         child: TweenAnimationBuilder<double>(
           key: ValueKey(frame),
           tween: Tween(begin: 0, end: 1),
-          duration: MatchManager.conversionTransferDuration,
+          duration: duration,
           curve: Curves.easeInOutCubic,
           onEnd: onCompleted,
           builder: (_, progress, _) =>

@@ -27,12 +27,28 @@ class MatchView {
       status = board.status;
 }
 
+enum BonusPacing { fixedBeat, waitForFall }
+
 /// 负责选择和展示帧的生命周期，三消判定始终由纯 Dart 内核完成。
 class MatchManager {
+  /// 单机和联机共用的默认奖励演出节奏，不影响棋盘结算。
+  static const defaultBonusPacing = BonusPacing.fixedBeat;
+
   /// 转换演出结束后保留一段静态展示，再开始自动触发。
   static const _conversionPause = Duration(milliseconds: 350);
-  static const conversionTransferDuration = Duration(milliseconds: 300);
+  static const _conversionTransferDuration = Duration(milliseconds: 300);
+  static const fallAnimationDuration = Duration(milliseconds: 210);
+  static const clearAnimationDuration = Duration(milliseconds: 180);
+  static const _naturalFallDelay = Duration(milliseconds: 220);
 
+  // 额外节拍只限制奖励动作，不改变普通消除或补块的动画时长。
+  static const _bonusTransferDuration = Duration(milliseconds: 300);
+  static const _bonusTransferInterval = Duration(milliseconds: 900);
+  static const _bonusTransferFallLead = Duration(milliseconds: 70);
+  static const _bonusIgnitionDelay = Duration(milliseconds: 350);
+  static const _bonusAutoIgnitionDelay = Duration(milliseconds: 500);
+
+  final BonusPacing bonusPacing;
   final view = ValueNotifier<MatchView?>(null);
   final selected = ValueNotifier<int?>(null);
   final busy = ValueNotifier(false);
@@ -50,16 +66,26 @@ class MatchManager {
   bool _disposed = false;
   bool _resultAnnounced = false;
   final Map<Timer, Completer<void>> _pendingDelays = {};
-  Completer<void>? _conversionTransfer;
-  BoardFrame? _conversionTransferFrame;
+  Completer<void>? _boardAnimation;
+  BoardFrame? _boardAnimationFrame;
   Future<void>? _praisePlayback;
   Future<void>? _bonusPlayback;
   bool reduceMotion = false;
   int _roundNumber = 0;
 
-  MatchManager({bool generate = true, int? seed}) {
+  MatchManager({
+    bool generate = true,
+    int? seed,
+    this.bonusPacing = defaultBonusPacing,
+  }) {
     if (generate) restart(seed: seed);
   }
+
+  Duration transferDuration(BoardFrame frame) =>
+      frame.transferSourcePieceId == null &&
+          bonusPacing == BonusPacing.fixedBeat
+      ? _bonusTransferDuration
+      : _conversionTransferDuration;
 
   MatchBoard? get board => _board;
   int get roundNumber => _roundNumber;
@@ -398,10 +424,10 @@ class MatchManager {
   void _cancelDelays() {
     _praisePlayback = null;
     _bonusPlayback = null;
-    final transfer = _conversionTransfer;
-    _conversionTransfer = null;
-    _conversionTransferFrame = null;
-    if (transfer != null && !transfer.isCompleted) transfer.complete();
+    final animation = _boardAnimation;
+    _boardAnimation = null;
+    _boardAnimationFrame = null;
+    if (animation != null && !animation.isCompleted) animation.complete();
     final pending = _pendingDelays.entries.toList();
     _pendingDelays.clear();
     for (final entry in pending) {
@@ -410,29 +436,29 @@ class MatchManager {
     }
   }
 
-  /// 飞行层真正抵达终点后才推进转换，旧帧回调不能结束新一轮飞行。
-  void finishConversionTransfer(BoardFrame frame) {
-    final transfer = _conversionTransfer;
+  /// 只接受正在等待的帧，重开或切换帧后忽略旧动画回调。
+  void finishBoardAnimation(BoardFrame frame) {
+    final animation = _boardAnimation;
     if (!_disposed &&
-        identical(frame, _conversionTransferFrame) &&
-        transfer != null &&
-        !transfer.isCompleted) {
-      transfer.complete();
+        identical(frame, _boardAnimationFrame) &&
+        animation != null &&
+        !animation.isCompleted) {
+      animation.complete();
     }
   }
 
-  Future<void> _waitConversionTransfer(BoardFrame frame) async {
-    final transfer = Completer<void>();
-    _conversionTransfer = transfer;
-    _conversionTransferFrame = frame;
+  Future<void> _waitBoardAnimation(BoardFrame frame, Duration duration) async {
+    final animation = Completer<void>();
+    _boardAnimation = animation;
+    _boardAnimationFrame = frame;
     // 未挂载界面的成员也必须正常结束结算，不能永久等待界面回调。
     await Future.any([
-      transfer.future,
-      _delay(conversionTransferDuration + const Duration(milliseconds: 250)),
+      animation.future,
+      _delay(duration + const Duration(milliseconds: 250)),
     ]);
-    if (identical(_conversionTransfer, transfer)) {
-      _conversionTransfer = null;
-      _conversionTransferFrame = null;
+    if (identical(_boardAnimation, animation)) {
+      _boardAnimation = null;
+      _boardAnimationFrame = null;
     }
   }
 
@@ -489,6 +515,91 @@ class MatchManager {
     return !_disposed && epoch == _animationEpoch;
   }
 
+  Future<void> _playBonusFrames(
+    List<BoardFrame> frames,
+    int start,
+    int epoch, {
+    required bool animate,
+  }) async {
+    final fixedBeat = bonusPacing == BonusPacing.fixedBeat;
+    var untilNextTransfer = Duration.zero;
+
+    Future<void> pause(Duration duration) async {
+      if (duration > Duration.zero) {
+        await _delay(duration);
+        untilNextTransfer -= duration;
+      }
+    }
+
+    for (var i = start; i < frames.length - 1; i++) {
+      if (_disposed || epoch != _animationEpoch) return;
+      final frame = frames[i];
+      if (frame.phase == FramePhase.clear &&
+          !frame.naturalClear &&
+          frames[i - 1].convertedPieceIds.isEmpty) {
+        // 等待的是主动引爆本身，不是之前的坠落或自然消除。
+        await pause(_bonusAutoIgnitionDelay);
+        if (_disposed || epoch != _animationEpoch) return;
+      }
+
+      final next = frames[i + 1];
+      final beforeTransfer = next.phase == FramePhase.transfer;
+      final waitForAnimation = animate && !fixedBeat
+          ? switch (frame.phase) {
+              FramePhase.transfer => _waitBoardAnimation(
+                frame,
+                transferDuration(frame),
+              ),
+              FramePhase.fall when beforeTransfer => _waitBoardAnimation(
+                frame,
+                fallAnimationDuration,
+              ),
+              _ => null,
+            }
+          : null;
+
+      if (frame.phase == FramePhase.transfer) {
+        untilNextTransfer = _bonusTransferInterval;
+        if (animate) {
+          _presentFrame(frame);
+        } else {
+          _show(frame);
+        }
+      } else {
+        _presentFrame(frame);
+      }
+
+      if (waitForAnimation != null) {
+        await waitForAnimation;
+        continue;
+      }
+      final duration = switch (frame.phase) {
+        FramePhase.transfer => transferDuration(frame),
+        FramePhase.bonus when frame.convertedPieceIds.isNotEmpty =>
+          _bonusIgnitionDelay,
+        // 没有待消除的匹配时，固定节拍可在最后一段坠落中开始连线。
+        FramePhase.fall when fixedBeat && beforeTransfer =>
+          _bonusTransferFallLead,
+        _ => _regularFrameDelay(frame),
+      };
+      // 自然连锁消耗节拍内的时间；即使超出节拍，也先消除，再转换下一步。
+      await pause(
+        fixedBeat && beforeTransfer && untilNextTransfer > duration
+            ? untilNextTransfer
+            : duration,
+      );
+    }
+  }
+
+  Duration _regularFrameDelay(BoardFrame frame) => switch (frame.phase) {
+    FramePhase.clear => clearAnimationDuration,
+    FramePhase.fall when frame.staggeredFall => const Duration(
+      milliseconds: 120,
+    ),
+    FramePhase.settled || FramePhase.bonus => Duration.zero,
+    _ => _naturalFallDelay,
+  };
+
   void _animate(SwapResult result) {
     _cancelDelays();
     final epoch = ++_animationEpoch;
@@ -505,8 +616,7 @@ class MatchManager {
     );
     final hasActionFullBoardSpawn =
         hasBonusTime && result.frames.take(bonusIndex).any(_isFullBoardSpawn);
-    final hasBonusFullBoardSpawn =
-        hasBonusTime && result.frames.skip(bonusIndex).any(_isFullBoardSpawn);
+    final frames = result.frames;
     comboPraise.value = null;
     bonusTime.value = false;
     if (reduceMotion && !hasBonusTime && !hasConversion) {
@@ -532,26 +642,26 @@ class MatchManager {
           _emitSound(MatchSound.swap);
           _emitSound(MatchSound.clear1);
         }
-        for (final frame in result.frames) {
-          if (frame.phase != FramePhase.bonus &&
-              frame.convertedPieceIds.isEmpty) {
-            continue;
-          }
+        final actionEnd = hasBonusTime ? bonusIndex : frames.length;
+        for (var i = 0; i < actionEnd; i++) {
           if (_disposed || epoch != _animationEpoch) return;
-          if (frame.phase == FramePhase.bonus && !bonusTime.value) {
-            _show(result.frames[bonusIndex - 1]);
-            if (hasActionFullBoardSpawn) _emitSound(MatchSound.appear);
-            if (!await _beginBonusAfterPraise(praise, epoch)) return;
+          final frame = frames[i];
+          if (frame.convertedPieceIds.isNotEmpty) {
+            _presentFrame(frame);
+            await _delay(_conversionPause);
           }
-          _presentFrame(frame);
-          // 减少动画时跳过运动效果，但仍保留转换结果的静态展示与取消能力。
-          await _delay(_conversionPause);
+        }
+        if (_disposed || epoch != _animationEpoch) return;
+        if (hasBonusTime) {
+          _show(frames[bonusIndex - 1]);
+          if (hasActionFullBoardSpawn) _emitSound(MatchSound.appear);
+          if (!await _beginBonusAfterPraise(praise, epoch)) return;
+          await _playBonusFrames(frames, bonusIndex, epoch, animate: false);
         }
         if (_disposed || epoch != _animationEpoch) return;
         _show(result.frames.last);
         if (_disposed || epoch != _animationEpoch) return;
-        if (result.shuffled ||
-            (hasBonusTime ? hasBonusFullBoardSpawn : hasFullBoardSpawn)) {
+        if (result.shuffled || (!hasBonusTime && hasFullBoardSpawn)) {
           _emitSound(MatchSound.appear);
         }
         bonusTime.value = false;
@@ -567,44 +677,39 @@ class MatchManager {
     comboMultiplier.value = result.cascades == 0 ? null : 1;
     unawaited(() async {
       var cascade = 0;
-      var praiseShown = false;
-      for (final frame in result.frames) {
+      final actionEnd = hasBonusTime ? bonusIndex : frames.length;
+      for (var i = 0; i < actionEnd; i++) {
         if (_disposed || epoch != _animationEpoch) return;
-        if (frame.phase == FramePhase.bonus && !praiseShown) {
-          praiseShown = true;
-          if (!await _beginBonusAfterPraise(praise, epoch)) return;
-        }
-        if (frame.phase == FramePhase.clear && !bonusTime.value) {
+        final frame = frames[i];
+        if (frame.phase == FramePhase.clear) {
           cascade++;
           comboMultiplier.value = cascade;
         }
         final transfer = frame.phase == FramePhase.transfer
-            ? _waitConversionTransfer(frame)
+            ? _waitBoardAnimation(frame, transferDuration(frame))
             : null;
         _presentFrame(frame, cascade: cascade);
         // 重排没有独立的下落帧，只在最终棋盘真正展示时提示一次。
-        if (result.shuffled && identical(frame, result.frames.last)) {
+        if (result.shuffled && identical(frame, frames.last)) {
           _emitSound(MatchSound.appear);
         }
         if (transfer != null) {
           await transfer;
-          continue;
-        }
-        if (frame.phase != FramePhase.settled) {
-          final duration = Duration(
-            milliseconds: switch (frame.phase) {
-              FramePhase.clear => 180,
-              FramePhase.bonus => 420,
-              FramePhase.fall when frame.staggeredFall => 120,
-              _ => 220,
-            },
-          );
-          await _delay(
-            frame.convertedPieceIds.isEmpty ? duration : _conversionPause,
-          );
+        } else {
+          final duration = frame.convertedPieceIds.isNotEmpty
+              ? _conversionPause
+              : _regularFrameDelay(frame);
+          if (duration > Duration.zero) await _delay(duration);
         }
       }
-      if (!praiseShown && _board?.status == MatchStatus.playing) {
+      if (_disposed || epoch != _animationEpoch) return;
+      if (hasBonusTime) {
+        if (!await _beginBonusAfterPraise(praise, epoch)) return;
+        await _playBonusFrames(frames, bonusIndex, epoch, animate: true);
+        if (_disposed || epoch != _animationEpoch) return;
+        _show(frames.last);
+        if (result.shuffled) _emitSound(MatchSound.appear);
+      } else if (_board?.status == MatchStatus.playing) {
         comboMultiplier.value = null;
         _showPraiseBriefly(praise, epoch);
       }

@@ -37,6 +37,9 @@ class BoardFrame {
 
   /// 彩虹转换轮询允许下一次引爆与本帧坠落动画重叠。
   final bool staggeredFall;
+
+  /// 本波由自然匹配发起，不是主动引爆；波及的特效仍在同一波消除。
+  final bool naturalClear;
   final int movesLeft;
 
   /// 分数快照，随消除、特效生成和目标进度更新，而不是一次跳到总分。
@@ -54,6 +57,7 @@ class BoardFrame {
     Set<int> transferringPieceIds = const {},
     this.transferSourcePieceId,
     this.staggeredFall = false,
+    this.naturalClear = false,
   }) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
        collected = List.unmodifiable(board.collected),
@@ -74,13 +78,11 @@ class BoardFrame {
     MatchBoard board, {
     required Set<int> pieceIds,
     int? sourcePieceId,
-    Set<int> spawnedPieceIds = const {},
   }) : this(
          board,
          FramePhase.transfer,
          transferringPieceIds: pieceIds,
          transferSourcePieceId: sourcePieceId,
-         spawnedPieceIds: spawnedPieceIds,
        );
 
   /// 开局只清空展示帧，不修改内核棋盘或消耗随机数。
@@ -94,6 +96,7 @@ class BoardFrame {
       transferringPieceIds = const {},
       transferSourcePieceId = null,
       staggeredFall = false,
+      naturalClear = false,
       movesLeft = board.movesLeft,
       score = board.score,
       phase = FramePhase.settled;
@@ -451,6 +454,8 @@ class MatchBoard {
     required int multiplier,
     Set<int> consumedRainbows = const {},
     Set<int>? staggeredPieceIds,
+    bool compactFall = false,
+    bool naturalClear = false,
   }) {
     final clear = _expandEffects(
       initial,
@@ -483,12 +488,19 @@ class MatchBoard {
         score += iceLayerBonus;
       }
     }
-    frames.add(BoardFrame(this, FramePhase.clear, clearing: clear));
+    frames.add(
+      BoardFrame(
+        this,
+        FramePhase.clear,
+        clearing: clear,
+        naturalClear: naturalClear,
+      ),
+    );
     for (final index in clear) {
       pieces[index] = null;
     }
-    // 彩虹轮询直接展示补齐后的坠落目标，避免空棋盘帧打断尚未结束的运动。
-    if (staggeredPieceIds == null) {
+    // 交错演出直接展示补齐后的坠落目标，不插入额外的空格帧。
+    if (!compactFall && staggeredPieceIds == null) {
       frames.add(BoardFrame(this, FramePhase.fall));
     }
     final spawnedPieceIds = _collapse();
@@ -578,7 +590,7 @@ class MatchBoard {
   }
 
   /// 自然连锁与自动触发共用逐波结算；每次只主动选择一只特效。
-  /// 波及其他特效时仍在同波连锁，完成坠落后再重新扫描，不能沿用旧格子位置。
+  /// 波及其他特效时仍在同波连锁，补齐逻辑棋盘后按新位置重新扫描。
   ({int waves, int totalCleared, int specialEffectsTriggered}) _settleCascades({
     required List<BoardFrame> frames,
     required int a,
@@ -588,6 +600,7 @@ class MatchBoard {
     Set<int> consumedRainbows = const {},
     Set<int> protectedPieceIds = const {},
     bool automaticAll = false,
+    bool compactFall = false,
   }) {
     var waves = 0;
     var totalCleared = 0;
@@ -624,6 +637,8 @@ class MatchBoard {
         },
         multiplier: multiplier + waves,
         consumedRainbows: waves == 0 ? consumedRainbows : const {},
+        compactFall: compactFall,
+        naturalClear: forced.isEmpty,
       );
       forced.clear();
       waves++;
@@ -635,6 +650,52 @@ class MatchBoard {
       totalCleared: totalCleared,
       specialEffectsTriggered: specialEffectsTriggered,
     );
+  }
+
+  void _playBonus(List<BoardFrame> frames, int a, int b, int multiplier) {
+    frames.add(BoardFrame(this, FramePhase.bonus));
+    int settleBonus(int multiplier) => _settleCascades(
+      frames: frames,
+      a: a,
+      b: b,
+      multiplier: multiplier,
+      automaticAll: true,
+      compactFall: true,
+    ).waves;
+
+    // 先处理已有特效，每次引爆后总是优先结算自然连锁。
+    multiplier += settleBonus(multiplier);
+    while (movesLeft > 0) {
+      final ordinary = [
+        for (var i = 0; i < cells; i++)
+          if (pieces[i] case Piece(effect: PieceEffect.none)) i,
+      ];
+      final index = ordinary[_next(ordinary.length)];
+      final pieceId = pieces[index]!.id;
+      movesLeft--;
+      moveNumber++;
+      frames.add(BoardFrame.transfer(this, pieceIds: {pieceId}));
+      _createSpecial(
+        index,
+        const [PieceEffect.row, PieceEffect.column, PieceEffect.bomb][_next(3)],
+      );
+      frames.add(
+        BoardFrame.conversion(
+          this,
+          pieceIds: {pieceId},
+          phase: FramePhase.bonus,
+        ),
+      );
+      _clearWave(
+        frames: frames,
+        initial: {index},
+        protected: const {},
+        multiplier: multiplier++,
+        compactFall: true,
+      );
+      // 自然匹配独立消除，连锁留下的特效也不必等剩余步数耗尽才自动引爆。
+      multiplier += settleBonus(multiplier);
+    }
   }
 
   SwapResult? playSwap(int a, int b) {
@@ -793,54 +854,7 @@ class MatchBoard {
     if (status == MatchStatus.won) {
       // 本次行动先稳定结算，展示层完成赞美后再进入奖励阶段。
       frames.add(BoardFrame(this, FramePhase.settled));
-      // 奖励阶段先触发已有特效，即使没有剩余步数也适用。
-      frames.add(BoardFrame(this, FramePhase.bonus));
-      var bonusCascade = _settleCascades(
-        frames: frames,
-        a: a,
-        b: b,
-        multiplier: cascades + 1,
-        automaticAll: true,
-      ).waves;
-      while (movesLeft > 0) {
-        final index = _next(cells);
-        final piece = pieces[index]!;
-        // 复用上一波补齐后的棋盘，让补块坠落与下一次奖励连线同时开始。
-        final spawnedPieceIds = frames.last.spawnedPieceIds;
-        while (frames.last.phase == FramePhase.fall) {
-          frames.removeLast();
-        }
-        // 飞行期间目标动物保持原状，连线到达后才展示转换结果。
-        movesLeft--;
-        moveNumber++;
-        frames.add(
-          BoardFrame.transfer(
-            this,
-            pieceIds: {piece.id},
-            spawnedPieceIds: spawnedPieceIds,
-          ),
-        );
-        _createSpecial(
-          index,
-          const [PieceEffect.row, PieceEffect.column, PieceEffect.bomb][_next(
-            3,
-          )],
-        );
-        frames.add(
-          BoardFrame.conversion(
-            this,
-            pieceIds: {piece.id},
-            phase: FramePhase.bonus,
-          ),
-        );
-        bonusCascade += _settleCascades(
-          frames: frames,
-          a: a,
-          b: b,
-          multiplier: cascades + bonusCascade + 1,
-          automaticAll: true,
-        ).waves;
-      }
+      _playBonus(frames, a, b, cascades + 1);
     }
     _ensurePlayable();
     frames.add(BoardFrame(this, FramePhase.settled));

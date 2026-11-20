@@ -13,7 +13,7 @@ class NetMatchManager extends MatchManager {
   final showPersonalScore = ValueNotifier(false);
   bool _released = false;
 
-  NetMatchManager({required SocketClient room})
+  NetMatchManager({required SocketClient room, super.bonusPacing})
     : turnEngine = NetMultiTurnEngine.forClient(room),
       super(generate: false) {
     turnEngine.configureTurns(

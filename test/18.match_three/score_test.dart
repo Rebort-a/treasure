@@ -6,8 +6,8 @@ import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
 import 'package:treasure/18.match_three/upper/game_view.dart';
 
-Map<String, dynamic> _winningState() {
-  final data = MatchBoard.random(seed: 7).toJson()
+Map<String, dynamic> _winningState({int seed = 7, int moves = 3}) {
+  final data = MatchBoard.random(seed: seed).toJson()
     ..['pieces'] = [
       for (var index = 0; index < MatchBoard.cells; index++)
         [
@@ -22,9 +22,9 @@ Map<String, dynamic> _winningState() {
     ..['ice'] = List.filled(MatchBoard.cells, 0)
     ..['targets'] = {'0': 1, '1': 1}
     ..['collected'] = [0, 1, 0, 0, 0, 0]
-    ..['movesLeft'] = 3
+    ..['movesLeft'] = moves
     ..['score'] = 0;
-  data['moveNumber'] = data['initialMoves'] - 3;
+  data['moveNumber'] = data['initialMoves'] - moves;
   return data;
 }
 
@@ -148,72 +148,205 @@ void main() {
     expect(manager.view.value, isNull);
   });
 
-  for (final scenario in [
-    (name: '奖励', state: _winningState, swap: (10, 2), isBonus: true),
-    (name: '彩虹', state: _rainbowState, swap: (0, 1), isBonus: false),
-  ]) {
-    testWidgets('${scenario.name}连线到达后才转换，重开取消旧连线通知', (tester) async {
-      final manager = MatchManager(seed: 7);
-      addTearDown(manager.dispose);
-      final data = scenario.state();
-      manager.loadState(data);
-      manager.swap(scenario.swap.$1, scenario.swap.$2);
-      Future<void> reachTransfer() async {
-        for (var i = 0; i < 120; i++) {
-          if (manager.view.value!.frame.phase == FramePhase.transfer) {
-            return;
-          }
-          await tester.pump(const Duration(milliseconds: 100));
+  testWidgets('彩虹连线到达后才转换，重开取消旧连线通知', (tester) async {
+    final manager = MatchManager(seed: 7);
+    addTearDown(manager.dispose);
+    final data = _rainbowState();
+    manager.loadState(data);
+    manager.swap(0, 1);
+    Future<void> reachTransfer() async {
+      for (var i = 0; i < 120; i++) {
+        if (manager.view.value!.frame.phase == FramePhase.transfer) {
+          return;
         }
-        fail('未进入转换连线阶段');
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      fail('未进入转换连线阶段');
+    }
+
+    await reachTransfer();
+    final transfer = manager.view.value!.frame;
+    final targets = transfer.transferringPieceIds;
+    expect(targets, isNotEmpty);
+    expect(transfer.transferSourcePieceId, 1);
+    for (final piece in transfer.pieces.whereType<Piece>()) {
+      if (targets.contains(piece.id)) expect(piece.effect, PieceEffect.none);
+    }
+    expect(manager.canInteract, isFalse);
+    await tester.pump();
+    expect(manager.view.value!.frame, same(transfer));
+    manager.finishBoardAnimation(transfer);
+    await tester.pump();
+    final converted = manager.view.value!.frame;
+    expect(converted.phase, FramePhase.transform);
+    expect(converted.convertedPieceIds, targets);
+    expect(converted.score - transfer.score, targets.length * 40);
+    expect(converted.movesLeft, transfer.movesLeft);
+    for (final piece in converted.pieces.whereType<Piece>()) {
+      if (targets.contains(piece.id)) {
+        expect(
+          piece.effect,
+          anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
+        );
+      }
+    }
+    expect(manager.busy.value, isTrue);
+    manager.loadState(data);
+    manager.swap(0, 1);
+    await reachTransfer();
+    final newTransfer = manager.view.value!.frame;
+    manager.finishBoardAnimation(transfer);
+    await tester.pump();
+    expect(manager.view.value!.frame, same(newTransfer));
+    manager.restart(seed: 9);
+    await tester.pump(const Duration(seconds: 30));
+    expect(manager.view.value!.seed, 9);
+    expect(manager.view.value!.score, 0);
+    expect(manager.busy.value, isFalse);
+    expect(manager.bonusTime.value, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final reduceMotion in [false, true]) {
+    testWidgets('奖励引爆保留展示时间，补块三连不等下一次转换：$reduceMotion', (tester) async {
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = reduceMotion
+        ..loadState(_winningState(seed: 2, moves: 5));
+      addTearDown(manager.dispose);
+      final transfers = <(DateTime, BoardFrame)>[];
+      final conversions = <(DateTime, BoardFrame)>[];
+      final clears = <(DateTime, BoardFrame)>[];
+      final falls = <(DateTime, BoardFrame)>[];
+      manager.view.addListener(() {
+        if (!manager.bonusTime.value) return;
+        final frame = manager.view.value!.frame;
+        final event = (tester.binding.clock.now(), frame);
+        if (frame.transferringPieceIds.isNotEmpty) transfers.add(event);
+        if (frame.convertedPieceIds.isNotEmpty) conversions.add(event);
+        if (frame.phase == FramePhase.clear) clears.add(event);
+        if (frame.phase == FramePhase.fall) falls.add(event);
+      });
+
+      manager.swap(10, 2);
+      for (var i = 0; i < 1500 && manager.busy.value; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
       }
 
-      await reachTransfer();
-      final transfer = manager.view.value!.frame;
-      final targets = transfer.transferringPieceIds;
-      expect(targets, isNotEmpty);
-      expect(transfer.transferSourcePieceId, scenario.isBonus ? isNull : 1);
-      for (final piece in transfer.pieces.whereType<Piece>()) {
-        if (targets.contains(piece.id)) expect(piece.effect, PieceEffect.none);
-      }
-      expect(manager.canInteract, isFalse);
-      await tester.pump();
-      expect(manager.view.value!.frame, same(transfer));
-      manager.finishConversionTransfer(transfer);
-      await tester.pump();
-      final converted = manager.view.value!.frame;
-      expect(
-        converted.phase,
-        scenario.isBonus ? FramePhase.bonus : FramePhase.transform,
-      );
-      expect(converted.convertedPieceIds, targets);
-      expect(converted.score - transfer.score, targets.length * 40);
-      expect(converted.movesLeft, transfer.movesLeft);
-      for (final piece in converted.pieces.whereType<Piece>()) {
-        if (targets.contains(piece.id)) {
-          expect(
-            piece.effect,
-            anyOf(PieceEffect.row, PieceEffect.column, PieceEffect.bomb),
+      expect(transfers, hasLength(4));
+      expect(conversions, hasLength(4));
+      const ignitionDelay = Duration(milliseconds: 350);
+      const conversionInterval = Duration(milliseconds: 900);
+      for (var i = 0; i < conversions.length; i++) {
+        final (transferTime, transfer) = transfers[i];
+        final (convertedAt, conversion) = conversions[i];
+        final id = conversion.convertedPieceIds.single;
+        expect(transfer.transferringPieceIds, {id});
+        expect(conversion.movesLeft, 3 - i);
+        expect(
+          convertedAt.difference(transferTime),
+          manager.transferDuration(transfer),
+        );
+        final (ignitedAt, _) = clears.firstWhere((event) {
+          final (time, frame) = event;
+          return time.isAfter(convertedAt) &&
+              frame.clearing.any((index) => frame.pieces[index]?.id == id);
+        });
+        expect(ignitedAt.difference(convertedAt), ignitionDelay);
+        if (i > 0) {
+          final previousConversion = conversions[i - 1].$1;
+          final interveningClears = clears.where(
+            (event) =>
+                event.$1.isAfter(previousConversion) &&
+                event.$1.isBefore(transferTime),
           );
+          if (interveningClears.length == 1) {
+            expect(
+              convertedAt.difference(previousConversion),
+              conversionInterval,
+            );
+          }
         }
       }
-      expect(manager.busy.value, isTrue);
-      manager.loadState(data);
-      manager.swap(scenario.swap.$1, scenario.swap.$2);
-      await reachTransfer();
-      final newTransfer = manager.view.value!.frame;
-      manager.finishConversionTransfer(transfer);
-      await tester.pump();
-      expect(manager.view.value!.frame, same(newTransfer));
-      manager.restart(seed: 9);
-      await tester.pump(const Duration(seconds: 30));
-      expect(manager.view.value!.seed, 9);
-      expect(manager.view.value!.score, 0);
-      expect(manager.busy.value, isFalse);
-      expect(manager.bonusTime.value, isFalse);
-      expect(tester.takeException(), isNull);
+      final naturalClears = clears.where(
+        (event) =>
+            event.$2.naturalClear && event.$1.isAfter(conversions.first.$1),
+      );
+      expect(
+        naturalClears.any((event) => event.$1.isBefore(transfers.last.$1)),
+        isTrue,
+      );
+      for (final (clearedAt, clear) in naturalClears) {
+        final (fallAt, fall) = falls.lastWhere(
+          (event) => event.$1.isBefore(clearedAt),
+        );
+        expect(clear.movesLeft, fall.movesLeft);
+        expect(clearedAt.difference(fallAt), const Duration(milliseconds: 220));
+      }
+      // 无论消除由自然匹配还是主动引爆发起，结束后都按普通时长补块。
+      for (final (clearedAt, _) in clears) {
+        final (refillAt, _) = falls.firstWhere(
+          (event) => event.$1.isAfter(clearedAt),
+        );
+        expect(
+          refillAt.difference(clearedAt),
+          MatchManager.clearAnimationDuration,
+        );
+      }
+      expect(manager.roundSettled, isTrue);
+      expect(manager.view.value!.movesLeft, 0);
+      expect(manager.view.value!.score, manager.board!.score);
     });
   }
+
+  testWidgets('完整坠落模式先落稳再扣步连线，连线结束后才转换', (tester) async {
+    final data = _winningState();
+    final expected = MatchBoard.fromJson(data)..playSwap(10, 2);
+    final manager = MatchManager(
+      generate: false,
+      bonusPacing: BonusPacing.waitForFall,
+    )..loadState(data);
+    addTearDown(manager.dispose);
+
+    manager.swap(10, 2);
+    for (var i = 0; i < 200; i++) {
+      if (manager.bonusTime.value &&
+          manager.view.value!.frame.phase == FramePhase.fall) {
+        break;
+      }
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    final fall = manager.view.value!.frame;
+    expect(fall.phase, FramePhase.fall);
+    expect(fall.spawnedPieceIds, isNotEmpty);
+    expect(fall.movesLeft, 2);
+
+    await tester.pump(MatchManager.fallAnimationDuration);
+    expect(manager.view.value!.frame, same(fall));
+    manager.finishBoardAnimation(fall);
+    await tester.pump();
+    final transfer = manager.view.value!.frame;
+    expect(transfer.phase, FramePhase.transfer);
+    expect(transfer.spawnedPieceIds, isEmpty);
+    expect(transfer.movesLeft, 1);
+
+    manager.finishBoardAnimation(fall);
+    await tester.pump();
+    expect(manager.view.value!.frame, same(transfer));
+    manager.finishBoardAnimation(transfer);
+    await tester.pump();
+    expect(
+      manager.view.value!.frame.convertedPieceIds,
+      transfer.transferringPieceIds,
+    );
+
+    // 没有界面回调时，后续动画仍会通过超时保护正常结算。
+    for (var i = 0; i < 200 && manager.busy.value; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(manager.roundSettled, isTrue);
+    expect(manager.view.value!.score, expected.score);
+    expect(manager.saveState(), expected.toJson());
+  });
 
   testWidgets('减少动画时彩虹转换仍保留展示状态，重开取消待触发的旧局', (tester) async {
     final manager = MatchManager(seed: 7)..reduceMotion = true;
