@@ -1,13 +1,9 @@
-// ignore: unused_import
-import 'package:intl/intl.dart' as intl;
-
+// Generated from ARB files; do not edit.
 import 'app_localizations.dart';
-
-// ignore_for_file: type=lint
 
 /// The translations for Chinese (`zh`).
 class AppLocalizationsZh extends AppLocalizations {
-  AppLocalizationsZh([String locale = 'zh']) : super(locale);
+  AppLocalizationsZh([super.locale = 'zh']);
 
   @override
   String get confirm => '确认';

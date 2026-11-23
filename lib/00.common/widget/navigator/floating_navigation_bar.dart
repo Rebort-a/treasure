@@ -2,7 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 导航栏底板材质，按表现力从高到低排列，
 /// 对应「液态玻璃 → 毛玻璃 → 模拟玻璃 → 半透明」的能力降级链。

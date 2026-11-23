@@ -1,13 +1,9 @@
-// ignore: unused_import
-import 'package:intl/intl.dart' as intl;
-
+// Generated from ARB files; do not edit.
 import 'app_localizations.dart';
-
-// ignore_for_file: type=lint
 
 /// The translations for English (`en`).
 class AppLocalizationsEn extends AppLocalizations {
-  AppLocalizationsEn([String locale = 'en']) : super(locale);
+  AppLocalizationsEn([super.locale = 'en']);
 
   @override
   String get confirm => 'Confirm';

@@ -5,7 +5,7 @@ import 'dart:ui';
 
 import '../../service/media_file_picker.dart';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../model/chat_message.dart';
 import '../../style/chat_theme.dart';

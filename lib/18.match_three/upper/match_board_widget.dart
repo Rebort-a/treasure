@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart' show EagerGestureRecognizer;
 
 import '../../00.common/l10n/strings.dart';

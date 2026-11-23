@@ -7,8 +7,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Flutter-3.47.2-blue?logo=flutter" alt="Flutter 3.47.2">
-  <img src="https://img.shields.io/badge/Dart-%5E3.13.0-0175C2?logo=dart" alt="Dart ^3.13.0">
+  <img src="https://img.shields.io/badge/Flutter-3.50.1-blue?logo=flutter" alt="Flutter 3.50.1">
+  <img src="https://img.shields.io/badge/Dart-%5E3.14.0-0175C2?logo=dart" alt="Dart ^3.14.0">
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
@@ -73,8 +73,8 @@ HTTPS 页面连接局域网明文 WebSocket 可能被浏览器拦截。房间密
 
 ### Prerequisites | 前置条件
 
-- [Flutter SDK](https://flutter.dev/docs/get-started/install) **3.47.2**，与 `.fvmrc` 和 CI 保持一致。
-- Dart **^3.13.0**，以 `pubspec.yaml` 的 SDK 约束为准。
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) **3.50.1**，与 `.fvmrc` 和 CI 保持一致。
+- Dart **^3.14.0**，以 `pubspec.yaml` 的 SDK 约束为准。
 
 ### Run | 运行
 

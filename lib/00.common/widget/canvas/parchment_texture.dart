@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // 羊皮纸噪点纹理
 class ParchmentTexture extends CustomPainter {

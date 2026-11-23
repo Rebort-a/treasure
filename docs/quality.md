@@ -4,7 +4,7 @@
 
 ## 本地与 CI 的检查顺序
 
-在仓库根目录执行，SDK 使用 `.fvmrc` 中的 Flutter 3.47.2：
+在仓库根目录执行，SDK 使用 `.fvmrc` 中的 Flutter 3.50.1：
 
 ```bash
 flutter pub get
@@ -17,6 +17,10 @@ flutter build web --release --base-href "/treasure/"
 ```
 
 需要修正格式时使用 `dart format lib test scripts`。格式检查本身不改写文件。
+
+修改 [翻译 ARB 文件](../lib/00.common/l10n/) 后，在仓库根目录执行 `dart run scripts/generate_localizations.dart`，并一并提交生成的 Dart 文件。脚本使用当前 Flutter SDK 在临时目录生成代码，并改用独立 UI 包的本地化代理。CI 用同一脚本的 `--check` 模式确认生成文件与 ARB 一致。
+
+如果从旧的自动生成流程切换过来，首次构建前先运行 `flutter clean` 和 `flutter pub get`；旧构建缓存仍可能把这些 Dart 文件当作临时产物删除。若已被删除，运行上面的生成命令恢复。
 
 CI 依次验证格式、静态分析、测试和关键模块覆盖率，上传覆盖率与微基准结果，然后构建 Web。发布流程额外构建原生平台；构建成功不是实机功能验收。
 

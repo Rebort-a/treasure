@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show Uint8List;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../00.common/l10n/l10n.dart';
 import '../../../00.common/l10n/strings.dart';

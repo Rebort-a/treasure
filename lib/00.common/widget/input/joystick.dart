@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class Joystick extends StatefulWidget {
   /// 方向改变回调函数，参数为弧度值（-π 到 π）
