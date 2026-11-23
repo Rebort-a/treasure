@@ -12,6 +12,7 @@ class GameReplayBoard extends StatefulWidget {
   final bool preparing;
   final VoidCallback onReplay;
   final Widget child;
+  final Duration? revealDelay;
 
   const GameReplayBoard({
     super.key,
@@ -20,6 +21,7 @@ class GameReplayBoard extends StatefulWidget {
     required this.child,
     this.waiting = false,
     this.preparing = false,
+    this.revealDelay,
   });
 
   @override
@@ -69,11 +71,18 @@ class _GameReplayBoardState extends State<GameReplayBoard>
       _controller.reset();
     } else if (!_visible) {
       // 先保留最终棋盘供玩家查看，延时期间仍立即阻止棋盘操作。
-      _delay = Timer(const Duration(milliseconds: 600), () {
-        if (!mounted) return;
-        setState(() => _visible = true);
+      final revealDelay =
+          widget.revealDelay ?? const Duration(milliseconds: 600);
+      if (revealDelay == Duration.zero) {
+        _visible = true;
         _controller.forward(from: 0);
-      });
+      } else {
+        _delay = Timer(revealDelay, () {
+          if (!mounted) return;
+          setState(() => _visible = true);
+          _controller.forward(from: 0);
+        });
+      }
     }
   }
 

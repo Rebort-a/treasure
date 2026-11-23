@@ -83,6 +83,7 @@ class MatchAudioController extends SoundController<MatchSound> {
       channel: SoundChannel.voice,
       // 每次结算发布一次事件，连续操作的播报不设间隔。
       minimumInterval: (_) => 0,
+      onPlayback: (_, playback) => manager.trackPraisePlayback(playback),
     );
     _bonusAudio = SoundController<MatchSound>(
       // 奖励阶段包含多个转换帧，只在进入阶段时播报一次。
@@ -103,7 +104,6 @@ class MatchAudioController extends SoundController<MatchSound> {
       minimumInterval: (_) => 0,
       onPlayback: (_, playback) => manager.trackBonusPlayback(playback),
     );
-    manager.winCelebration.addListener(_onCelebration);
     manager.bonusTime.addListener(_syncVoices);
     manager.sound.addListener(_onSound);
     _syncVoices();
@@ -121,16 +121,9 @@ class MatchAudioController extends SoundController<MatchSound> {
 
   void _syncVoices() {
     final active = _pageActive;
-    // 上一手的赞美不与胜利音效或奖励播报重叠。
-    _praiseAudio.setActive(
-      active && !manager.winCelebration.value && !manager.bonusTime.value,
-    );
+    // 胜利音效可与本手赞美并行，奖励语音则在赞美结束后独占语音通道。
+    _praiseAudio.setActive(active && !manager.bonusTime.value);
     _bonusAudio.setActive(active);
-  }
-
-  void _onCelebration() {
-    _syncVoices();
-    if (!manager.winCelebration.value) _winAudio.stop();
   }
 
   void _onSound() {
@@ -153,7 +146,6 @@ class MatchAudioController extends SoundController<MatchSound> {
   Future<void> dispose() => _disposingAll ??= _disposeAll();
 
   Future<void> _disposeAll() async {
-    manager.winCelebration.removeListener(_onCelebration);
     manager.bonusTime.removeListener(_syncVoices);
     manager.sound.removeListener(_onSound);
     await Future.wait([

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -26,7 +25,6 @@ class _MatchCelebrationState extends State<MatchCelebration>
     vsync: this,
     duration: const Duration(milliseconds: 3200),
   )..addStatusListener(_onAnimationStatus);
-  Completer<void>? _playback;
   bool _started = false;
   bool _visible = false;
   bool _reduceMotion = true;
@@ -64,15 +62,9 @@ class _MatchCelebrationState extends State<MatchCelebration>
     }
   }
 
-  void _finishPlayback() {
-    _playback?.complete();
-    _playback = null;
-  }
-
   void _hide() {
     _controller.stop();
     if (_visible) setState(() => _visible = false);
-    _finishPlayback();
   }
 
   void _sync() {
@@ -89,8 +81,6 @@ class _MatchCelebrationState extends State<MatchCelebration>
     }
     if (_started) return;
     _started = true;
-    final playback = _playback = Completer<void>();
-    manager.trackConfettiPlayback(playback.future);
     setState(() => _visible = true);
     _controller.forward(from: 0);
   }
@@ -102,7 +92,6 @@ class _MatchCelebrationState extends State<MatchCelebration>
   @override
   void dispose() {
     _listen(widget.manager, false);
-    _finishPlayback();
     _controller.dispose();
     super.dispose();
   }

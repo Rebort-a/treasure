@@ -1271,7 +1271,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get matchWon => '恭喜过关！';
+  String get matchWon => '恭喜完成！';
 
   @override
   String get matchBonusTime => 'Bonus Time';

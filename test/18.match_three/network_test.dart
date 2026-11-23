@@ -353,6 +353,7 @@ void main() {
       first.swap(firstSwap.$1, firstSwap.$2);
       await _synced(games, moves: 1);
       final actor = games.firstWhere((g) => g.turnEngine.canAct);
+      await waitFor(() => actor.canInteract);
       expect(actor.turnEngine.identity, b.identity);
       final swap = actor.board!.legalMoves.first;
       actor.swap(swap.$1, swap.$2);
@@ -401,6 +402,7 @@ void main() {
       for (var step = 0; step < 8; step++) {
         final actorId = games.first.turnEngine.currentPlayer.value;
         final actor = games.firstWhere((g) => g.turnEngine.identity == actorId);
+        await waitFor(() => actor.canInteract);
         final other = games.firstWhere((g) => g != actor);
         expect(other.turnEngine.submitAction({'from': 0, 'to': 1}), isFalse);
         final swap = actor.board!.legalMoves.first;

@@ -49,7 +49,7 @@ void main() {
     await tester.tapAt(center(swap.$2));
     await tester.pump();
     expect(manager.board!.moveNumber, 1);
-    expect(manager.busy.value, isFalse);
+    expect(manager.busy.value, isTrue);
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     expect(manager.busy.value, isFalse);

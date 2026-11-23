@@ -55,6 +55,9 @@ class BoardFrame {
   final bool naturalClear;
   final int movesLeft;
 
+  /// 目标首次达成的消除帧可触发庆祝，不必等本次行动的后续坠落。
+  final bool goalsMet;
+
   /// 分数快照，随消除、特效生成和目标进度更新，而不是一次跳到总分。
   final int score;
   final FramePhase phase;
@@ -107,6 +110,7 @@ class BoardFrame {
        convertedPieceIds = Set.unmodifiable(convertedPieceIds),
        transferringPieceIds = Set.unmodifiable(transferringPieceIds),
        movesLeft = movesLeft ?? board.movesLeft,
+       goalsMet = board.goalsMet,
        score = score ?? board.score;
 
   BoardFrame.conversion(
@@ -146,6 +150,7 @@ class BoardFrame {
       bonusFalling = false,
       bonusTransferStartedAt = null,
       movesLeft = board.movesLeft,
+      goalsMet = board.goalsMet,
       score = board.score,
       phase = FramePhase.settled;
 }
@@ -159,6 +164,9 @@ class SwapResult {
   final int totalCleared;
   final int specialEffectsTriggered;
 
+  /// 行动结算帧之后才是奖励帧；没有奖励时它就是最后一帧。
+  final int actionEndIndex;
+
   const SwapResult(
     this.frames,
     this.cascades,
@@ -166,8 +174,13 @@ class SwapResult {
     this.shuffled,
     this.initialMatchCount,
     this.totalCleared,
-    this.specialEffectsTriggered,
-  );
+    this.specialEffectsTriggered, {
+    required this.actionEndIndex,
+  });
+
+  BoardFrame get actionEndFrame => frames[actionEndIndex];
+  Iterable<BoardFrame> get actionFrames => frames.take(actionEndIndex + 1);
+  bool get hasBonus => actionEndIndex < frames.length - 1;
 }
 
 /// 纯 Dart 三消内核。所有随机数均来自可序列化的同一条序列，动画不消耗随机数。
@@ -256,13 +269,15 @@ class MatchBoard {
 
   Piece _piece(int kind) => Piece(_nextId++, kind);
 
-  MatchStatus get status {
-    if (ice.every((layer) => layer == 0) &&
-        targets.entries.every((entry) => collected[entry.key] >= entry.value)) {
-      return MatchStatus.won;
-    }
-    return movesLeft == 0 ? MatchStatus.lost : MatchStatus.playing;
-  }
+  bool get goalsMet =>
+      ice.every((layer) => layer == 0) &&
+      targets.entries.every((entry) => collected[entry.key] >= entry.value);
+
+  MatchStatus get status => goalsMet
+      ? MatchStatus.won
+      : movesLeft == 0
+      ? MatchStatus.lost
+      : MatchStatus.playing;
 
   int get iceLeft => ice.fold(0, (sum, value) => sum + value);
 
@@ -1155,9 +1170,10 @@ class MatchBoard {
       );
     }
     final cascades = resolution.waves;
+    final actionEndIndex = frames.length;
     int? bonusEnd;
-    if (status == MatchStatus.won) {
-      // 本次行动先稳定结算，展示层完成赞美后再进入奖励阶段。
+    if (goalsMet && movesLeft > 0) {
+      // 只有剩余步数才开启奖励；本次行动的棋盘先单独保留一帧。
       frames.add(BoardFrame(this, FramePhase.settled));
       switch (bonusPacing) {
         case BonusPacing.fixedBeat:
@@ -1176,6 +1192,7 @@ class MatchBoard {
       initialMatchCount,
       resolution.totalCleared,
       resolution.specialEffectsTriggered,
+      actionEndIndex: actionEndIndex,
     );
   }
 

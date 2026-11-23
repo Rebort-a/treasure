@@ -177,43 +177,7 @@ class _MatchGameContent extends StatelessWidget {
                         const SizedBox(height: 12),
                         _goals(context, view),
                         const SizedBox(height: 14),
-                        if (engine == null)
-                          ValueListenableBuilder<bool>(
-                            valueListenable: manager.busy,
-                            builder: (_, busy, _) =>
-                                ValueListenableBuilder<bool>(
-                                  valueListenable: manager.bonusTime,
-                                  builder: (_, bonus, _) => GameReplayBoard(
-                                    finished:
-                                        view.status != MatchStatus.playing &&
-                                        !busy &&
-                                        !bonus,
-                                    onReplay: manager.restart,
-                                    child: MatchBoardWidget(
-                                      key: ValueKey(manager.roundNumber),
-                                      manager: manager,
-                                      view: view,
-                                    ),
-                                  ),
-                                ),
-                          )
-                        else
-                          ValueListenableBuilder<bool>(
-                            valueListenable: manager.busy,
-                            builder: (_, busy, _) =>
-                                ValueListenableBuilder<bool>(
-                                  valueListenable: manager.bonusTime,
-                                  builder: (_, bonus, _) => RoundReplayBoard(
-                                    engine: engine!,
-                                    presentationReady: manager.roundSettled,
-                                    child: MatchBoardWidget(
-                                      key: ValueKey(manager.roundNumber),
-                                      manager: manager,
-                                      view: view,
-                                    ),
-                                  ),
-                                ),
-                          ),
+                        _replayBoard(view),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 88,
@@ -230,6 +194,33 @@ class _MatchGameContent extends StatelessWidget {
       ),
     );
   }
+
+  Widget _replayBoard(MatchView view) => ListenableBuilder(
+    listenable: Listenable.merge([manager.busy, manager.bonusTime]),
+    child: MatchBoardWidget(
+      key: ValueKey(manager.roundNumber),
+      manager: manager,
+      view: view,
+    ),
+    builder: (_, child) {
+      final revealDelay = view.status == MatchStatus.won ? Duration.zero : null;
+      final online = engine;
+      if (online != null) {
+        return RoundReplayBoard(
+          engine: online,
+          presentationReady: manager.roundSettled,
+          revealDelay: revealDelay,
+          child: child!,
+        );
+      }
+      return GameReplayBoard(
+        finished: manager.roundSettled && view.status != MatchStatus.playing,
+        revealDelay: revealDelay,
+        onReplay: manager.restart,
+        child: child!,
+      );
+    },
+  );
 
   Widget _multiplierIndicator(BuildContext context, int multiplier) => Center(
     child: Row(
@@ -267,46 +258,37 @@ class _MatchGameContent extends StatelessWidget {
                   : S.matchLost;
               return _resultIndicator(context, message, view.status);
             }
-            if (busy) {
-              return ValueListenableBuilder<String?>(
-                valueListenable: manager.comboPraise,
-                builder: (context, praise, _) {
-                  if (praise != null) {
-                    return _celebrationIndicator(context, praise);
-                  }
-                  return ValueListenableBuilder<int?>(
-                    valueListenable: manager.comboMultiplier,
-                    builder: (context, multiplier, _) => multiplier == null
-                        ? const SizedBox.shrink()
-                        : _multiplierIndicator(context, multiplier),
-                  );
-                },
-              );
-            }
             return ValueListenableBuilder<String?>(
               valueListenable: manager.comboPraise,
-              builder: (context, praise, _) {
-                if (praise != null) {
-                  return _celebrationIndicator(context, praise);
-                }
-                return ValueListenableBuilder<bool>(
-                  valueListenable: manager.invalidSwapAnimating,
-                  builder: (context, invalidSwapAnimating, _) {
-                    if (invalidSwapAnimating) {
-                      return _multiplierIndicator(context, 0);
+              builder: (context, praise, _) => ValueListenableBuilder<int?>(
+                valueListenable: manager.comboMultiplier,
+                builder: (context, multiplier, _) {
+                  if (praise != null) {
+                    if (multiplier == null) {
+                      return _celebrationIndicator(context, praise);
                     }
-                    final message = switch (view.status) {
-                      MatchStatus.won => S.matchWon,
-                      MatchStatus.lost => S.matchLost,
-                      MatchStatus.playing => null,
-                    };
-                    if (message == null) {
-                      return const SizedBox.shrink();
-                    }
-                    return _resultIndicator(context, message, view.status);
-                  },
-                );
-              },
+                    // 减少动画时没有独立坠落阶段，倍率和赞美一起显示。
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _multiplierIndicator(context, multiplier),
+                        const SizedBox(width: 12),
+                        Flexible(child: _celebrationIndicator(context, praise)),
+                      ],
+                    );
+                  }
+                  if (multiplier != null) {
+                    return _multiplierIndicator(context, multiplier);
+                  }
+                  if (busy) return const SizedBox.shrink();
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: manager.invalidSwapAnimating,
+                    builder: (context, invalid, _) => invalid
+                        ? _multiplierIndicator(context, 0)
+                        : const SizedBox.shrink(),
+                  );
+                },
+              ),
             );
           },
         ),

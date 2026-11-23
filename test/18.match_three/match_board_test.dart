@@ -709,8 +709,8 @@ void main() {
     final data = setup.toJson()
       ..['targets'] = {'0': 1, '1': 1}
       ..['collected'] = [0, 1, 0, 0, 0, 0]
-      ..['movesLeft'] = 1;
-    data['moveNumber'] = data['initialMoves'] - 1;
+      ..['movesLeft'] = 2;
+    data['moveNumber'] = data['initialMoves'] - 2;
     final board = MatchBoard.fromJson(data);
     final result = board.playSwap(10, 2)!;
     final bonusFrames = result.frames
@@ -995,7 +995,7 @@ void main() {
       final data = setup.toJson()
         ..['targets'] = {'0': 1, '1': 1}
         ..['collected'] = [0, 1, 0, 0, 0, 0]
-        ..['movesLeft'] = seed.isEven ? 1 : 3;
+        ..['movesLeft'] = seed.isEven ? 2 : 3;
       data['moveNumber'] = data['initialMoves'] - data['movesLeft'];
       final board = MatchBoard.fromJson(data);
       final mirror = MatchBoard.fromJson(jsonDecode(jsonEncode(data)));
@@ -1060,6 +1060,39 @@ void main() {
     expect(ignitedConverted, isTrue);
     expect(ignitedCascadeWithoutMoves, isTrue);
     expect(naturalClearTriggeredEarly, isTrue);
+  });
+
+  test('最后一步达成目标不进入奖励，也不自动引爆棋盘上剩余的特效', () {
+    final data =
+        _pattern(
+            {0: 0, 1: 0, 2: 1, 3: 0, 10: 0},
+            effects: {60: PieceEffect.bomb},
+          ).toJson()
+          ..['targets'] = {'0': 1, '1': 1}
+          ..['collected'] = [0, 1, 0, 0, 0, 0]
+          ..['movesLeft'] = 1;
+    data['moveNumber'] = data['initialMoves'] - 1;
+    for (final pacing in BonusPacing.values) {
+      final board = MatchBoard.fromJson(data);
+      final result = board.playSwap(10, 2, bonusPacing: pacing)!;
+      expect(result.frames.first.goalsMet, isFalse);
+      expect(
+        result.frames.firstWhere((frame) => frame.goalsMet).phase,
+        FramePhase.clear,
+      );
+      expect(
+        result.frames.where((frame) => frame.phase == FramePhase.bonus),
+        isEmpty,
+      );
+      expect(
+        board.pieces.whereType<Piece>().any(
+          (piece) => piece.effect == PieceEffect.bomb,
+        ),
+        isTrue,
+      );
+      expect(board.movesLeft, 0);
+      expect(board.status, MatchStatus.won);
+    }
   });
 
   test('步数归零结束，达成全部目标才获胜，结束后不再接受交换', () {

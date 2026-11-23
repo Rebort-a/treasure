@@ -114,10 +114,9 @@ void main() {
     for (var step = 0; step < 120 && manager.busy.value; step++) {
       expect(replay, findsNothing);
       sawMultiplier |= multiplier.evaluate().isNotEmpty;
-      if (manager.winCelebration.value) {
+      if (manager.winCelebration.value && multiplier.evaluate().isNotEmpty) {
         sawCelebration = true;
         expect(manager.bonusTime.value, isFalse);
-        expect(multiplier, findsNothing);
       }
       await tester.pump(const Duration(milliseconds: 150));
     }

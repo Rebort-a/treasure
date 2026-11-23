@@ -9,12 +9,14 @@ class RoundReplayBoard extends StatelessWidget {
   final GameEngine engine;
   final Widget child;
   final bool presentationReady;
+  final Duration? revealDelay;
 
   const RoundReplayBoard({
     super.key,
     required this.engine,
     required this.child,
     this.presentationReady = true,
+    this.revealDelay,
   });
 
   @override
@@ -31,6 +33,7 @@ class RoundReplayBoard extends StatelessWidget {
             finished: finished && presentationReady,
             waiting: waiting,
             preparing: preparing,
+            revealDelay: revealDelay,
             onReplay: engine.requestReplay,
             child: child,
           ),

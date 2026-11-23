@@ -71,7 +71,7 @@ class MatchManager {
   Completer<void>? _boardAnimation;
   BoardFrame? _boardAnimationFrame;
   Future<void>? _winPlayback;
-  Future<void>? _confettiPlayback;
+  Future<void>? _praisePlayback;
   Future<void>? _bonusPlayback;
   bool reduceMotion = false;
   int _roundNumber = 0;
@@ -166,7 +166,7 @@ class MatchManager {
       }
       return;
     }
-    _animate(result);
+    unawaited(_animate(result));
   }
 
   void showInvalidSwap(int a, int b) {
@@ -257,7 +257,7 @@ class MatchManager {
     invalidSwap.value = null;
     invalidSwapAnimating.value = false;
     if (result != null) {
-      _animate(result);
+      unawaited(_animate(result));
     } else {
       _emitSound(MatchSound.reset);
       _animationEpoch++;
@@ -419,20 +419,24 @@ class MatchManager {
     return ComboPraise.good;
   }
 
-  Future<void> _delay(Duration duration) {
+  Future<void> _delay(Duration duration, {Future<void>? until}) {
     final completer = Completer<void>();
     late final Timer timer;
-    timer = Timer(duration, () {
-      _pendingDelays.remove(timer);
-      if (!completer.isCompleted) completer.complete();
-    });
+    void finish() {
+      if (_pendingDelays.remove(timer) == null) return;
+      timer.cancel();
+      completer.complete();
+    }
+
+    timer = Timer(duration, finish);
     _pendingDelays[timer] = completer;
+    if (until != null) unawaited(until.then((_) => finish()));
     return completer.future;
   }
 
   void _cancelDelays() {
     _winPlayback = null;
-    _confettiPlayback = null;
+    _praisePlayback = null;
     _bonusPlayback = null;
     winCelebration.value = false;
     final animation = _boardAnimation;
@@ -463,67 +467,51 @@ class MatchManager {
     _boardAnimation = animation;
     _boardAnimationFrame = frame;
     // 未挂载界面的成员也必须正常结束结算，不能永久等待界面回调。
-    await Future.any([
-      animation.future,
-      _delay(duration + const Duration(milliseconds: 250)),
-    ]);
+    await _delay(
+      duration + const Duration(milliseconds: 250),
+      until: animation.future,
+    );
     if (identical(_boardAnimation, animation)) {
       _boardAnimation = null;
       _boardAnimationFrame = null;
     }
   }
 
-  /// 撒花和胜利音效分别报告完成；未挂载时不阻塞奖励。
-  void trackConfettiPlayback(Future<void> playback) {
-    if (!_disposed && winCelebration.value) _confettiPlayback = playback;
-  }
+  void trackWinPlayback(Future<void> playback) => _winPlayback = playback;
 
-  void trackWinPlayback(Future<void> playback) {
-    if (!_disposed && winCelebration.value) _winPlayback = playback;
-  }
+  void trackPraisePlayback(Future<void> playback) => _praisePlayback = playback;
 
-  /// 播放器同步关联当前奖励开场，旧局等待由动画代次与可取消延时隔离。
-  void trackBonusPlayback(Future<void> playback) {
-    if (!_disposed && bonusTime.value) _bonusPlayback = playback;
-  }
+  void trackBonusPlayback(Future<void> playback) => _bonusPlayback = playback;
 
-  void _showPraiseBriefly(ComboPraise praise, int epoch) {
-    comboMultiplier.value = null;
-    comboPraise.value = praise.label;
-    praiseVoice.value = ComboPraiseEvent(praise);
-    unawaited(() async {
-      await _delay(const Duration(milliseconds: 1000));
-      if (!_disposed && epoch == _animationEpoch) {
-        comboPraise.value = null;
-      }
-    }());
-  }
+  Future<void> _waitForPlayback(Future<void>? playback) => playback == null
+      ? Future.value()
+      : _delay(const Duration(seconds: 5), until: playback);
 
-  Future<bool> _beginBonusAfterCelebration(int epoch) async {
-    comboPraise.value = null;
-    comboMultiplier.value = null;
+  Future<void> _startWin() {
+    // 撒花只接收开始信号，由界面自行播放至结束，不参与任何等待。
     winCelebration.value = true;
     _emitSound(MatchSound.win);
-    final opening = [?_winPlayback, ?_confettiPlayback];
-    if (opening.isNotEmpty) {
-      // 等音效与撒花都结束；设备异常或视图暂停时仍可继续结算。
-      await Future.any([
-        Future.wait(opening),
-        _delay(const Duration(seconds: 5)),
-      ]);
-    }
-    if (_disposed || epoch != _animationEpoch) return false;
-    winCelebration.value = false;
-    _winPlayback = null;
-    _confettiPlayback = null;
-    _bonusPlayback = null;
+    return _waitForPlayback(_winPlayback);
+  }
+
+  Future<void> _showPraise(ComboPraise praise) {
+    comboPraise.value = praise.label;
+    praiseVoice.value = ComboPraiseEvent(praise);
+    return Future.wait<void>([
+      _delay(const Duration(seconds: 1)),
+      _waitForPlayback(_praisePlayback),
+    ]);
+  }
+
+  void _clearActionFeedback() {
+    comboMultiplier.value = null;
+    comboPraise.value = null;
+  }
+
+  Future<void> _beginBonus() {
     bonusTime.value = true;
-    final bonusPlayback = _bonusPlayback;
-    if (bonusPlayback != null) {
-      // 先完整播报奖励开场，再触发自动消除及步数转换，避免提示音压住语音。
-      await Future.any([bonusPlayback, _delay(const Duration(seconds: 5))]);
-    }
-    return !_disposed && epoch == _animationEpoch;
+    // 先完整播报奖励开场，再触发自动消除及步数转换。
+    return _waitForPlayback(_bonusPlayback);
   }
 
   Future<void> _playBonusFrames(
@@ -606,126 +594,109 @@ class MatchManager {
     _ => _naturalFallDelay,
   };
 
-  void _animate(SwapResult result) {
+  bool _isCurrent(int epoch) => !_disposed && epoch == _animationEpoch;
+
+  Future<void> _playActionFrames(
+    SwapResult result,
+    int epoch, {
+    required bool animate,
+    required void Function(BoardFrame) onFrame,
+  }) async {
+    final frames = result.actionFrames;
+    if (!animate) {
+      // 减少动画时跳过交换和坠落，但保留转换展示和消除反馈。
+      final conversions = frames.where(
+        (frame) => frame.convertedPieceIds.isNotEmpty,
+      );
+      if (result.hasBonus || conversions.isEmpty) {
+        _emitSound(MatchSound.swap);
+        _emitSound(MatchSound.clear1);
+      }
+      for (final frame in conversions) {
+        _presentFrame(frame);
+        await _delay(_conversionPause);
+        if (!_isCurrent(epoch)) return;
+      }
+      final settled = result.actionEndFrame;
+      _show(settled);
+      onFrame(settled);
+      comboMultiplier.value = result.cascades == 0 ? null : result.cascades;
+      return;
+    }
+
+    var cascade = 0;
+    for (final frame in frames) {
+      if (!_isCurrent(epoch)) return;
+      if (frame.phase == FramePhase.clear) {
+        comboMultiplier.value = ++cascade;
+      }
+      final transfer = frame.phase == FramePhase.transfer
+          ? _waitBoardAnimation(frame, transferDuration(frame))
+          : null;
+      _presentFrame(frame, cascade: cascade);
+      onFrame(frame);
+      if (transfer != null) {
+        await transfer;
+      } else {
+        final duration = frame.convertedPieceIds.isNotEmpty
+            ? _conversionPause
+            : _regularFrameDelay(frame);
+        if (duration > Duration.zero) await _delay(duration);
+      }
+    }
+  }
+
+  Future<void> _animate(SwapResult result) async {
     _cancelDelays();
     final epoch = ++_animationEpoch;
-    final praise = _praiseFor(result);
-    final hasBonusTime = result.frames.any(
-      (frame) => frame.phase == FramePhase.bonus,
-    );
-    final hasConversion = result.frames.any(
-      (frame) => frame.convertedPieceIds.isNotEmpty,
-    );
-    final hasFullBoardSpawn = result.frames.any(_isFullBoardSpawn);
-    final bonusIndex = result.frames.indexWhere(
-      (frame) => frame.phase == FramePhase.bonus,
-    );
-    final hasActionFullBoardSpawn =
-        hasBonusTime && result.frames.take(bonusIndex).any(_isFullBoardSpawn);
-    final frames = result.frames;
-    comboPraise.value = null;
+    final animate = !reduceMotion;
+    _clearActionFeedback();
     bonusTime.value = false;
-    if (reduceMotion && !hasBonusTime && !hasConversion) {
-      busy.value = true;
-      comboMultiplier.value = null;
-      // 减少动画时只播放一次操作与消除反馈，不补播被跳过的整段音效。
-      _emitSound(MatchSound.swap);
-      _emitSound(MatchSound.clear1);
-      _show(result.frames.last);
-      if (hasFullBoardSpawn || result.shuffled) _emitSound(MatchSound.appear);
-      busy.value = false;
-      _announceResult();
-      if (_board?.status == MatchStatus.playing) {
-        _showPraiseBriefly(praise, epoch);
-      }
-      return;
-    }
-    if (reduceMotion) {
-      busy.value = true;
-      comboMultiplier.value = null;
-      unawaited(() async {
-        if (hasBonusTime) {
-          _emitSound(MatchSound.swap);
-          _emitSound(MatchSound.clear1);
-        }
-        final actionEnd = hasBonusTime ? bonusIndex : frames.length;
-        for (var i = 0; i < actionEnd; i++) {
-          if (_disposed || epoch != _animationEpoch) return;
-          final frame = frames[i];
-          if (frame.convertedPieceIds.isNotEmpty) {
-            _presentFrame(frame);
-            await _delay(_conversionPause);
-          }
-        }
-        if (_disposed || epoch != _animationEpoch) return;
-        if (hasBonusTime) {
-          _show(frames[bonusIndex - 1]);
-          if (hasActionFullBoardSpawn) _emitSound(MatchSound.appear);
-          if (!await _beginBonusAfterCelebration(epoch)) return;
-          await _playBonusFrames(frames, bonusIndex, epoch, animate: false);
-        }
-        if (_disposed || epoch != _animationEpoch) return;
-        _show(result.frames.last);
-        if (_disposed || epoch != _animationEpoch) return;
-        if (result.shuffled || (!hasBonusTime && hasFullBoardSpawn)) {
-          _emitSound(MatchSound.appear);
-        }
-        bonusTime.value = false;
-        busy.value = false;
-        _announceResult();
-        if (!hasBonusTime && _board?.status == MatchStatus.playing) {
-          _showPraiseBriefly(praise, epoch);
-        }
-      }());
-      return;
-    }
     busy.value = true;
     comboMultiplier.value = result.cascades == 0 ? null : 1;
-    unawaited(() async {
-      var cascade = 0;
-      final actionEnd = hasBonusTime ? bonusIndex : frames.length;
-      for (var i = 0; i < actionEnd; i++) {
-        if (_disposed || epoch != _animationEpoch) return;
-        final frame = frames[i];
-        if (frame.phase == FramePhase.clear) {
-          cascade++;
-          comboMultiplier.value = cascade;
-        }
-        final transfer = frame.phase == FramePhase.transfer
-            ? _waitBoardAnimation(frame, transferDuration(frame))
-            : null;
-        _presentFrame(frame, cascade: cascade);
-        // 重排没有独立的下落帧，只在最终棋盘真正展示时提示一次。
-        if (result.shuffled && identical(frame, frames.last)) {
-          _emitSound(MatchSound.appear);
-        }
-        if (transfer != null) {
-          await transfer;
-        } else {
-          final duration = frame.convertedPieceIds.isNotEmpty
-              ? _conversionPause
-              : _regularFrameDelay(frame);
-          if (duration > Duration.zero) await _delay(duration);
-        }
-      }
-      if (_disposed || epoch != _animationEpoch) return;
-      if (hasBonusTime) {
-        if (!await _beginBonusAfterCelebration(epoch)) return;
-        await _playBonusFrames(frames, bonusIndex, epoch, animate: true);
-        if (_disposed || epoch != _animationEpoch) return;
-        _show(frames.last);
-        if (result.shuffled) _emitSound(MatchSound.appear);
-      } else if (_board?.status == MatchStatus.playing) {
-        comboMultiplier.value = null;
-        _showPraiseBriefly(praise, epoch);
-      }
-      if (!_disposed && epoch == _animationEpoch) {
-        comboMultiplier.value = null;
-        bonusTime.value = false;
-        busy.value = false;
-        _announceResult();
-      }
-    }());
+
+    // 胜利音效从达成目标的帧开始，和行动动画、赞美并行。
+    Future<void>? winPlayback;
+    await _playActionFrames(
+      result,
+      epoch,
+      animate: animate,
+      onFrame: (frame) {
+        if (frame.goalsMet) winPlayback ??= _startWin();
+      },
+    );
+    if (!_isCurrent(epoch)) return;
+    if ((!result.hasBonus && result.shuffled) ||
+        (!animate && result.actionFrames.any(_isFullBoardSpawn))) {
+      _emitSound(MatchSound.appear);
+    }
+
+    if (animate) comboMultiplier.value = null;
+    await _showPraise(_praiseFor(result));
+    if (!_isCurrent(epoch)) return;
+    _clearActionFeedback();
+    final win = winPlayback;
+    if (win != null) {
+      await win;
+      if (!_isCurrent(epoch)) return;
+    }
+
+    if (result.hasBonus) {
+      await _beginBonus();
+      if (!_isCurrent(epoch)) return;
+      await _playBonusFrames(
+        result.frames,
+        result.actionEndIndex + 1,
+        epoch,
+        animate: animate,
+      );
+      if (!_isCurrent(epoch)) return;
+      _show(result.frames.last);
+      if (result.shuffled) _emitSound(MatchSound.appear);
+      bonusTime.value = false;
+    }
+    busy.value = false;
+    _announceResult();
   }
 
   void dispose() {

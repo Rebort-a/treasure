@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:treasure/00.common/l10n/l10n.dart';
 import 'package:treasure/00.common/service/json_store.dart';
 import 'package:treasure/00.common/sound/sound_service.dart';
 import 'package:treasure/18.match_three/middle/combo_praise.dart';
@@ -9,6 +10,7 @@ import 'package:treasure/18.match_three/base/match_board.dart';
 import 'package:treasure/18.match_three/middle/match_audio.dart';
 import 'package:treasure/18.match_three/middle/match_manager.dart';
 import 'package:treasure/18.match_three/middle/match_sound.dart';
+import 'package:treasure/18.match_three/upper/game_view.dart';
 import 'package:treasure/18.match_three/upper/match_celebration.dart';
 
 class _Voice implements SoundPlayer<ComboPraise> {
@@ -87,9 +89,13 @@ class _Store implements JsonStore {
 void _praise(MatchManager manager, ComboPraise praise) =>
     manager.praiseVoice.value = ComboPraiseEvent(praise);
 
-Map<String, dynamic> _board({bool winning = false}) {
+Map<String, dynamic> _board({
+  bool winning = false,
+  int moves = 3,
+  bool simple = false,
+}) {
   final data = MatchBoard.random(seed: 7).toJson();
-  const overrides = {0: 0, 1: 0, 2: 1, 3: 0, 10: 0};
+  final overrides = {0: 0, 1: 0, 2: 1, if (!simple) 3: 0, 10: 0};
   data['pieces'] = [
     for (var i = 0; i < MatchBoard.cells; i++)
       [i + 1, overrides[i] ?? (i ~/ 8 * 2 + i % 8) % 6, 0],
@@ -99,8 +105,8 @@ Map<String, dynamic> _board({bool winning = false}) {
   data['targets'] = winning ? {'0': 1, '1': 1} : {'4': 1000, '5': 1000};
   data['collected'] = [0, winning ? 1 : 0, 0, 0, 0, 0];
   if (winning) {
-    data['movesLeft'] = 3;
-    data['moveNumber'] = (data['initialMoves'] as int) - 3;
+    data['movesLeft'] = moves;
+    data['moveNumber'] = (data['initialMoves'] as int) - moves;
   }
   return data;
 }
@@ -341,6 +347,91 @@ void main() {
   });
 
   for (final reduceMotion in [false, true]) {
+    testWidgets('零步通关显示恭喜完成，撒花期间可点击棋盘中央重开：$reduceMotion', (tester) async {
+      final language = LanguageProvider.instance;
+      language.resetForTesting();
+      language.locale.value = AppLocale.zh;
+      addTearDown(language.resetForTesting);
+      final data = _board(winning: true, moves: 1, simple: true);
+      final manager = MatchManager(generate: false)
+        ..reduceMotion = true
+        ..loadState(data);
+      final win = _Effects()..playing = Completer<void>();
+      final voice = _Voice()..playing = Completer<void>();
+      final effects = _Effects();
+      final bonus = _Effects();
+      final audio = MatchAudioController(
+        manager: manager,
+        player: effects,
+        winPlayer: win,
+        praisePlayer: voice,
+        bonusPlayer: bonus,
+        store: _Store(),
+      );
+      await audio.ready;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(disableAnimations: reduceMotion),
+              child: MatchGameView(manager: manager, onExit: () {}),
+            ),
+          ),
+        ),
+      );
+      final confetti = find.byKey(const ValueKey('match-celebration'));
+      final replay = find.byKey(const ValueKey('round-replay'));
+      final multiplier = find.byKey(const ValueKey('match-multiplier'));
+      var openedBonus = false;
+      manager.bonusTime.addListener(
+        () => openedBonus |= manager.bonusTime.value,
+      );
+      manager.swap(10, 2);
+      await tester.pump();
+      expect(tester.widget<Text>(multiplier).data, '1');
+      for (var i = 0; i < 10 && voice.played.isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(win.played, [MatchSound.win]);
+      expect(voice.played, [ComboPraise.good]);
+      final resultText = find.text('恭喜完成！');
+      expect(find.text('Good'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Good'), findsOneWidget);
+      win.playing!.complete();
+      await tester.pump();
+      expect(resultText, findsNothing);
+      expect(replay, findsNothing);
+      expect(effects.played, isNot(contains(MatchSound.won)));
+      voice.playing!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Good'), findsNothing);
+      expect(resultText, findsOneWidget);
+      expect(replay, findsOneWidget);
+      expect(confetti, reduceMotion ? findsNothing : findsOneWidget);
+      expect(openedBonus, isFalse);
+      expect(bonus.played, isEmpty);
+      expect(manager.roundSettled, isTrue);
+      expect(manager.view.value!.movesLeft, 0);
+      expect(effects.played.last, MatchSound.won);
+      await tester.ensureVisible(replay);
+      await tester.pump();
+      expect(confetti, reduceMotion ? findsNothing : findsOneWidget);
+      await tester.tap(replay);
+      await tester.pump();
+      expect(manager.roundNumber, 1);
+      expect(manager.board!.status, MatchStatus.playing);
+      expect(manager.board!.moveNumber, 0);
+      expect(resultText, findsNothing);
+      expect(replay, findsNothing);
+      expect(confetti, findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await audio.dispose();
+      manager.dispose();
+    });
+
     testWidgets('奖励开场等待可被重开、快照、联机重置和退出取消：$reduceMotion', (tester) async {
       for (final cancel in ['restart', 'snapshot', 'reset', 'dispose']) {
         final manager = MatchManager(generate: false)
@@ -452,11 +543,14 @@ void main() {
       await audio.ready;
       for (final move in [(1, 2), (3, 11)]) {
         manager.swap(move.$1, move.$2);
-        for (var i = 0; i < 400 && manager.busy.value; i++) {
+        for (var i = 0; i < 400 && manager.comboPraise.value == null; i++) {
           await tester.pump(const Duration(milliseconds: 250));
         }
-        expect(manager.busy.value, isFalse);
         expect(manager.comboPraise.value, ComboPraise.good.label);
+        expect(manager.canInteract, isFalse);
+        await tester.pump(const Duration(seconds: 1));
+        expect(manager.comboPraise.value, isNull);
+        expect(manager.canInteract, isTrue);
       }
       expect(voice.played, [ComboPraise.good, ComboPraise.good]);
       final state = manager.board!.toJson();
@@ -470,12 +564,13 @@ void main() {
       manager.dispose();
     });
 
-    testWidgets('胜利庆祝、奖励播报、奖励结算和最终胜利音效按顺序发生：$reduceMotion', (tester) async {
+    testWidgets('胜利庆祝与行动并行，赞美和胜利音结束后直接开始奖励：$reduceMotion', (tester) async {
+      final data = _board(winning: true, simple: true);
       final manager = MatchManager(generate: false)
         ..reduceMotion = true
-        ..loadState(_board(winning: true))
+        ..loadState(data)
         ..reduceMotion = reduceMotion;
-      final voice = _Voice();
+      final voice = _Voice()..playing = Completer<void>();
       final win = _Effects()..playing = Completer<void>();
       final effects = _Effects();
       final bonus = _Effects()..playing = Completer<void>();
@@ -529,34 +624,36 @@ void main() {
       );
       final confetti = find.byKey(const ValueKey('match-celebration'));
       manager.swap(10, 2);
-      for (var i = 0; i < 100 && win.played.isEmpty; i++) {
+      if (!reduceMotion) {
+        expect(win.played, isEmpty);
+        await tester.pump(const Duration(milliseconds: BonusTiming.fall));
+        expect(manager.view.value!.frame.phase, FramePhase.clear);
+        expect(voice.played, isEmpty);
+      }
+      expect(win.played, [MatchSound.win]);
+      expect(manager.view.value!.frame.goalsMet, isTrue);
+      expect(manager.comboMultiplier.value, 1);
+      await tester.pump();
+      expect(confetti, reduceMotion ? findsNothing : findsOneWidget);
+      for (var i = 0; i < 10 && voice.played.isEmpty; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      await tester.pump();
-      expect(win.played, [MatchSound.win]);
-      expect(voice.played, isEmpty);
-      expect(confetti, reduceMotion ? findsNothing : findsOneWidget);
+      expect(voice.played, [ComboPraise.good]);
+      expect(manager.comboPraise.value, 'Good');
       expect(manager.view.value!.frame.phase, FramePhase.settled);
       expect(manager.view.value!.score, actionEnd.score);
       expect(manager.view.value!.movesLeft, actionEnd.movesLeft);
-      expect(manager.bonusTime.value, isFalse);
-      expect(manager.busy.value, isTrue);
       expect(manager.roundSettled, isFalse);
       expect(manager.canInteract, isFalse);
-      expect(bonus.played, isEmpty);
-      expect(effects.played, isNot(contains(MatchSound.won)));
-      await tester.pump(const Duration(milliseconds: 1500));
+      win.playing!.complete();
+      await tester.pump(const Duration(seconds: 1));
+      expect(manager.comboPraise.value, 'Good');
       expect(manager.bonusTime.value, isFalse);
       expect(bonus.played, isEmpty);
-      win.playing!.complete();
+      voice.playing!.complete();
       await tester.pump();
-      if (!reduceMotion) {
-        expect(confetti, findsOneWidget);
-        expect(bonus.played, isEmpty);
-        await tester.pump(const Duration(seconds: 2));
-        await tester.pump();
-      }
-      expect(confetti, findsNothing);
+      expect(manager.comboPraise.value, isNull);
+      expect(confetti, reduceMotion ? findsNothing : findsOneWidget);
       expect(manager.bonusTime.value, isTrue);
       expect(bonus.played, [MatchSound.bonus]);
       await tester.pump(const Duration(milliseconds: 1500));
@@ -578,7 +675,7 @@ void main() {
       expect(bonusSoundAfterVoice, everyElement(isTrue));
       expect(bonusSoundOnConversion, everyElement(isTrue));
       expect(bonus.played, [MatchSound.bonus]);
-      expect(voice.played, isEmpty);
+      expect(voice.played, [ComboPraise.good]);
       expect(order, ['bonus', 'conversion']);
       expect(manager.roundSettled, isTrue);
       expect(effects.played.last, MatchSound.won);

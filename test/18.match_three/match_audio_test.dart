@@ -224,7 +224,7 @@ void main() {
     manager.dispose();
   });
 
-  test('播放失败不影响游戏，后续用户手势仍可再次尝试', () async {
+  testWidgets('播放失败不影响游戏，后续用户手势仍可再次尝试', (tester) async {
     final manager = _manager(_boardData());
     final player = _Player()..failPlay = true;
     final audio = MatchAudioController(
@@ -237,7 +237,7 @@ void main() {
     );
     await audio.ready;
     manager.swap(10, 2);
-    await Future<void>.delayed(Duration.zero);
+    await _settle(tester, [manager]);
     expect(manager.board!.moveNumber, greaterThan(0));
     expect(manager.busy.value, isFalse);
     player.failPlay = false;
@@ -247,7 +247,7 @@ void main() {
     manager.dispose();
   });
 
-  test('预载失败时游戏仍可操作，释放仍正常执行', () async {
+  testWidgets('预载失败时游戏仍可操作，释放仍正常执行', (tester) async {
     final manager = _manager(_boardData());
     final player = _Player()..failPreload = true;
     final audio = MatchAudioController(
@@ -260,6 +260,7 @@ void main() {
     );
     await audio.ready;
     manager.swap(10, 2);
+    await _settle(tester, [manager]);
     expect(manager.canInteract, isTrue);
     expect(player.played, isEmpty);
     await audio.dispose();

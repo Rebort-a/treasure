@@ -27,10 +27,9 @@ class NetMatchManager extends MatchManager {
     turnEngine.currentPlayer.addListener(_turnChanged);
     turnEngine.synchronized.addListener(refreshView);
     turnEngine.pendingAction.addListener(refreshView);
-    view.addListener(_checkRoundFinished);
-    busy.addListener(_checkRoundFinished);
-    bonusTime.addListener(_checkRoundFinished);
-    bonusTime.addListener(_showPersonalResults);
+    view.addListener(_syncRoundPresentation);
+    busy.addListener(_syncRoundPresentation);
+    bonusTime.addListener(_syncRoundPresentation);
     selected.addListener(_publishSelection);
   }
 
@@ -48,21 +47,12 @@ class NetMatchManager extends MatchManager {
             .length;
   }
 
-  void _showPersonalResults() {
-    if (bonusTime.value) showPersonalScore.value = true;
-  }
-
   @override
   void onNetworkActionApplied(SwapResult result, int previousScore) {
     final player = turnEngine.currentPlayer.value;
     if (player == null || _released) return;
     // 进入奖励阶段前锁定本回合贡献，公共 Bonus 分数不归给最后行动者。
-    final endScore = result.frames
-        .firstWhere(
-          (frame) => frame.phase == FramePhase.bonus,
-          orElse: () => result.frames.last,
-        )
-        .score;
+    final endScore = result.actionEndFrame.score;
     playerScores.value = Map.unmodifiable({
       ...playerScores.value,
       player: (playerScores.value[player] ?? 0) + endScore - previousScore,
@@ -109,10 +99,14 @@ class NetMatchManager extends MatchManager {
     return Map.unmodifiable(scores);
   }
 
-  void _checkRoundFinished() {
-    if (roundSettled &&
-        view.value?.status != null &&
-        view.value!.status != MatchStatus.playing) {
+  void _syncRoundPresentation() {
+    final status = view.value?.status;
+    final settled = roundSettled;
+    // 有奖励时提前展示贡献，并保留到最终结算；零步通关在结算时显示。
+    showPersonalScore.value =
+        bonusTime.value ||
+        (status == MatchStatus.won && (settled || showPersonalScore.value));
+    if (settled && status != null && status != MatchStatus.playing) {
       turnEngine.completeRound();
     }
   }
@@ -176,11 +170,6 @@ class NetMatchManager extends MatchManager {
     hint.value = null;
     super.loadState(data);
     playerScores.value = scores;
-    if (board?.status != MatchStatus.won) {
-      showPersonalScore.value = false;
-    } else if (bonusTime.value || roundSettled) {
-      showPersonalScore.value = true;
-    }
   }
 
   @override
@@ -209,10 +198,9 @@ class NetMatchManager extends MatchManager {
     turnEngine.currentPlayer.removeListener(_turnChanged);
     turnEngine.synchronized.removeListener(refreshView);
     turnEngine.pendingAction.removeListener(refreshView);
-    view.removeListener(_checkRoundFinished);
-    busy.removeListener(_checkRoundFinished);
-    bonusTime.removeListener(_checkRoundFinished);
-    bonusTime.removeListener(_showPersonalResults);
+    view.removeListener(_syncRoundPresentation);
+    busy.removeListener(_syncRoundPresentation);
+    bonusTime.removeListener(_syncRoundPresentation);
     selected.removeListener(_publishSelection);
     turnEngine.releaseGame();
     hint.dispose();

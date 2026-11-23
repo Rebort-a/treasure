@@ -192,6 +192,7 @@ void main() {
         findsOneWidget,
       );
       final next = remotes.firstWhere((g) => g.turnEngine.canAct);
+      await _until(tester, () => next.canInteract);
       final nextSwap = next.board!.legalMoves.first;
       next.swap(nextSwap.$1, nextSwap.$2);
       await _until(
