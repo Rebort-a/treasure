@@ -11,6 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.5] - 2026-11-23
+- Complete match-three win feedback without waiting for confetti, and skip Bonus Time when no moves remain.
+- Add limited-piece Gomoku and refine replay, audio, and local and LAN game flows.
+- Upgrade to Flutter 3.50.1 and update localization generation and CI caching.
+
+### Added
+- improve game feedback and add limited-piece gomoku
+
+### Fixed
+- streamline match-three win settlement
+- refine match-three bonus settlement
+- separate match-three bonus timing from cascades
+- streamline match-three bonus time
+- start rich confetti at bonus time opening
+- play bonus sound only during move conversion
+
+### Changed
+- upgrade Flutter SDK to 3.50.1
+- unify project conventions and lifecycle ownership
+- organize shared modules and simplify regression tests
+
 ## [1.3.4] - 2026-10-17
 - Fix Linux release builds by installing required GStreamer development libraries
 - Harden release verification with atomic pushes and matching workflow checks
