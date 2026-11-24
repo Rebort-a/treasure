@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'dart:convert';
 
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:treasure/00.common/network/client/base/game_engine.dart';
 import 'package:treasure/00.common/network/client/net_turn_engine.dart';
 import 'package:treasure/00.common/network/client/net_real_engine.dart';
+import 'package:treasure/00.common/network/client/room_chat_engine.dart';
 import 'package:treasure/00.common/network/client/socket_client.dart';
 import 'package:treasure/00.common/game/gamer.dart';
 import 'package:treasure/00.common/game/step.dart';
@@ -211,18 +210,25 @@ void main() {
           },
         );
         startGame(a);
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+        await waitFor(() => a!.matchPhase.value == RoomMatchPhase.matching);
         startGame(b);
-        await waitFor(() => receivedB.isNotEmpty);
         if (mode == TurnResourceMode.both) {
-          expect(a.gameStep.value, GameStep.frontWait);
-          expect(b.gameStep.value, GameStep.rearConfig);
+          // 先手回环和后手收包走不同连接，完成顺序不固定。
+          await waitFor(
+            () =>
+                a!.gameStep.value == GameStep.frontWait &&
+                b!.gameStep.value == GameStep.rearConfig,
+            label: () =>
+                'front resource delivery: ${a!.gameStep.value} / ${b!.gameStep.value}',
+          );
           b.sendGameMessage(MessageType.resource, 'rear');
         }
         await waitFor(
           () =>
               a!.gameStep.value == GameStep.action &&
               b!.gameStep.value == GameStep.action,
+          label: () =>
+              '${mode.name} resource exchange: ${a!.gameStep.value} / ${b!.gameStep.value}',
         );
         expect(
           receivedA,
