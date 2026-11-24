@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.6] - 2026-11-24
+- Restore Android release builds by updating Gradle, Android Gradle Plugin, and Kotlin.
+- Include the match-three improvements, limited-piece Gomoku, and Flutter 3.50.1 upgrade from the previous release attempt.
+
 ## [1.3.5] - 2026-11-23
 - Complete match-three win feedback without waiting for confetti, and skip Bonus Time when no moves remain.
 - Add limited-piece Gomoku and refine replay, audio, and local and LAN game flows.
