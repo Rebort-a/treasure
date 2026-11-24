@@ -36,6 +36,11 @@ class BoardFrame {
   final List<Piece?> pieces;
   final List<int> ice;
 
+  /// 入场期间隐藏冰层，但保留真实目标进度。
+  final bool isEntrance;
+
+  bool hasVisibleIce(int index) => !isEntrance && ice[index] > 0;
+
   /// 目标进度随消除帧更新，避免交换刚开始就展示整步结算后的结果。
   final List<int> collected;
   final Set<int> clearing;
@@ -78,6 +83,7 @@ class BoardFrame {
   BoardFrame(
     MatchBoard board,
     this.phase, {
+    this.isEntrance = false,
     Set<int> clearing = const {},
     Set<int> spawnedPieceIds = const {},
     int? movesLeft,
@@ -134,6 +140,7 @@ class BoardFrame {
   BoardFrame.empty(MatchBoard board)
     : pieces = List.unmodifiable(List<Piece?>.filled(MatchBoard.cells, null)),
       ice = List.unmodifiable(board.ice),
+      isEntrance = true,
       collected = List.unmodifiable(board.collected),
       clearing = const {},
       spawnedPieceIds = const {},

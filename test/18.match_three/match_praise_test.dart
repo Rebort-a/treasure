@@ -346,6 +346,30 @@ void main() {
     }
   });
 
+  testWidgets('撒花播放约 2.2 秒后自动移除', (tester) async {
+    final manager = MatchManager(generate: false);
+    addTearDown(manager.dispose);
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: MatchCelebration(manager: manager, child: const SizedBox()),
+        ),
+      ),
+    );
+    final confetti = find.byKey(const ValueKey('match-celebration'));
+    expect(confetti, findsNothing);
+    manager.winCelebration.value = true;
+    await tester.pump();
+    expect(confetti, findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 2100));
+    expect(confetti, findsOneWidget);
+    // 在标称时长之后再采样，让控制器发出完成通知。
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(confetti, findsNothing);
+  });
+
   for (final reduceMotion in [false, true]) {
     testWidgets('零步通关显示恭喜完成，撒花期间可点击棋盘中央重开：$reduceMotion', (tester) async {
       final language = LanguageProvider.instance;

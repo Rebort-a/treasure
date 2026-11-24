@@ -341,8 +341,9 @@ void main() {
       await audio.ready;
       player.played.clear();
       manager.swap(10, 2);
-      if (!reduceMotion)
+      if (!reduceMotion) {
         expect(player.played, isNot(contains(MatchSound.lost)));
+      }
       await _settle(tester, [manager]);
       expect(manager.board!.movesLeft, 0);
       expect(manager.board!.status, MatchStatus.lost);
@@ -358,7 +359,9 @@ void main() {
       manager.dispose();
     });
 
-    testWidgets('首次入场等待冷加载，重开只播一次，刷新静音与后台不补播：$reduceMotion', (tester) async {
+    testWidgets('冷加载只保留最新的入场提示，重开正常播放，刷新静音与后台不补播：$reduceMotion', (
+      tester,
+    ) async {
       final manager = MatchManager(generate: false)
         ..reduceMotion = reduceMotion
         ..restart(seed: 7);
@@ -375,25 +378,30 @@ void main() {
       expect(player.played, isEmpty);
       player.loading!.complete();
       await audio.ready;
-      expect(player.played, [MatchSound.entrance]);
+      expect(player.played, [MatchSound.freeze]);
 
       manager.restart(seed: 8);
       await _settle(tester, [manager]);
-      expect(player.played, [MatchSound.entrance, MatchSound.entrance]);
+      final expected = [
+        MatchSound.freeze,
+        if (!reduceMotion) MatchSound.entrance,
+        MatchSound.freeze,
+      ];
+      expect(player.played, expected);
       manager.refreshView();
       manager.loadState(manager.board!.toJson());
-      expect(player.played, hasLength(2));
+      expect(player.played, expected);
 
       audio.setEnabled(false);
       manager.restart(seed: 9);
       await _settle(tester, [manager]);
       audio.setEnabled(true);
-      expect(player.played, hasLength(2));
+      expect(player.played, expected);
       audio.setActive(false);
       manager.restart(seed: 10);
       await _settle(tester, [manager]);
       audio.setActive(true);
-      expect(player.played, hasLength(2));
+      expect(player.played, expected);
       await audio.dispose();
       manager.dispose();
     });
@@ -568,7 +576,7 @@ void main() {
     winning.reduceMotion = true;
     winning.restart(seed: 42);
     expect(sounds, contains(MatchSound.reset));
-    expect(sounds.last, MatchSound.entrance);
+    expect(sounds.last, MatchSound.freeze);
     await tester.pump(const Duration(seconds: 10));
     expect(sounds, isNot(contains(MatchSound.won)));
     winning.dispose();

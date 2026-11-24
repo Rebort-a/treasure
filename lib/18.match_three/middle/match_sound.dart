@@ -14,6 +14,7 @@ enum MatchSound {
   bomb,
   rainbow,
   ice,
+  freeze,
   fall,
   entrance,
   appear,

@@ -104,7 +104,7 @@ class MatchManager {
       !bonusTime.value &&
       view.value?.frame.phase == FramePhase.settled;
 
-  void restart({int? seed}) {
+  void restart({int? seed, Future<void>? entranceReady}) {
     if (_disposed || !canRestart) return;
     _emitSound(MatchSound.reset);
     _resultAnnounced = false;
@@ -119,7 +119,7 @@ class MatchManager {
     comboPraise.value = null;
     bonusTime.value = false;
     selected.value = null;
-    _startBoardEntrance();
+    _startBoardEntrance(ready: entranceReady);
   }
 
   void selectCell(int index) {
@@ -273,42 +273,50 @@ class MatchManager {
     }
   }
 
-  void _startBoardEntrance() {
+  void _startBoardEntrance({Future<void>? ready}) {
     _resultAnnounced = false;
     final board = _board!;
     final epoch = ++_animationEpoch;
     _roundNumber++;
-    if (reduceMotion) {
-      busy.value = false;
+
+    void revealBoard({required bool playedEntrance}) {
       _show(BoardFrame(board, FramePhase.settled));
-      _emitSound(MatchSound.entrance);
+      if (board.iceLeft > 0) {
+        _emitSound(MatchSound.freeze);
+      } else if (!playedEntrance) {
+        _emitSound(MatchSound.entrance);
+      }
+      busy.value = false;
+    }
+
+    if (reduceMotion) {
+      revealBoard(playedEntrance: false);
       return;
     }
     busy.value = true;
     _show(BoardFrame.empty(board));
     unawaited(() async {
-      // 留出空棋盘展示时间，新棋子挂载后复用补块入场动画。
-      await _delay(const Duration(milliseconds: 100));
+      // 首次打开页面时，等转场露脸再播下落；重开只保留原有的短停顿。
+      final pause = _delay(const Duration(milliseconds: 100));
+      if (ready != null) await ready;
+      await pause;
       if (_disposed || epoch != _animationEpoch) return;
-      if (!reduceMotion) {
-        _show(
-          BoardFrame(
-            board,
-            FramePhase.fall,
-            spawnedPieceIds: board.pieces
-                .whereType<Piece>()
-                .map((piece) => piece.id)
-                .toSet(),
-          ),
+      final animate = !reduceMotion;
+      if (animate) {
+        final frame = BoardFrame(
+          board,
+          FramePhase.fall,
+          isEntrance: true,
+          spawnedPieceIds: {
+            for (final piece in board.pieces.whereType<Piece>()) piece.id,
+          },
         );
+        _show(frame);
         _emitSound(MatchSound.entrance);
-        await _delay(const Duration(milliseconds: 220));
+        await _waitBoardAnimation(frame, fallAnimationDuration);
         if (_disposed || epoch != _animationEpoch) return;
-      } else {
-        _emitSound(MatchSound.entrance);
       }
-      _show(BoardFrame(board, FramePhase.settled));
-      busy.value = false;
+      revealBoard(playedEntrance: animate);
     }());
   }
 

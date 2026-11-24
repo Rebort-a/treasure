@@ -81,7 +81,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
         ? clearDuration
         : Duration.zero;
     final fallCompletionPiece =
-        widget.manager.bonusTime.value &&
+        (frame.isEntrance || widget.manager.bonusTime.value) &&
             frame.bonusAt == null &&
             frame.phase == FramePhase.fall &&
             frame.spawnedPieceIds.isNotEmpty
@@ -158,14 +158,14 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                               padding: const EdgeInsets.all(1),
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: frame.ice[index] > 0
+                                  color: frame.hasVisibleIce(index)
                                       ? const Color(0xFFADDCF0)
                                             .withValues(alpha: 0.65)
                                       : Colors.white.withValues(
                                           alpha: index.isEven ? 0.16 : 0.08,
                                         ),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: frame.ice[index] > 0
+                                  border: frame.hasVisibleIce(index)
                                       ? Border.all(
                                           color: const Color(0xFFDCF7FF),
                                           width: 2,
@@ -244,12 +244,17 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                                       clock: _clock,
                                                       animated:
                                                           _animate &&
-                                                          frame.ice[index] == 0,
+                                                          !frame.hasVisibleIce(
+                                                            index,
+                                                          ),
                                                     ),
                                                   ),
                                                 ),
-                                                if (frame.ice[index] > 0)
+                                                if (frame.hasVisibleIce(index))
                                                   Positioned.fill(
+                                                    key: const ValueKey(
+                                                      'match-ice-overlay',
+                                                    ),
                                                     child: Padding(
                                                       padding:
                                                           const EdgeInsets.all(

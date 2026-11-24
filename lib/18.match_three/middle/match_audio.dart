@@ -43,8 +43,12 @@ class MatchAudioController extends SoundController<MatchSound> {
          player: player ?? MatchAssetSoundPlayer(),
          project: '18.match_three',
          resetSound: MatchSound.reset,
-         deferUntilReady: (sound) =>
-             sound == MatchSound.entrance || sound == MatchSound.appear,
+         deferUntilReady: (sound) => switch (sound) {
+           MatchSound.entrance ||
+           MatchSound.appear ||
+           MatchSound.freeze => true,
+           _ => false,
+         },
          minimumInterval: (sound) => sound == MatchSound.select ? 45 : 90,
        ) {
     _winAudio = SoundController<MatchSound>(

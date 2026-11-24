@@ -69,15 +69,23 @@ void main(List<String> arguments) {
       _note(2400, end: 1350, duration: .12, noise: .65, gain: .25),
       _note(3300, start: .04, duration: .09, noise: .4, gain: .15),
     ],
-    // 开局与重开改用原失败提示的下行三音，事件和文件名仍保留开局语义。
+    // C 音接住入场的 G–E；短促的上滑铃音和细砂声表现冰晶凝结。
+    'freeze': [
+      _note(261.63, duration: .26, gain: .34),
+      _note(
+        392.0,
+        end: 523.25,
+        start: .018,
+        duration: .16,
+        gain: .15,
+        noise: .16,
+        timbre: _Timbre.bell,
+      ),
+    ],
+    // 保留下行的前两音，缩短余音，为落定后的冻结音留出空间。
     'entrance': [
-      for (var i = 0; i < 3; i++)
-        _note(
-          [392.0, 329.63, 261.63][i],
-          start: i * .16,
-          duration: .30,
-          gain: .32,
-        ),
+      _note(392.0, duration: .10, gain: .32),
+      _note(329.63, start: .09, duration: .12, gain: .32),
     ],
     // 整盘补齐使用短促的双气泡下滑，不再与开局或奖励共用上行琶音。
     'appear': [

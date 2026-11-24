@@ -23,7 +23,8 @@ class _MatchCelebrationState extends State<MatchCelebration>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 3200),
+    // 压缩播放时间，保留绘制器中完整的粒子轨迹和淡出。
+    duration: const Duration(milliseconds: 2200),
   )..addStatusListener(_onAnimationStatus);
   bool _started = false;
   bool _visible = false;
