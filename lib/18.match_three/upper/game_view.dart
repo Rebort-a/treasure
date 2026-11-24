@@ -15,6 +15,7 @@ import '../middle/net_manager.dart';
 import 'animal_piece.dart';
 import 'match_board_widget.dart';
 import 'match_celebration.dart';
+import 'match_theme_style.dart';
 import 'team_chat_sheet.dart';
 
 /// 本地与联机共用游戏界面，页面不负责创建/销毁 Manager 或连接。
@@ -137,13 +138,40 @@ class _MatchGameContent extends StatelessWidget {
               icon: const Icon(Icons.forum_outlined),
               onPressed: () => _showChat(context),
             )
-          else
+          else ...[
+            ValueListenableBuilder<MatchView?>(
+              valueListenable: manager.view,
+              builder: (context, view, _) {
+                final current = view?.frame.theme ?? MatchTheme.classic;
+                return PopupMenuButton<MatchTheme>(
+                  key: const ValueKey('match-themes'),
+                  tooltip: S.matchThemes,
+                  icon: Icon(current.icon),
+                  initialValue: current,
+                  onSelected: (theme) {
+                    if (theme != current) manager.restart(theme: theme);
+                  },
+                  itemBuilder: (_) => [
+                    for (final theme in MatchTheme.values)
+                      PopupMenuItem(
+                        value: theme,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(theme.icon),
+                          title: Text(theme.label),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
             IconButton(
               key: const ValueKey('match-restart'),
               tooltip: S.matchNewRound,
               icon: const Icon(Icons.refresh_rounded),
               onPressed: manager.restart,
             ),
+          ],
         ],
       ),
       body: SafeArea(
@@ -341,9 +369,7 @@ class _MatchGameContent extends StatelessWidget {
   Widget _header(BuildContext context, MatchView view) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xFF246D56), Color(0xFF469D78)],
-      ),
+      gradient: LinearGradient(colors: view.frame.theme.headerColors),
       borderRadius: BorderRadius.circular(20),
     ),
     child: Row(
@@ -456,22 +482,23 @@ class _MatchGameContent extends StatelessWidget {
               ),
               valueWidth: valueWidth,
             ),
-          _goal(
-            context,
-            S.matchIceLeft,
-            '${view.iceLeft}',
-            view.iceLeft == 0,
-            SizedBox(
-              width: iconSize,
-              height: iconSize,
-              child: Icon(
-                Icons.ac_unit_rounded,
-                color: const Color(0xFF73B9D8),
-                size: iconSize * 0.72,
+          if (view.frame.theme != MatchTheme.lightning)
+            _goal(
+              context,
+              S.matchIceLeft,
+              '${view.iceLeft}',
+              view.iceLeft == 0,
+              SizedBox(
+                width: iconSize,
+                height: iconSize,
+                child: Icon(
+                  Icons.ac_unit_rounded,
+                  color: const Color(0xFF73B9D8),
+                  size: iconSize * 0.72,
+                ),
               ),
+              valueWidth: valueWidth,
             ),
-            valueWidth: valueWidth,
-          ),
         ],
       );
     },

@@ -18,6 +18,11 @@ class S {
   static String get matchThree => _l.matchThree;
   static String get matchTeamChat => _l.matchTeamChat;
   static String get matchNewRound => _l.matchNewRound;
+  static String get matchThemes => _l.matchThemes;
+  static String get matchThemeClassic => _l.matchThemeClassic;
+  static String get matchThemeFrost => _l.matchThemeFrost;
+  static String get matchThemeLightning => _l.matchThemeLightning;
+  static String get matchThemeRainbow => _l.matchThemeRainbow;
   static String get backgroundMusic => _l.backgroundMusic;
   static String get gameAudio => _l.gameAudio;
   static String get gameSoundEffects => _l.gameSoundEffects;

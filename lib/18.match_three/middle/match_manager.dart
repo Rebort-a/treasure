@@ -38,6 +38,7 @@ class MatchManager {
   static const _conversionPause = Duration(milliseconds: 350);
   static const _conversionTransferDuration = Duration(milliseconds: 300);
   static const fallAnimationDuration = Duration(milliseconds: 210);
+  static const iceSpreadDuration = Duration(milliseconds: 280);
   static const clearAnimationDuration = Duration(
     milliseconds: BonusTiming.clear,
   );
@@ -104,14 +105,17 @@ class MatchManager {
       !bonusTime.value &&
       view.value?.frame.phase == FramePhase.settled;
 
-  void restart({int? seed, Future<void>? entranceReady}) {
+  void restart({int? seed, MatchTheme? theme, Future<void>? entranceReady}) {
     if (_disposed || !canRestart) return;
     _emitSound(MatchSound.reset);
     _resultAnnounced = false;
     _cancelDelays();
     _animationEpoch++;
     _invalidSwapEpoch++;
-    _board = MatchBoard.random(seed: seed);
+    _board = MatchBoard.random(
+      seed: seed,
+      theme: theme ?? _board?.theme ?? MatchTheme.classic,
+    );
     busy.value = false;
     invalidSwap.value = null;
     invalidSwapAnimating.value = false;
@@ -223,15 +227,17 @@ class MatchManager {
         (view.value == null ||
             _board == null ||
             _board!.seed != next.seed ||
+            _board!.theme != next.theme ||
             _board!.moveNumber > 0);
+    final sameBoard = _board?.seed == next.seed && _board?.theme == next.theme;
     SwapResult? result;
     if (_publishedResult != null &&
         _board?.moveNumber == next.moveNumber &&
-        _board?.seed == next.seed) {
+        sameBoard) {
       result = _publishedResult;
       _publishedResult = null;
     } else if (_board != null &&
-        next.seed == _board!.seed &&
+        sameBoard &&
         next.moveNumber > _board!.moveNumber &&
         next.lastSwap != null) {
       // 普通成员用上一步快照重演动画；判定结果仍以发布者快照为准。
@@ -347,6 +353,8 @@ class MatchManager {
     switch (frame.phase) {
       case FramePhase.swap:
         _emitSound(MatchSound.swap);
+      case FramePhase.freeze:
+        _emitSound(MatchSound.freeze);
       case FramePhase.bonus:
         // 奖励开场仅播报语音，步数转换完成时才播放提示音。
         if (frame.convertedPieceIds.isNotEmpty) {
@@ -595,6 +603,7 @@ class MatchManager {
 
   Duration _regularFrameDelay(BoardFrame frame) => switch (frame.phase) {
     FramePhase.clear => clearAnimationDuration,
+    FramePhase.freeze => iceSpreadDuration,
     FramePhase.fall when frame.staggeredFall => const Duration(
       milliseconds: 120,
     ),
@@ -627,6 +636,9 @@ class MatchManager {
       }
       final settled = result.actionEndFrame;
       _show(settled);
+      if (frames.any((frame) => frame.phase == FramePhase.freeze)) {
+        _emitSound(MatchSound.freeze);
+      }
       onFrame(settled);
       comboMultiplier.value = result.cascades == 0 ? null : result.cascades;
       return;

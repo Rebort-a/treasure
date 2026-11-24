@@ -2307,6 +2307,36 @@ abstract class AppLocalizations {
   /// **'New round'**
   String get matchNewRound;
 
+  /// No description provided for @matchThemes.
+  ///
+  /// In en, this message translates to:
+  /// **'Themes'**
+  String get matchThemes;
+
+  /// No description provided for @matchThemeClassic.
+  ///
+  /// In en, this message translates to:
+  /// **'Classic'**
+  String get matchThemeClassic;
+
+  /// No description provided for @matchThemeFrost.
+  ///
+  /// In en, this message translates to:
+  /// **'Frost'**
+  String get matchThemeFrost;
+
+  /// No description provided for @matchThemeLightning.
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning'**
+  String get matchThemeLightning;
+
+  /// No description provided for @matchThemeRainbow.
+  ///
+  /// In en, this message translates to:
+  /// **'Rainbow'**
+  String get matchThemeRainbow;
+
   /// No description provided for @backgroundMusic.
   ///
   /// In en, this message translates to:

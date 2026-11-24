@@ -1241,6 +1241,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get matchNewRound => 'New round';
 
   @override
+  String get matchThemes => 'Themes';
+
+  @override
+  String get matchThemeClassic => 'Classic';
+
+  @override
+  String get matchThemeFrost => 'Frost';
+
+  @override
+  String get matchThemeLightning => 'Lightning';
+
+  @override
+  String get matchThemeRainbow => 'Rainbow';
+
+  @override
   String get backgroundMusic => 'Music';
 
   @override

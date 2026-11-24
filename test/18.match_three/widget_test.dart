@@ -106,6 +106,75 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('单机主题可切换，薄冰与厚冰分开显示，重开保留主题', (tester) async {
+    LanguageProvider.instance.locale.value = AppLocale.zh;
+    final manager = _settledManager(100);
+    addTearDown(manager.dispose);
+    await tester.pumpWidget(_app(manager));
+    final menu = find.byKey(const ValueKey('match-themes'));
+    final ice = find.byKey(const ValueKey('match-ice-overlay'));
+    final thickIce = find.byKey(const ValueKey('match-thick-ice'));
+    expect(thickIce, findsNothing);
+
+    Future<void> choose(String label, MatchTheme theme) async {
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      expect(manager.view.value!.frame.theme, theme);
+      expect(manager.board!.moveNumber, 0);
+    }
+
+    await choose('冻结', MatchTheme.frost);
+    final layers = manager.board!.ice;
+    expect(thickIce, findsNWidgets(layers.where((layer) => layer == 2).length));
+    expect(thickIce, findsWidgets);
+    expect(ice, findsNWidgets(layers.where((layer) => layer > 0).length));
+    await tester.tap(find.byKey(const ValueKey('match-restart')));
+    await tester.pump();
+    expect(manager.board!.theme, MatchTheme.frost);
+
+    await choose('闪电', MatchTheme.lightning);
+    expect(ice, findsNothing);
+    await choose('彩虹', MatchTheme.rainbow);
+    expect(ice, findsWidgets);
+    expect(thickIce, findsNothing);
+    await choose('经典', MatchTheme.classic);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('冰蔓延只在下一回合前演出一次，结束后可继续操作', (tester) async {
+    final manager = MatchManager(generate: false)
+      ..reduceMotion = true
+      ..restart(seed: 7, theme: MatchTheme.frost);
+    addTearDown(manager.dispose);
+    final snapshot = manager.board!.toJson();
+    final move = manager.board!.legalMoves.firstWhere((move) {
+      final result = MatchBoard.fromJson(snapshot).playSwap(move.$1, move.$2)!;
+      return result.frames.any((frame) => frame.phase == FramePhase.freeze);
+    });
+    await tester.pumpWidget(_app(manager, reduceMotion: false));
+    final spread = find.byKey(const ValueKey('match-ice-spread'));
+    final sounds = <MatchSound>[];
+    manager.sound.addListener(() => sounds.add(manager.sound.value!.sound));
+    manager.swap(move.$1, move.$2);
+    expect(spread, findsNothing);
+    for (var i = 0; i < 100 && spread.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(spread, findsOneWidget);
+    final frame = manager.view.value!.frame;
+    expect(frame.phase, FramePhase.freeze);
+    expect(frame.spreadingIce, isNotEmpty);
+    expect(sounds.where((sound) => sound == MatchSound.freeze), hasLength(1));
+    expect(manager.canInteract, isFalse);
+    await tester.pump(MatchManager.iceSpreadDuration);
+    expect(spread, findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    expect(manager.canInteract, isTrue);
+    expect(manager.board!.moveNumber, 1);
+  });
+
   testWidgets('随机目标与棋盘可见，交换与重开均有效', (tester) async {
     final manager = _settledManager(100);
     addTearDown(manager.dispose);

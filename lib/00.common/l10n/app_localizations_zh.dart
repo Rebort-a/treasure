@@ -1230,6 +1230,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get matchNewRound => '新局';
 
   @override
+  String get matchThemes => '关卡主题';
+
+  @override
+  String get matchThemeClassic => '经典';
+
+  @override
+  String get matchThemeFrost => '冻结';
+
+  @override
+  String get matchThemeLightning => '闪电';
+
+  @override
+  String get matchThemeRainbow => '彩虹';
+
+  @override
   String get backgroundMusic => '音乐';
 
   @override

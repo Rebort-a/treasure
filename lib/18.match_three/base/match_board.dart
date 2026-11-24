@@ -4,7 +4,18 @@ enum PieceEffect { none, row, column, bomb, rainbow }
 
 enum MatchStatus { playing, won, lost }
 
-enum FramePhase { swap, bonus, clear, fall, settled, transform, transfer }
+enum MatchTheme { classic, frost, lightning, rainbow }
+
+enum FramePhase {
+  swap,
+  bonus,
+  clear,
+  fall,
+  settled,
+  transform,
+  transfer,
+  freeze,
+}
 
 enum ComboPraise { good, great, excellent, amazing, unbelievable }
 
@@ -35,11 +46,16 @@ class Piece {
 class BoardFrame {
   final List<Piece?> pieces;
   final List<int> ice;
+  final MatchTheme theme;
 
   /// 入场期间隐藏冰层，但保留真实目标进度。
   final bool isEntrance;
 
-  bool hasVisibleIce(int index) => !isEntrance && ice[index] > 0;
+  /// 新冰格与其厚冰来源，仅用于扩散演出。
+  final Map<int, int> spreadingIce;
+
+  int visibleIceAt(int index) => isEntrance ? 0 : ice[index];
+  bool hasVisibleIce(int index) => visibleIceAt(index) > 0;
 
   /// 目标进度随消除帧更新，避免交换刚开始就展示整步结算后的结果。
   final List<int> collected;
@@ -84,6 +100,7 @@ class BoardFrame {
     MatchBoard board,
     this.phase, {
     this.isEntrance = false,
+    Map<int, int> spreadingIce = const {},
     Set<int> clearing = const {},
     Set<int> spawnedPieceIds = const {},
     int? movesLeft,
@@ -102,6 +119,8 @@ class BoardFrame {
     this.bonusTransferStartedAt,
   }) : pieces = List.unmodifiable(board.pieces),
        ice = List.unmodifiable(board.ice),
+       theme = board.theme,
+       spreadingIce = Map.unmodifiable(spreadingIce),
        collected = List.unmodifiable(board.collected),
        clearing = Set.unmodifiable(clearing),
        clearingPieceIds = Set.unmodifiable(
@@ -140,7 +159,9 @@ class BoardFrame {
   BoardFrame.empty(MatchBoard board)
     : pieces = List.unmodifiable(List<Piece?>.filled(MatchBoard.cells, null)),
       ice = List.unmodifiable(board.ice),
+      theme = board.theme,
       isEntrance = true,
+      spreadingIce = const {},
       collected = List.unmodifiable(board.collected),
       clearing = const {},
       spawnedPieceIds = const {},
@@ -207,6 +228,7 @@ class MatchBoard {
   static const _modulus = 2147483647;
 
   final int seed;
+  final MatchTheme theme;
   int _randomState;
   int _nextId = 1;
   final List<Piece?> pieces;
@@ -222,6 +244,7 @@ class MatchBoard {
 
   MatchBoard._({
     required this.seed,
+    required this.theme,
     required int randomState,
     required this.pieces,
     required this.ice,
@@ -231,32 +254,90 @@ class MatchBoard {
     required this.movesLeft,
   }) : _randomState = randomState;
 
-  factory MatchBoard.random({int? seed}) {
+  factory MatchBoard.random({
+    int? seed,
+    MatchTheme theme = MatchTheme.classic,
+  }) {
     final value = seed == null
         ? math.Random.secure().nextInt(_modulus - 1) + 1
         : (seed - 1) % (_modulus - 1) + 1;
+    final moves =
+        switch (theme) {
+          MatchTheme.frost => 24,
+          MatchTheme.lightning => 18,
+          MatchTheme.rainbow => 19,
+          MatchTheme.classic => 20,
+        } +
+        value % 5;
     final board = MatchBoard._(
       seed: value,
+      theme: theme,
       randomState: value,
       pieces: List.filled(cells, null),
       ice: List.filled(cells, 0),
       targets: {},
       collected: List.filled(kinds, 0),
-      initialMoves: 20 + value % 5,
-      movesLeft: 20 + value % 5,
+      initialMoves: moves,
+      movesLeft: moves,
     );
     final animals = List.generate(kinds, (i) => i);
     board._shuffle(animals);
+    final minimum = theme == MatchTheme.lightning ? 26 : 14;
     for (final kind in animals.take(2)) {
-      board.targets[kind] = 14 + board._next(9);
+      board.targets[kind] = minimum + board._next(9);
     }
-    final positions = List.generate(cells, (i) => i);
-    board._shuffle(positions);
-    for (final index in positions.take(10 + board._next(7))) {
-      board.ice[index] = 1;
-    }
+    board._seedIce();
     board._freshBoard();
+    board._seedSpecials();
+    if (theme == MatchTheme.frost) board._spreadIce();
     return board;
+  }
+
+  void _seedIce() {
+    switch (theme) {
+      case MatchTheme.classic:
+        final positions = List.generate(cells, (i) => i);
+        _shuffle(positions);
+        for (final index in positions.take(10 + _next(7))) {
+          ice[index] = 1;
+        }
+      case MatchTheme.frost:
+        // 两个相距较远的冰核，各有一层薄冰，首回合就能看到不同冰层。
+        final cores = [
+          18 + _next(2) + _next(2) * side,
+          36 + _next(2) + _next(2) * side,
+        ];
+        for (final core in cores) {
+          ice[core] = 2;
+          final neighbors = _neighbors(core).toList();
+          ice[neighbors[_next(neighbors.length)]] = 1;
+        }
+      case MatchTheme.rainbow:
+        // 四角留出开阔的中心，鼓励用彩虹从远处消冰。
+        for (final index in const [0, 1, 6, 7, 8, 15, 48, 55, 56, 57, 62, 63]) {
+          ice[index] = 1;
+        }
+      case MatchTheme.lightning:
+        break;
+    }
+  }
+
+  void _seedSpecials() {
+    void place(int index, PieceEffect effect) {
+      final piece = pieces[index]!;
+      pieces[index] = Piece(piece.id, piece.kind, effect);
+    }
+
+    switch (theme) {
+      case MatchTheme.lightning:
+        place(18, PieceEffect.row);
+        place(45, PieceEffect.column);
+      case MatchTheme.rainbow:
+        place(27, PieceEffect.rainbow);
+      case MatchTheme.classic:
+      case MatchTheme.frost:
+        break;
+    }
   }
 
   /// 使用乘积小于 2^53 的整数算法，Dart VM 与 Web 保持同一随机序列。
@@ -295,6 +376,42 @@ class MatchBoard {
       b < cells &&
       ((a ~/ side - b ~/ side).abs() + (a % side - b % side).abs() == 1);
 
+  static Iterable<int> _neighbors(int index) sync* {
+    if (index >= side) yield index - side;
+    if (index < cells - side) yield index + side;
+    if (index % side > 0) yield index - 1;
+    if (index % side < side - 1) yield index + 1;
+  }
+
+  /// 每个已有冰核每回合最多生长一次，不让新结的厚冰在同一回合继续扩散。
+  Map<int, int> _spreadIce() {
+    final before = ice.toList();
+    final changed = <int, int>{};
+    for (var source = 0; source < cells; source++) {
+      if (before[source] != 2) continue;
+      final neighbors = _neighbors(source)
+          .where((index) => pieces[index] != null)
+          .toList();
+      final layer = neighbors.every((index) => before[index] == 1) ? 1 : 0;
+      final candidates = [
+        for (final index in neighbors)
+          if (before[index] == layer && ice[index] == layer) index,
+      ];
+      while (candidates.isNotEmpty) {
+        final target = candidates.removeAt(_next(candidates.length));
+        ice[target]++;
+        // 蔓延不能封死最后一个合法交换；碰到时尝试其他方向。
+        if (layer == 0 && _legalMoves().isEmpty) {
+          ice[target]--;
+          continue;
+        }
+        changed[target] = source;
+        break;
+      }
+    }
+    return changed;
+  }
+
   void _swap(int a, int b) {
     final value = pieces[a];
     pieces[a] = pieces[b];
@@ -317,17 +434,17 @@ class MatchBoard {
     return runs.any((run) => run.contains(a) || run.contains(b));
   }
 
-  List<(int, int)> get legalMoves {
-    final result = <(int, int)>[];
+  List<(int, int)> get legalMoves => _legalMoves().toList();
+
+  Iterable<(int, int)> _legalMoves() sync* {
     for (var index = 0; index < cells; index++) {
       if (index % side < side - 1 && canSwap(index, index + 1)) {
-        result.add((index, index + 1));
+        yield (index, index + 1);
       }
       if (index < cells - side && canSwap(index, index + side)) {
-        result.add((index, index + side));
+        yield (index, index + side);
       }
     }
-    return result;
   }
 
   /// 横向与纵向分别扫描，交叉点会出现在两条线中，供炸弹判定使用。
@@ -385,7 +502,7 @@ class MatchBoard {
         ];
         pieces[i] = fresh(i, available[_next(available.length)]);
       }
-      if (legalMoves.isNotEmpty) return;
+      if (_legalMoves().isNotEmpty) return;
     }
     // 极端随机序列的有界兜底：该图案无三连，交换 1 与 9 必定形成三连。
     for (var i = 0; i < cells; i++) {
@@ -432,13 +549,13 @@ class MatchBoard {
       );
       PieceEffect effect;
       Set<int> candidates;
-      if (longest.length >= 5) {
+      if (longest.length >= (theme == MatchTheme.rainbow ? 4 : 5)) {
         effect = PieceEffect.rainbow;
         candidates = longest.toSet();
       } else if (intersection.isNotEmpty) {
         effect = PieceEffect.bomb;
         candidates = intersection.toSet();
-      } else if (longest.length >= 4) {
+      } else if (longest.length >= 4 || theme == MatchTheme.lightning) {
         effect = longest[0] ~/ side == longest[1] ~/ side
             ? PieceEffect.row
             : PieceEffect.column;
@@ -583,13 +700,8 @@ class MatchBoard {
         score += targetAnimalBonus;
       }
       collected[piece.kind]++;
-      if (ice[index] > 0) crackedIce.add(index);
-      final row = index ~/ side;
-      final col = index % side;
-      if (row > 0) crackedIce.add(index - side);
-      if (row < side - 1) crackedIce.add(index + side);
-      if (col > 0) crackedIce.add(index - 1);
-      if (col < side - 1) crackedIce.add(index + 1);
+      crackedIce.add(index);
+      crackedIce.addAll(_neighbors(index));
       score += baseAnimalScore * multiplier;
     }
     for (final index in crackedIce) {
@@ -1177,10 +1289,11 @@ class MatchBoard {
       );
     }
     final cascades = resolution.waves;
-    final actionEndIndex = frames.length;
+    int? actionEndIndex;
     int? bonusEnd;
     if (goalsMet && movesLeft > 0) {
       // 只有剩余步数才开启奖励；本次行动的棋盘先单独保留一帧。
+      actionEndIndex = frames.length;
       frames.add(BoardFrame(this, FramePhase.settled));
       switch (bonusPacing) {
         case BonusPacing.fixedBeat:
@@ -1190,6 +1303,15 @@ class MatchBoard {
       }
     }
     _ensurePlayable();
+    if (theme == MatchTheme.frost && status == MatchStatus.playing) {
+      // 当前行动全部结算后开启下一回合；胜负已定时不再蔓延。
+      final spreadingIce = _spreadIce();
+      if (spreadingIce.isNotEmpty) {
+        frames.add(
+          BoardFrame(this, FramePhase.freeze, spreadingIce: spreadingIce),
+        );
+      }
+    }
     frames.add(BoardFrame(this, FramePhase.settled, bonusAt: bonusEnd));
     return SwapResult(
       List.unmodifiable(frames),
@@ -1199,12 +1321,13 @@ class MatchBoard {
       initialMatchCount,
       resolution.totalCleared,
       resolution.specialEffectsTriggered,
-      actionEndIndex: actionEndIndex,
+      actionEndIndex: actionEndIndex ?? frames.length - 1,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'format': 1,
+    if (theme != MatchTheme.classic) 'theme': theme.name,
     'seed': seed,
     'random': _randomState,
     'nextId': _nextId,
@@ -1268,6 +1391,12 @@ class MatchBoard {
       }
       return Piece(id, kind, PieceEffect.values[effect]);
     }).toList();
+    final theme = switch (data['theme']) {
+      null => MatchTheme.classic,
+      final String name => MatchTheme.values.asNameMap()[name],
+      _ => null,
+    };
+    if (theme == null) throw const FormatException('Invalid theme');
     final targets = (data['targets'] as Map<String, dynamic>).map((key, value) {
       final kind = int.tryParse(key);
       if (kind == null ||
@@ -1284,6 +1413,7 @@ class MatchBoard {
     final board =
         MatchBoard._(
             seed: number('seed', 1, _modulus - 1),
+            theme: theme,
             randomState: number('random', 1, _modulus - 1),
             pieces: pieces,
             ice: integers(data['ice'], cells, 2),

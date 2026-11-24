@@ -8,6 +8,8 @@ import '../middle/net_manager.dart';
 import 'animal_piece.dart';
 import 'match_clear_effects.dart';
 import 'match_conversion_transfer.dart';
+import 'match_ice.dart';
+import 'match_theme_style.dart';
 
 class MatchBoardWidget extends StatefulWidget {
   final MatchManager manager;
@@ -93,7 +95,7 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFF8BC7AE), width: 2),
+          border: Border.all(color: frame.theme.boardBorder, width: 2),
         ),
         child: Padding(
           padding: const EdgeInsets.all(8),
@@ -234,58 +236,14 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                                                 ? 0
                                                 : 1,
                                             duration: pieceClearDuration,
-                                            child: Stack(
-                                              alignment: Alignment.center,
-                                              children: [
-                                                Positioned.fill(
-                                                  child: CustomPaint(
-                                                    painter: AnimalPiecePainter(
-                                                      piece: piece,
-                                                      clock: _clock,
-                                                      animated:
-                                                          _animate &&
-                                                          !frame.hasVisibleIce(
-                                                            index,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (frame.hasVisibleIce(index))
-                                                  Positioned.fill(
-                                                    key: const ValueKey(
-                                                      'match-ice-overlay',
-                                                    ),
-                                                    child: Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            2,
-                                                          ),
-                                                      child: DecoratedBox(
-                                                        decoration: BoxDecoration(
-                                                          color:
-                                                              const Color(
-                                                                0xFF9DDBF2,
-                                                              ).withValues(
-                                                                alpha: 0.52,
-                                                              ),
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          border: Border.all(
-                                                            color:
-                                                                const Color(
-                                                                  0xFFD9F5FF,
-                                                                ).withValues(
-                                                                  alpha: 0.85,
-                                                                ),
-                                                            width: 1.5,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
+                                            child: CustomPaint(
+                                              painter: AnimalPiecePainter(
+                                                piece: piece,
+                                                clock: _clock,
+                                                animated:
+                                                    _animate &&
+                                                    !frame.hasVisibleIce(index),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -295,6 +253,22 @@ class _MatchBoardWidgetState extends State<MatchBoardWidget>
                             ],
                           ),
                         ),
+                        for (var index = 0; index < MatchBoard.cells; index++)
+                          if (frame.hasVisibleIce(index))
+                            Positioned(
+                              left: index % MatchBoard.side * cell,
+                              top: index ~/ MatchBoard.side * cell,
+                              width: cell,
+                              height: cell,
+                              child: IgnorePointer(
+                                child: MatchIce(
+                                  key: const ValueKey('match-ice-overlay'),
+                                  layers: frame.visibleIceAt(index),
+                                ),
+                              ),
+                            ),
+                        if (_animate && frame.spreadingIce.isNotEmpty)
+                          Positioned.fill(child: MatchIceSpread(frame: frame)),
                         for (final wave in clearWaves)
                           Positioned.fill(
                             key: frame.bonusAt == null ? null : ObjectKey(wave),
