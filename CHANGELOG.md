@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.7] - 2026-11-24
+- Stabilize network resource tests by waiting for both clients to receive their messages.
+- Restore Android release builds with the updated Gradle, Android Gradle Plugin, and Kotlin toolchain.
+- Include the match-three improvements, limited-piece Gomoku, and Flutter 3.50.1 upgrade.
+
+### Changed
+- ignore Android build artifacts
+
 ## [1.3.6] - 2026-11-24
 - Restore Android release builds by updating Gradle, Android Gradle Plugin, and Kotlin.
 - Include the match-three improvements, limited-piece Gomoku, and Flutter 3.50.1 upgrade from the previous release attempt.
